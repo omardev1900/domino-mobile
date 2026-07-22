@@ -1243,38 +1243,19 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             setRoundResultSnapshot(gameState);
             setShowRoundResult(true);
             pendingRoundResultTransition.current = () => {
-                isAdVisibleRef.current = true;
-                setIsAdVisible(true);
-                setTimeout(() => {
-                    try {
-                        showAdMob();
-                        setTimeout(() => {
-                            if (isAdVisibleRef.current) {
-                                LogService.warn('GameScreen', 'AdMob fallback timeout (MATCH_END skip)');
-                                isAdVisibleRef.current = false;
-                                setIsAdVisible(false);
-                                if (pendingPhaseTransitionRef.current) {
-                                    const pending = pendingPhaseTransitionRef.current;
-                                    pendingPhaseTransitionRef.current = null;
-                                    pending();
-                                }
-                            }
-                        }, 15000);
-                    } catch (e) {
-                        LogService.error('GameScreen', 'Failed to show AdMob (MATCH_END skip)', e);
-                        isAdVisibleRef.current = false;
-                        setIsAdVisible(false);
-                        if (pendingPhaseTransitionRef.current) {
-                            const pending = pendingPhaseTransitionRef.current;
-                            pendingPhaseTransitionRef.current = null;
-                            pending();
-                        }
-                    }
-                }, 50);
-                pendingPhaseTransitionRef.current = () => setScoreOverlayPhase('MATCH_END');
-                return;
-            }
+                partieEndContinueRef.current();
+            };
+            if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
+            roundResultTimerRef.current = setTimeout(handleDismissRoundResult, 12000);
+            return () => {
+                if (roundResultTimerRef.current) {
+                    clearTimeout(roundResultTimerRef.current);
+                    roundResultTimerRef.current = null;
+                }
+            };
+        }
 
+        if (gameState.phase === 'MATCH_END') {
             const triggerMatchEnd = () => {
                 isAdVisibleRef.current = true;
                 setIsAdVisible(true);
@@ -2120,7 +2101,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     localPlayerId={localPlayerId}
                     opponents={opponents}
                     isHost={isLocalHost}
-                    autoAdvanceDelay={isSoloMode ? 0 : 4000}
+                    autoAdvanceDelay={4000}
                     localPlayerIndex={(roundResultSnapshot ?? gameState)?.players.findIndex(p => p.id === localPlayerId) ?? 0}
                 />
             )}

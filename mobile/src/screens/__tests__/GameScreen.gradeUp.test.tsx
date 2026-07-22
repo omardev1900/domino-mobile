@@ -528,6 +528,37 @@ describe('GameScreen grade-up flow', () => {
         });
     });
 
+    it('continue vers le round suivant apres la fermeture du resultat PARTIE_END', async () => {
+        mockCurrentGameState = {
+            ...mockCurrentGameState,
+            phase: 'PARTIE_END',
+        } as any;
+
+        render(
+            <GameScreen
+                gameId="game-123"
+                userId="p1"
+                mode="solo"
+                gameMode="MANCHE"
+                winningCondition={3}
+                turnDuration={15}
+                startingHandSize={7}
+            />
+        );
+
+        await waitFor(() => {
+            expect(getLastRoundResultProps().visible).toBe(true);
+            expect(getLastRoundResultProps().autoAdvanceDelay).toBe(4000);
+        });
+
+        await act(async () => {
+            getLastRoundResultProps().onDismiss();
+        });
+
+        expect(mockHandleOverlayContinue).toHaveBeenCalledTimes(1);
+        expect(getLastOverlayProps().showScoreOverlay).toBe(false);
+    });
+
     it('n affiche pas l overlay final de match avant la fin du RoundResultCard quand on sort d une fin de manche', async () => {
         jest.useFakeTimers();
 
