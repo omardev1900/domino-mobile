@@ -37,6 +37,7 @@ import { getStorage } from 'firebase/storage';
 import { getDatabase } from 'firebase/database';
 import { GameRoom, GameState, PlayerProfile, RoomStatus, GameMode } from '../types';
 import { LogService } from './LogService';
+import { resolveStartingHandSize } from '../startingHandSize';
 import { roomNameSchema } from '../validation/schemas';
 
 // FIX-MULTI-P1: File séquentielle (FIFO) pour garantir l'ordre des écritures sans perte de données rapides
@@ -134,10 +135,7 @@ export const createRoom = async (
     if (!Number.isInteger(winningCondition) || winningCondition < 1 || winningCondition > 20) {
         throw new Error('Condition de victoire invalide (1-20)');
     }
-    const startingHandSize = options?.startingHandSize ?? 3;
-    if (!Number.isInteger(startingHandSize) || startingHandSize < 1 || startingHandSize > 14) {
-        throw new Error('Taille de main invalide (1-14)');
-    }
+    const startingHandSize = resolveStartingHandSize(options?.startingHandSize);
 
     try {
         const now = Date.now();
@@ -157,7 +155,7 @@ export const createRoom = async (
             gameMode: options?.gameMode || 'MANCHE',
             winningCondition: options?.winningCondition || 6,
             turnDuration: options?.turnDuration ?? 1,
-            startingHandSize: options?.startingHandSize || 3,
+            startingHandSize,
             buyIn: options?.buyIn || 50, // Default to 50 Coins MVP
         };
 

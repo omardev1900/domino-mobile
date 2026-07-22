@@ -148,6 +148,7 @@ export const dealGame = (playerNames: string[], handSize: number = HAND_SIZE): P
         },
         gameMode: 'MANCHE',
         winningCondition: WINS_TO_WIN_MATCH,
+        startingHandSize: handSize,
         lastActionTimestamp: Date.now(),
         turnId: 0,
         reDealCount: 0, // ✅ Initialisation (C5)

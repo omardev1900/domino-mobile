@@ -6,7 +6,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp, FadeInLeft, FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HAND_SIZE, TURN_DURATION_SECONDS } from '../src/core/constants';
+import { TURN_DURATION_SECONDS } from '../src/core/constants';
+import { DEFAULT_STARTING_HAND_SIZE, DEV_STARTING_HAND_SIZES } from '../src/core/startingHandSize';
 import { authService } from '../src/core/services/auth.service';
 import { PlayerProfile } from '../src/core/types';
 import { economyService } from '../src/core/services/economy.service';
@@ -47,7 +48,7 @@ export default function SoloScreen() {
     const [gameMode, setGameMode] = useState<GameMode>('COCHON');
     const [winningCondition, setWinningCondition] = useState(__DEV__ ? 1 : 10);
     const [turnDuration, setTurnDuration] = useState(TURN_DURATION_SECONDS);
-    const [startingHandSize, setStartingHandSize] = useState(HAND_SIZE);
+    const [startingHandSize, setStartingHandSize] = useState(DEFAULT_STARTING_HAND_SIZE);
     const [user, setUser] = useState<PlayerProfile | null>(null);
     const [tableTier] = useState<TableTier>('DEBUTANT');
     const [economyRefresh, setEconomyRefresh] = useState(0);
@@ -364,6 +365,32 @@ export default function SoloScreen() {
                                                 </View>
                                                 <Text style={styles.paramSubtext}>secondes</Text>
                                             </View>
+
+                                            {__DEV__ && (
+                                                <View style={styles.paramItemHorizontal}>
+                                                    <Text style={styles.paramLabelSmall}>DOMINOS</Text>
+                                                    <View style={styles.diffToggleSmall}>
+                                                        {DEV_STARTING_HAND_SIZES.map(size => (
+                                                            <TouchableOpacity
+                                                                key={size}
+                                                                style={[
+                                                                    styles.diffBtnSmall,
+                                                                    startingHandSize === size && styles.activeDiffBtnSmall,
+                                                                ]}
+                                                                onPress={() => setStartingHandSize(size)}
+                                                            >
+                                                                <Text style={[
+                                                                    styles.handSizeOptionText,
+                                                                    startingHandSize === size && styles.handSizeOptionTextActive,
+                                                                ]}>
+                                                                    {size}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </View>
+                                                    <Text style={styles.paramSubtext}>par joueur</Text>
+                                                </View>
+                                            )}
                                         </View>
                                     </View>
                                 </View>
@@ -618,6 +645,14 @@ const styles = StyleSheet.create({
     },
     diffIconSmall: {
         fontSize: 18,
+    },
+    handSizeOptionText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '900',
+    },
+    handSizeOptionTextActive: {
+        color: '#1A0E2E',
     },
     stepperSmall: {
         flexDirection: 'row',

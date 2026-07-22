@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { resolveStartingHandSize } from '../core/startingHandSize';
 
 /**
  * Validation schemas for the application using Zod
@@ -21,7 +22,10 @@ export const RoomCreationSchema = z.object({
     passcode: z.string().length(4, "Le code doit faire 4 chiffres").regex(/^\d+$/, "Le code doit être numérique").optional(),
     winningCondition: z.number().int().min(1).max(500),
     turnDuration: z.number().int().min(5).max(120),
-    startingHandSize: z.number().int().min(6).max(9),
+    startingHandSize: z.number().int().refine(
+        size => resolveStartingHandSize(size) === size,
+        "Taille de main non autorisée dans cet environnement"
+    ),
     buyIn: z.number().int().min(0).max(1000).optional(),
 });
 

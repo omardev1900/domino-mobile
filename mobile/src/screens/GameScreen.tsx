@@ -35,7 +35,7 @@ import { GameState, Player, PlayerId, GamePhase, Domino, GameRoom, GameMode } fr
 import { leaveRoom, startGame, clearRematchVotes, updatePlayerChat, resetRoomToLobby, markPlayerAsDebited, markRoomAsFinished, setUserActiveRoom, deleteWaitingRoomIfOwner } from '../core/services/firebase';
 import SoundManager from '../core/audio/SoundManager';
 import HapticManager from '../core/audio/HapticManager';
-import { HAND_SIZE } from '../core/constants';
+import { resolveStartingHandSize } from '../core/startingHandSize';
 import SettingsManager from '../core/SettingsManager';
 import { TableTheme } from '../core/themes/tableThemes';
 import { authService } from '../core/services/auth.service';
@@ -90,7 +90,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // -- 1. Basal State & Identity --
     const [localPlayerId] = useState<PlayerId>(userId || 'p1');
     const [isSoloMode] = useState(mode === 'solo');
-    const [startingHandSize] = useState(propStartingHandSize || HAND_SIZE);
+    const [startingHandSize] = useState(() => resolveStartingHandSize(propStartingHandSize));
     const [activeTableTier] = useState<TableTier>((propTableTier as TableTier) || 'DEBUTANT');
     const persistenceUserId = authUid || userId;
 
@@ -1625,10 +1625,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 }
             }
 
-            const fullState = dealGame(
-                playerNames,
-                roomData.startingHandSize || 7
-            ) as GameState;
+            const multiplayerStartingHandSize = resolveStartingHandSize(roomData.startingHandSize);
+            const fullState = dealGame(playerNames, multiplayerStartingHandSize) as GameState;
 
             // Apply room settings manually to the partial state if needed
             fullState.gameMode = roomData.gameMode || 'MANCHE';
@@ -1644,7 +1642,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             fullState.history = [];
             fullState.firstPlayerOfRound = null;
             fullState.mancheResult = null;
-            fullState.startingHandSize = roomData.startingHandSize || 7;
+            fullState.startingHandSize = multiplayerStartingHandSize;
 
             // Re-assign IDs to actual UIDs for real players, and configure Bots
             fullState.players = fullState.players.map((p, i) => {
