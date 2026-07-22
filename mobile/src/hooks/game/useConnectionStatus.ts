@@ -67,7 +67,7 @@ export const useConnectionStatus = ({
         } catch {
             // Ignore silent network errors on ping
         }
-    }, [gameId, isSoloMode, localPlayerId]); // externalGamePhaseRef est un ref stable, pas besoin de l'inclure
+    }, [externalGamePhaseRef, gameId, isSoloMode, localPlayerId]);
 
     useEffect(() => {
         if (!gameId || isSoloMode) return;
@@ -146,8 +146,14 @@ export const useConnectionStatus = ({
             return;
         }
 
+        // Publier le retour RTDB en premier annule immédiatement les timers de grâce adverses.
+        // La transaction Firestore restaure ensuite le statut partagé si nécessaire.
+        const presenceRef = ref(rtdb, `presence/${gameId}/${localPlayerId}`);
         const roomRef = doc(db, 'rooms', gameId);
         try {
+            await rtdbOnDisconnect(presenceRef).set({ status: 'offline', t: Date.now() });
+            await set(presenceRef, { status: 'online', t: Date.now() });
+
             await runTransaction(db, async (transaction) => {
                 const roomDoc = await transaction.get(roomRef);
                 if (!roomDoc.exists()) return;
@@ -172,17 +178,10 @@ export const useConnectionStatus = ({
                     rejoinTimerRef.current = setTimeout(() => setIsRejoining(false), 3000);
                 }
             });
-
-            // Remettre la présence RTDB à 'online' et réarmer le onDisconnect
-            if (gameId && localPlayerId) {
-                const presenceRef = ref(rtdb, `presence/${gameId}/${localPlayerId}`);
-                await rtdbOnDisconnect(presenceRef).set({ status: 'offline', t: Date.now() });
-                await set(presenceRef, { status: 'online', t: Date.now() });
-            }
         } catch (error) {
             LogService.error('ConnectionStatus', 'Error signalPlayerOnline:', error);
         }
-    }, [gameId, isSoloMode, localPlayerId]);
+    }, [externalGamePhaseRef, gameId, isSoloMode, localPlayerId]);
 
     // ─── 4. SIGNAL OFFLINE (quitter volontaire ou crash) ─────────────────────
     // surrendered = true  → joueur a cliqué "Quitter" volontairement → SURRENDERED

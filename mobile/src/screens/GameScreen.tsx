@@ -45,6 +45,7 @@ import { FlyingDominoData } from '../core/animations/AnimationTypes';
 import { FlyingDomino } from '../components/FlyingDomino';
 import { useConnectionStatus } from '../hooks/game/useConnectionStatus';
 import { isHeartbeatSuspendedPhase } from '../hooks/game/presencePolicy';
+import { markPlayersDisconnected } from '../hooks/game/playerPresence';
 import { useGameSync } from '../hooks/game/useGameSync';
 import { useGameTimers } from '../hooks/game/useGameTimers';
 import { useGameEngine } from '../hooks/game/useGameEngine';
@@ -206,25 +207,19 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             if (isHeartbeatSuspendedPhase(currentRoomData.gameState.phase)) return;
 
             const now = Date.now();
-            let hasTimedOutPlayers = false;
-
-            const updatedPlayers = currentRoomData.gameState.players.map(p => {
-                if (p.id === localPlayerId || p.status !== 'HUMAN') return p;
+            const timedOutPlayerIds = currentRoomData.gameState.players.flatMap(p => {
+                if (p.id === localPlayerId || p.status !== 'HUMAN') return [];
                 const lastPing = currentRoomData.heartbeats?.[p.id] ?? 0;
                 if (now - lastPing > 25000) {
-                    hasTimedOutPlayers = true;
                     LogService.info('GameScreen', `[VIGILANCE] Player ${p.id} timed out (${Math.round((now - lastPing) / 1000)}s). Marking DISCONNECTED.`);
-                    return { ...p, status: 'DISCONNECTED' as const };
+                    return [p.id];
                 }
-                return p;
+                return [];
             });
 
-            if (hasTimedOutPlayers) {
+            if (timedOutPlayerIds.length > 0) {
                 try {
-                    const { updateDoc, doc } = await import('firebase/firestore');
-                    const { db } = await import('../core/services/firebase');
-                    const roomRef = doc(db, 'rooms', gameId);
-                    await updateDoc(roomRef, { 'gameState.players': updatedPlayers });
+                    await markPlayersDisconnected(gameId, timedOutPlayerIds, now - 25000);
                 } catch (error) {
                     LogService.error('GameScreen', '[VIGILANCE] Error marking player disconnected:', error);
                 }
@@ -244,6 +239,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // on utilise une grace period réduite (1s au lieu de 4s) pour que l'élection d'hôte
     // et le coup du bot se déclenchent en ~3-4s au lieu de ~7s.
     const rtdbOfflineTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+    const latestRtdbPresence = useRef<Record<string, { status: string; t: number }>>({});
 
     useEffect(() => {
         if (!gameId || isSoloMode) return;
@@ -254,6 +250,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
         const unsubPresence = rtdbOnValue(presenceRef, (snapshot) => {
             const presenceData = snapshot.val() as Record<string, { status: string; t: number }> | null;
+            latestRtdbPresence.current = presenceData ?? {};
             if (!presenceData) return;
 
             Object.entries(presenceData).forEach(([uid, data]) => {
@@ -274,6 +271,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     rtdbOfflineTimers.current[uid] = setTimeout(async () => {
                         delete rtdbOfflineTimers.current[uid];
 
+                        // Le snapshot RTDB peut être devenu online pendant l'attente du timer.
+                        if (latestRtdbPresence.current[uid]?.status !== 'offline') return;
+
                         // Vérifier l'état actuel avant d'écrire (le joueur a peut-être déjà reconnecté)
                         const currentRoomData = roomDataRef.current;
                         if (!currentRoomData?.gameState?.players) return;
@@ -282,14 +282,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                         if (!player || player.status !== 'HUMAN') return; // Déjà DISCONNECTED ou BOT
 
                         LogService.info('GameScreen', `[RTDB-PRESENCE] Grace period expired — marking ${uid} DISCONNECTED`);
-                        const updatedPlayers = currentRoomData.gameState.players.map(p =>
-                            p.id === uid ? { ...p, status: 'DISCONNECTED' as const } : p
-                        );
 
                         try {
-                            const { updateDoc, doc } = await import('firebase/firestore');
-                            const { db } = await import('../core/services/firebase');
-                            await updateDoc(doc(db, 'rooms', gameId), { 'gameState.players': updatedPlayers });
+                            await markPlayersDisconnected(gameId, [uid]);
                         } catch (error) {
                             LogService.error('GameScreen', '[RTDB-PRESENCE] Error marking player disconnected:', error);
                         }
@@ -311,6 +306,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             // Annuler tous les timers en suspens au démontage
             Object.values(rtdbOfflineTimers.current).forEach(clearTimeout);
             rtdbOfflineTimers.current = {};
+            latestRtdbPresence.current = {};
         };
     }, [gameId, isSoloMode, localPlayerId]);
 
