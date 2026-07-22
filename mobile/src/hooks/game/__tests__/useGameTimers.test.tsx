@@ -4,6 +4,7 @@ import { useGameTimers } from '../useGameTimers';
 import { GameState, Player } from '../../../core/types';
 import { createBaseGameState } from './testUtils';
 import { Text, View } from 'react-native';
+import { TURN_TIMEOUT_GRACE_SECONDS } from '../../../core/constants';
 
 describe('useGameTimers Hook (Component Wrapper)', () => {
     let mockOnTimeout: jest.Mock;
@@ -92,7 +93,7 @@ describe('useGameTimers Hook (Component Wrapper)', () => {
         });
 
         expect(getByTestId('timeLeft').props.children).toBe(0);
-        expect(getByTestId('overtime').props.children).toBe(5);
+        expect(getByTestId('overtime').props.children).toBe(TURN_TIMEOUT_GRACE_SECONDS);
     });
 
     it('triggers onTimeout and watchdog resets overtime to 2', () => {
@@ -104,8 +105,8 @@ describe('useGameTimers Hook (Component Wrapper)', () => {
             jest.advanceTimersByTime(1100);
         });
 
-        // Avancer tout l'overtime (5s) par étape pour déclencher les useEffect successifs
-        for(let i = 0; i < 5; i++) {
+        // Avancer toute la marge par étape pour déclencher les useEffect successifs
+        for(let i = 0; i < TURN_TIMEOUT_GRACE_SECONDS; i++) {
             act(() => {
                 jest.advanceTimersByTime(1000);
             });
@@ -124,8 +125,8 @@ describe('useGameTimers Hook (Component Wrapper)', () => {
             jest.advanceTimersByTime(1100);
         });
 
-        // Avancer overtime initial de 5s
-        for(let i = 0; i < 5; i++) {
+        // Avancer la marge initiale
+        for(let i = 0; i < TURN_TIMEOUT_GRACE_SECONDS; i++) {
             act(() => jest.advanceTimersByTime(1000));
         }
 

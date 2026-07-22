@@ -30,7 +30,7 @@ interface PlayerAvatarProps {
     onTimeout?: () => void; // Callback when timer expires
     isBoude?: boolean; // NEW: Player is currently blocked
     chatContent?: string | null; // NEW: Chat message or emoji
-    overtime?: number | null; // NEW: Explicit 5s Overtime
+    overtime?: number | null; // Marge après la fin du chrono principal
     isBotPlaying?: boolean; // NEW: Show bot indicator
     gameMode?: string; // NEW: The current game mode to conditionally show specific stats
     showHandDominoes?: boolean; // NEW: Reveal remaining dominoes in hand

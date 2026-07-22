@@ -9,6 +9,7 @@ export const MIN_PLAYERS = 2; // Solo mode
 export const WINS_TO_WIN_MATCH = 2;
 export const MANCHE_WIN_THRESHOLD = 3;
 export const TURN_DURATION_SECONDS = 15;
+export const TURN_TIMEOUT_GRACE_SECONDS = typeof __DEV__ !== 'undefined' && __DEV__ ? 1 : 3;
 
 export const ALL_DOMINOS: { left: DominoSide; right: DominoSide }[] = [];
 for (let i = 0; i <= 6; i++) {

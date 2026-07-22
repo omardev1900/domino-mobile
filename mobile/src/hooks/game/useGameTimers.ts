@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { GameState } from '../../core/types';
 import SoundManager from '../../core/audio/SoundManager';
+import { TURN_TIMEOUT_GRACE_SECONDS } from '../../core/constants';
 
 export interface UseGameTimersProps {
     gameState: GameState | null;
@@ -118,7 +119,7 @@ export const useGameTimers = ({
                 if (turnTimerRef.current) clearInterval(turnTimerRef.current);
                 turnTimerRef.current = null;
 
-                setOvertime(5);
+                setOvertime(TURN_TIMEOUT_GRACE_SECONDS);
                 SoundManager.playSound('end_time');
             }
         }, 500); // ✅ PERF: 500ms suffit pour une précision à la seconde (divise par 5 les re-renders)
