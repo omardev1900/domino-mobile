@@ -4,6 +4,7 @@ import { doc, runTransaction, updateDoc } from 'firebase/firestore';
 import { ref, set, onValue, onDisconnect as rtdbOnDisconnect } from 'firebase/database';
 import { GameRoom } from '../../core/types';
 import { LogService } from '../../core/services/LogService';
+import { isHeartbeatSuspendedPhase } from './presencePolicy';
 
 export interface UseConnectionStatusProps {
     gameId: string | undefined;
@@ -28,8 +29,6 @@ export interface UseConnectionStatusResult {
 }
 
 /** Phases durant lesquelles le heartbeat Firestore est suspendu pour éviter d'invalider les transactions NEXT_ROUND */
-const CRITICAL_PHASES = new Set(['PARTIE_END', 'MANCHE_END', 'MATCH_END']);
-
 export const useConnectionStatus = ({
     gameId,
     localPlayerId,
@@ -58,7 +57,7 @@ export const useConnectionStatus = ({
         if (!gameId || isSoloMode) return;
         // Suspendre pendant les transitions critiques pour ne pas invalider les transactions
         const phase = externalGamePhaseRef?.current;
-        if (phase && CRITICAL_PHASES.has(phase)) {
+        if (isHeartbeatSuspendedPhase(phase)) {
             LogService.debug('ConnectionStatus', `[HEARTBEAT] Skipped during ${phase}`);
             return;
         }
@@ -142,7 +141,7 @@ export const useConnectionStatus = ({
         // en conflit avec les écritures NEXT_ROUND de l'hôte → avalanche de FAILED_PRECONDITION,
         // round suivant bloqué et badge "Reprise de connexion" en boucle.
         const phase = externalGamePhaseRef?.current;
-        if (phase && CRITICAL_PHASES.has(phase)) {
+        if (isHeartbeatSuspendedPhase(phase)) {
             LogService.debug('ConnectionStatus', `[ONLINE] signalPlayerOnline skipped during ${phase}`);
             return;
         }

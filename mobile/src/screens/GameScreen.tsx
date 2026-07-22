@@ -44,6 +44,7 @@ import { AVAILABLE_AVATARS, AvatarId } from '../core/avatars';
 import { FlyingDominoData } from '../core/animations/AnimationTypes';
 import { FlyingDomino } from '../components/FlyingDomino';
 import { useConnectionStatus } from '../hooks/game/useConnectionStatus';
+import { isHeartbeatSuspendedPhase } from '../hooks/game/presencePolicy';
 import { useGameSync } from '../hooks/game/useGameSync';
 import { useGameTimers } from '../hooks/game/useGameTimers';
 import { useGameEngine } from '../hooks/game/useGameEngine';
@@ -198,6 +199,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         const checkInterval = setInterval(async () => {
             const currentRoomData = roomDataRef.current;
             if (!currentRoomData?.gameState?.players) return;
+            if (isHeartbeatSuspendedPhase(currentRoomData.gameState.phase)) return;
 
             const now = Date.now();
             let hasTimedOutPlayers = false;
