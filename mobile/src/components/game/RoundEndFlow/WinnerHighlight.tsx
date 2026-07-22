@@ -27,7 +27,7 @@ interface WinnerHighlightProps {
     autoAdvanceDelay?: number;
     /**
      * Index 0-based du joueur local dans le tableau players (pour échelonner les fallbacks non-hôte).
-     * Index 0 → 8s, index 1 → 10s, index 2 → 12s. Évite que tous les non-hôtes écrivent simultanément.
+     * Le fallback est plafonné à 3s pour respecter la limite UX entre deux rounds.
      */
     localPlayerIndex?: number;
 }
@@ -75,10 +75,10 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
     // safeUpdateGameState rejette silencieusement le doublon si l'hôte a déjà écrit.
     // FIX-400: délais échelonnés par index pour éviter que tous les non-hôtes écrivent
     // simultanément et provoquent des FAILED_PRECONDITION en cascade.
-    // Index 0 → 8s, index 1 → 10s, index 2 → 12s (hôte tire toujours à 4s)
+    // Tous les clients restent sous la limite UX de 3 secondes.
     useEffect(() => {
         if (!visible || isHost || !autoAdvanceDelay || autoAdvanceDelay <= 0) return;
-        const fallbackDelay = autoAdvanceDelay * 2 + localPlayerIndex * 2000;
+        const fallbackDelay = Math.min(autoAdvanceDelay * 2 + localPlayerIndex * 2000, 3000);
         const timer = setTimeout(() => {
             onContinue();
         }, fallbackDelay);

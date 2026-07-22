@@ -548,7 +548,7 @@ describe('GameScreen grade-up flow', () => {
 
         await waitFor(() => {
             expect(getLastRoundResultProps().visible).toBe(true);
-            expect(getLastRoundResultProps().autoAdvanceDelay).toBe(4000);
+            expect(getLastRoundResultProps().autoAdvanceDelay).toBe(2000);
         });
 
         await act(async () => {
@@ -589,7 +589,7 @@ describe('GameScreen grade-up flow', () => {
 
         // Après l'animation (13s), le RoundResultCard disparaît et l'overlay de manche s'affiche
         await act(async () => {
-            jest.advanceTimersByTime(13000);
+            jest.advanceTimersByTime(3100);
             await Promise.resolve();
         });
 
@@ -626,7 +626,7 @@ describe('GameScreen grade-up flow', () => {
         expect(getLastRoundResultProps().gameState.phase).toBe('MATCH_END');
 
         await act(async () => {
-            jest.advanceTimersByTime(13000);
+            jest.advanceTimersByTime(3100);
             await Promise.resolve();
         });
 
@@ -708,7 +708,7 @@ describe('GameScreen grade-up flow', () => {
         expect(getLastRoundResultProps().visible).toBe(true);
 
         await act(async () => {
-            jest.advanceTimersByTime(13000);
+            jest.advanceTimersByTime(3100);
             await Promise.resolve();
         });
 

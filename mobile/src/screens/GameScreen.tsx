@@ -75,6 +75,10 @@ interface GameScreenProps {
     tableTier?: string; // TableTier passé depuis solo.tsx / lobby.tsx
 }
 
+const ROUND_RESULT_AUTO_ADVANCE_MS = 2000;
+const RESULT_TRANSITION_FALLBACK_MS = 3000;
+const MATCH_REWARD_DELAY_MS = 2500;
+
 export default function GameScreen({ gameId, userId, authUid, mode, difficulty, gameMode, winningCondition, turnDuration, startingHandSize: propStartingHandSize, tableTier: propTableTier }: GameScreenProps) {
     const { width, height } = useWindowDimensions();
     const insets = useSafeAreaInsets();
@@ -422,8 +426,6 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         return () => clearTimeout(watchdog);
     }, [flyingDomino, finishFlyingDomino]);
 
-    const pendingPhaseTransitionRef = useRef<(() => void) | null>(null);
-
     // -- 4. Timer Hook --
     const {
         timeLeft,
@@ -675,11 +677,6 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         if (isAdMobClosed) {
             isAdVisibleRef.current = false;
             setIsAdVisible(false);
-            const pending = pendingPhaseTransitionRef.current;
-            if (pending) {
-                pendingPhaseTransitionRef.current = null;
-                pending();
-            }
             if (Platform.OS !== 'web') {
                 loadAdMob();
             }
@@ -1176,19 +1173,19 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 setShowRoundResult(true);
             }
             if (isLocalHost && !boudeTimerRef.current) {
-                // Host : on résout soi-même après 12s (pour laisser les animations de fin de round se terminer)
+                // L'hôte résout avant la limite UX de 3 secondes.
                 boudeTimerRef.current = setTimeout(() => {
                     resolveBoudeOnce(boudeResultKey);
                     boudeTimerRef.current = null;
-                }, 12000);
+                }, RESULT_TRANSITION_FALLBACK_MS);
             } else if (!isLocalHost && !boudeTimerRef.current) {
                 // Secours (Acting Host transition fallback) : 
-                // Si l'hôte a crash ou est offline, n'importe quel autre joueur humain actif résout après 15s
+                // Si l'hôte est indisponible, un autre joueur résout au plus tard à 3s.
                 // Firestore n'enregistrera l'update qu'une seule fois grâce à l'idempotence de resolveBoude
                 boudeTimerRef.current = setTimeout(() => {
                     resolveBoudeOnce(boudeResultKey);
                     boudeTimerRef.current = null;
-                }, 15000);
+                }, RESULT_TRANSITION_FALLBACK_MS);
             }
             // Attente de PARTIE_END via Firestore (timer du host ou secours)
             return;
@@ -1216,9 +1213,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             pendingRoundResultTransition.current = () => {
                 setScoreOverlayPhase('MANCHE_END');
             };
-            // Filet de sécurité : dismiss automatique après 12s si l'auto-advance échoue
+            // Filet de sécurité : dismiss automatique à 3s si l'auto-advance échoue.
             if (!roundResultTimerRef.current) {
-                roundResultTimerRef.current = setTimeout(handleDismissRoundResult, 12000);
+                roundResultTimerRef.current = setTimeout(handleDismissRoundResult, RESULT_TRANSITION_FALLBACK_MS);
             }
             return () => {
                 // FIX-TIMER: remettre la ref à null sinon un rerun de l'effet
@@ -1248,7 +1245,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 partieEndContinueRef.current();
             };
             if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
-            roundResultTimerRef.current = setTimeout(handleDismissRoundResult, 12000);
+            roundResultTimerRef.current = setTimeout(handleDismissRoundResult, RESULT_TRANSITION_FALLBACK_MS);
             return () => {
                 if (roundResultTimerRef.current) {
                     clearTimeout(roundResultTimerRef.current);
@@ -1259,6 +1256,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
         if (gameState.phase === 'MATCH_END') {
             const triggerMatchEnd = () => {
+                setScoreOverlayPhase('MATCH_END');
+                if (isSoloMode || Platform.OS === 'web' || !isAdMobLoaded) return;
+
                 isAdVisibleRef.current = true;
                 setIsAdVisible(true);
                 setTimeout(() => {
@@ -1269,28 +1269,17 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                                 LogService.warn('GameScreen', 'AdMob fallback timeout (MATCH_END)');
                                 isAdVisibleRef.current = false;
                                 setIsAdVisible(false);
-                                if (pendingPhaseTransitionRef.current) {
-                                    const pending = pendingPhaseTransitionRef.current;
-                                    pendingPhaseTransitionRef.current = null;
-                                    pending();
-                                }
                             }
-                        }, 15000);
+                        }, RESULT_TRANSITION_FALLBACK_MS);
                     } catch (e) {
                         LogService.error('GameScreen', 'Failed to show AdMob (MATCH_END)', e);
                         isAdVisibleRef.current = false;
                         setIsAdVisible(false);
-                        if (pendingPhaseTransitionRef.current) {
-                            const pending = pendingPhaseTransitionRef.current;
-                            pendingPhaseTransitionRef.current = null;
-                            pending();
-                        }
                     }
                 }, 50);
-                pendingPhaseTransitionRef.current = () => setScoreOverlayPhase('MATCH_END');
             };
 
-            // Fin de match : affichage temporaire du RoundResultCard (5s) PUIS UnifiedResultOverlay
+            // Fin de match : rÃ©sultat bref, puis scores en moins de 3 secondes.
             setScoreOverlayPhase(null);
             setRoundResultSnapshot(gameState);
             setShowRoundResult(true);
@@ -1298,7 +1287,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 triggerMatchEnd();
             };
             if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
-            roundResultTimerRef.current = setTimeout(handleDismissRoundResult, 12000);
+            roundResultTimerRef.current = setTimeout(handleDismissRoundResult, RESULT_TRANSITION_FALLBACK_MS);
             return () => {
                 // FIX-TIMER: null obligatoire pour permettre le re-arm après rerun de l'effet
                 if (roundResultTimerRef.current) {
@@ -1309,14 +1298,14 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         }
     }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, isLocalHost, resolveBoudeOnce, isMoveAnimationActive]);
 
-    // Afficher la popup de pub récompensée 2 secondes après l'apparition du score de fin de match
+    // Afficher la popup récompensée dans les 3 secondes suivant les scores.
     // Uniquement en mode SOLO — en multi la pub interstitielle AdMob est déjà gérée ailleurs.
     useEffect(() => {
         if (scoreOverlayPhase === 'MATCH_END' && isSoloMode) {
             setMatchRewardAmount(100);
             const timer = setTimeout(() => {
                 setShowMatchRewardModal(true);
-            }, 4000);
+            }, MATCH_REWARD_DELAY_MS);
             return () => clearTimeout(timer);
         } else {
             setShowMatchRewardModal(false);
@@ -2103,7 +2092,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     localPlayerId={localPlayerId}
                     opponents={opponents}
                     isHost={isLocalHost}
-                    autoAdvanceDelay={4000}
+                    autoAdvanceDelay={ROUND_RESULT_AUTO_ADVANCE_MS}
                     localPlayerIndex={(roundResultSnapshot ?? gameState)?.players.findIndex(p => p.id === localPlayerId) ?? 0}
                 />
             )}
