@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, ZoomIn, FadeInUp, useReducedMotion } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,8 @@ interface MancheEndFlowProps {
     isHost: boolean;
 }
 
+const AUTO_ADVANCE_MS = 3000;
+
 export const MancheEndFlow: React.FC<MancheEndFlowProps> = ({
     gameState,
     visible,
@@ -28,7 +30,6 @@ export const MancheEndFlow: React.FC<MancheEndFlowProps> = ({
     const isCompact = height < 500;
     
     const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState<number | null>(null);
-    const AUTO_ADVANCE_MS = 2800;
 
     const isBoude = gameState.phase === 'BOUDE';
     const mancheResult = gameState.mancheResult;
@@ -82,19 +83,16 @@ export const MancheEndFlow: React.FC<MancheEndFlowProps> = ({
             SoundManager.playSound('mancheEnd');
         }
 
-        // Auto-advance for CHIRE (Manche annulée)
-        if (mancheResult === 'CHIRE') {
-            setAutoAdvanceSeconds(Math.ceil(AUTO_ADVANCE_MS / 1000));
-            const countdown = setInterval(() => {
-                setAutoAdvanceSeconds(prev => (prev === null || prev <= 1) ? 1 : prev - 1);
-            }, 1000);
+        setAutoAdvanceSeconds(Math.ceil(AUTO_ADVANCE_MS / 1000));
+        const countdown = setInterval(() => {
+            setAutoAdvanceSeconds(prev => (prev === null || prev <= 1) ? 1 : prev - 1);
+        }, 1000);
 
-            const autoAdvance = isHost ? setTimeout(() => onContinue(), AUTO_ADVANCE_MS) : null;
-            return () => {
-                clearInterval(countdown);
-                if (autoAdvance) clearTimeout(autoAdvance);
-            };
-        }
+        const autoAdvance = isHost ? setTimeout(() => onContinue(), AUTO_ADVANCE_MS) : null;
+        return () => {
+            clearInterval(countdown);
+            if (autoAdvance) clearTimeout(autoAdvance);
+        };
     }, [visible, isBoude, mancheResult, isHost, onContinue]);
 
     if (!visible) return null;
@@ -119,7 +117,7 @@ export const MancheEndFlow: React.FC<MancheEndFlowProps> = ({
                                 style={[styles.avatar, isCompact && { width: 90, height: 90, borderRadius: 45 }]}
                                 contentFit="cover"
                             />
-                            {mancheResult !== 'BOUDE' && <Text style={[styles.crown, isCompact && { fontSize: 35, top: -15, left: -10 }]}>👑</Text>}
+                            {!isBoude && <Text style={[styles.crown, isCompact && { fontSize: 35, top: -15, left: -10 }]}>👑</Text>}
                         </View>
                         <Text style={[styles.winnerName, winner.id === localPlayerId && styles.localWinnerName, isCompact && { fontSize: 18, marginTop: 10 }]}>
                             {winner.id === localPlayerId ? 'Vous avez gagné !' : winner.name}
@@ -129,25 +127,14 @@ export const MancheEndFlow: React.FC<MancheEndFlowProps> = ({
 
                 <View style={{ flex: 1 }} />
 
-                {/* Bouton Continuer / Auto-advance */}
+                {/* Transition automatique, publiée par l'hôte pour tous les clients. */}
                 <Animated.View entering={reducedMotion ? undefined : FadeInUp.delay(400).duration(300)} style={styles.footer}>
-                    {mancheResult === 'CHIRE' ? (
-                        <View style={[styles.btn, styles.disabledBtn]}>
-                            <Ionicons name="flash-outline" size={20} color="#FFD700" />
-                            <Text style={styles.btnText}>
-                                {isHost ? `Suite automatique dans ${autoAdvanceSeconds}s...` : "Attente de l'hôte..."}
-                            </Text>
-                        </View>
-                    ) : isHost ? (
-                        <TouchableOpacity style={styles.btn} onPress={onContinue} activeOpacity={0.85}>
-                            <Ionicons name="arrow-forward" size={20} color="#000" />
-                            <Text style={styles.btnText}>CONTINUER</Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <View style={[styles.btn, styles.disabledBtn]}>
-                            <Text style={[styles.btnText, { color: 'rgba(255,255,255,0.6)' }]}>Attente de l'hôte...</Text>
-                        </View>
-                    )}
+                    <View style={styles.autoAdvanceStatus}>
+                        <Ionicons name="flash-outline" size={20} color="#FFD700" />
+                        <Text style={styles.autoAdvanceText}>
+                            Suite automatique{autoAdvanceSeconds ? ` dans ${autoAdvanceSeconds}s` : '...'}
+                        </Text>
+                    </View>
                 </Animated.View>
             </Animated.View>
         </View>
@@ -251,31 +238,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 40,
     },
-    btn: {
+    autoAdvanceStatus: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#FFD700',
-        paddingHorizontal: 30,
-        paddingVertical: 15,
-        borderRadius: 25,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
         gap: 10,
-        minWidth: 200,
-        elevation: 5,
-        shadowColor: '#FFD700',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.4,
-        shadowRadius: 5,
     },
-    disabledBtn: {
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        borderColor: 'rgba(255,255,255,0.2)',
-        borderWidth: 1,
-        shadowOpacity: 0,
-        elevation: 0,
-    },
-    btnText: {
-        color: '#000',
+    autoAdvanceText: {
+        color: 'rgba(255,255,255,0.8)',
         fontSize: 16,
         fontWeight: 'bold',
         letterSpacing: 1,
