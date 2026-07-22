@@ -1,0 +1,45 @@
+modules = ["nodejs-20", "python-3.12", "web"]
+
+[nix]
+channel = "stable-25_05"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 5001
+externalPort = 3001
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd LP && pnpm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[userenv]
+
+[userenv.shared]
+EXPO_PUBLIC_FIREBASE_DATABASE_URL = "https://domino-martinique-v1-default-rtdb.firebaseio.com"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000

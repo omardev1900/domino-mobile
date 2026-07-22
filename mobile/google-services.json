@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "916243245615",
+    "project_id": "domino-martinique-v1",
+    "storage_bucket": "domino-martinique-v1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:916243245615:android:d481f7a88220cb8b5534da",
+        "android_client_info": {
+          "package_name": "com.dominomartinique.mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "916243245615-m3biip70ga7nlgm1mf8kqaa4tggl7g3g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dominomartinique.mobile",
+            "certificate_hash": "c25ac855026c8ae09417c489b4debcdf6bbb236c"
+          }
+        },
+        {
+          "client_id": "916243245615-ft1i2pm4e2s3qv5tshf8ca9h4krddkb0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-ygZuOZdJV7kQ6ae7lOX5S3jvipivw4M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "916243245615-ft1i2pm4e2s3qv5tshf8ca9h4krddkb0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

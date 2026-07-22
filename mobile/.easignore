@@ -1,0 +1,22 @@
+# Exclure les builds locaux et le cache
+dist/
+build/
+.expo/
+web-build/
+
+# Exclure les dossiers node_modules (EAS les réinstalle sur son serveur)
+node_modules/
+
+# Exclure d'éventuels fichiers de design ou de sauvegarde
+*.psd
+*.ai
+*.zip
+*.bak
+
+# Si tu as un dossier d'assets très lourd non utilisé par l'app
+# assets/raw-audio/
+# Exclure explicitement le cache et les builds natifs Android
+android/app/build/
+android/build/
+android/.cxx/
+android/app/.cxx/

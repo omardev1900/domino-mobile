@@ -1,0 +1,73 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+/.docs/
+*.local
+.env
+.env.local
+!.env.example
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.vercel
+.env*.local
+
+.kotlin/
+sentry.properties
+
+# Secrets and signing
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pem
+*.key
+*.mobileprovision
+mobile/keystore-psw.txt
+
+# Generated Firebase and Functions files
+.firebase/
+functions/lib/
+functions/build_output.txt
+
+# Expo and test outputs
+mobile/.expo/
+mobile/jest_output*.json
+mobile/src/core/__tests__/test-results*
+mobile/scripts/*.log
+mobile/scripts/bots_error.json
+*.tsbuildinfo
+*.bak
+
+# Generated Android files (native project sources remain versioned)
+mobile/android/.gradle/
+mobile/android/.kotlin/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/app/.cxx/
+mobile/android/local.properties
+
+# Local migration and tooling files
+.migration-backup/
+artifacts/
+/lib/
+.agent/
+.agents/
+.claude/

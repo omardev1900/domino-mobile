@@ -1,0 +1,112 @@
+{
+  "expo": {
+    "name": "Domino Martiniquais",
+    "slug": "domino-martinique",
+    "version": "1.1.1",
+    "orientation": "landscape",
+    "icon": "./src/assets/images/icon.png",
+    "scheme": "domino-martinique",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dominomartinique.mobile",
+      "associatedDomains": [
+        "applinks:domino-martinique.online"
+      ]
+    },
+    "android": {
+      "package": "com.dominomartinique.mobile",
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 16,
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "domino-martinique.online",
+              "pathPrefix": "/join"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#0d1f0d",
+        "foregroundImage": "./src/assets/images/icon.png"
+      },
+      "statusBar": {
+        "hidden": true
+      }
+    },
+    "web": {
+      "output": "single",
+      "bundler": "metro",
+      "favicon": "./src/assets/images/favicon.png"
+    },
+    "plugins": [
+      "./plugins/withAndroidSigning",
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./src/assets/images/splash-icon.png",
+          "imageWidth": 250,
+          "resizeMode": "contain",
+          "backgroundColor": "#0d1f0d",
+          "dark": {
+            "backgroundColor": "#0d1f0d"
+          }
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "react-native",
+          "organization": "happy-agency"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./src/assets/images/icon.png",
+          "color": "#1A0E2E",
+          "sounds": []
+        }
+      ],
+      "expo-asset",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-6342220391756861~3151159550",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
+          "userTrackingUsageDescription": "Cette application utilise vos données pour vous proposer des annonces publicitaires personnalisées."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true,
+      "baseUrl": ""
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "932e6ca2-b754-4ea4-a394-68ad16230bc2"
+      }
+    },
+    "owner": "aboumalak",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev"
+    }
+  }
+}

@@ -1,0 +1,58 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+#other
+docs/
+# Exception : documentation de maintenance (aucun secret)
+!docs/signing.md
+
+# Native — clés, certificats, keystores (JAMAIS dans git)
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# iOS native project is currently generated; Android is versioned because it
+# produced the release already published on Google Play.
+/ios
+
+# Agents IA & Temp files
+.claude/
+.agent/
+error.txt
+
+
+.env.local
+sentry.properties
