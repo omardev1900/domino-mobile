@@ -8,6 +8,56 @@ jest.mock('../../../core/audio/SoundManager', () => ({
 }));
 
 describe('useActionDispatcher - RESOLVE_BOUDE Tie-Break', () => {
+  it('increments stateVersion when MARK_BOUDE is synchronized in multiplayer', async () => {
+    const mockGameState = {
+      gameId: 'test-game',
+      phase: 'PLAYING',
+      players: [
+        { id: 'p1', name: 'Player 1', hand: [], status: 'HUMAN' },
+        { id: 'p2', name: 'Player 2', hand: [], status: 'HUMAN' }
+      ],
+      board: [],
+      currentPlayerId: 'p2',
+      roundNumber: 1,
+      mancheNumber: 1,
+      gameMode: 'CLASSIC',
+      turnId: 12,
+      stateVersion: 37,
+      lastActionTimestamp: Date.now(),
+      history: []
+    } as GameState;
+    const safeUpdateGameState = jest.fn().mockResolvedValue(undefined);
+    const setGameState = jest.fn();
+
+    const { result } = renderHook(() => useActionDispatcher({
+      gameState: mockGameState,
+      localPlayerId: 'p2',
+      isSoloMode: false,
+      gameId: 'test-game',
+      isLocalHost: false,
+      roomData: null,
+      acquireLock: () => true,
+      releaseLock: () => {},
+      canAction: () => true,
+      safeUpdateGameState,
+      setGameState,
+      clearAllTurnTimers: () => {},
+      setOvertime: () => {},
+    }));
+
+    await act(async () => {
+      await result.current.dispatch({ type: 'MARK_BOUDE', playerId: 'p2', turnId: 12 });
+    });
+
+    expect(safeUpdateGameState).toHaveBeenCalledWith(
+      'test-game',
+      expect.objectContaining({ boudePlayerId: 'p2', stateVersion: 38 })
+    );
+    expect(setGameState).toHaveBeenCalledWith(
+      expect.objectContaining({ boudePlayerId: 'p2', stateVersion: 38 })
+    );
+  });
+
   it('allows host phase transitions even when the turn lock is busy', async () => {
     const mockGameState: GameState = {
       gameId: 'test-game',

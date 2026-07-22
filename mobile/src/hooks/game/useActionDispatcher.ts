@@ -180,7 +180,11 @@ export const useActionDispatcher = ({
                 case 'MARK_BOUDE': {
                     // R2-B1 : on marque le joueur boudé dans le state partagé (Firestore) pour que
                     // tous les clients voient l'animation, pas seulement le joueur concerné.
-                    newState = { ...gameState, boudePlayerId: command.playerId };
+                    newState = {
+                        ...gameState,
+                        boudePlayerId: command.playerId,
+                        stateVersion: (gameState.stateVersion ?? 0) + 1
+                    };
                     break;
                 }
             }
