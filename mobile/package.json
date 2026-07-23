@@ -1,13 +1,14 @@
 {
   "name": "mobile",
   "main": "expo-router/entry",
-  "version": "1.1.1",
+  "version": "2.0.1",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "build:web": "expo export --platform web",
     "lint": "expo lint",
     "test": "jest",
     "test:multi": "firebase emulators:exec --project domino-martinique-v1 --only firestore \"jest src/core/__tests__/MultiplayerSync.integration.test.ts --testPathIgnorePatterns=NEVER_MATCH_THIS_PATH --runInBand --forceExit --silent\"",

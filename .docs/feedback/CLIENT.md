@@ -20,3 +20,6 @@
 
 > Apres migration du coordinateur terminal, le jeu multijoueur continue
 > normalement apres la fin du round, sans blocage.
+
+> Apres un deploiement Vercel annonce comme reussi, la page affiche
+> `404 NOT_FOUND` au lieu de l'application web.
