@@ -23,3 +23,10 @@
 
 > Apres un deploiement Vercel annonce comme reussi, la page affiche
 > `404 NOT_FOUND` au lieu de l'application web.
+
+> Oui il faut supprimer les pubs en web.
+
+> La popup recompensee reste uniquement apres les matchs solo sur mobile.
+> L'interstitielle existante reste reservee a la fin des matchs multijoueur.
+> En cas de `no-fill` AdMob, le bonus doit pouvoir etre recupere sans pub, mais
+> une recompense ne doit jamais etre creditee deux fois pour le meme match.
