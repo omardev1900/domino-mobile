@@ -42,6 +42,7 @@ export const submitGameActionTransaction = async (
     const input = humanGameActionInputSchema.parse(rawInput);
     const actionId = getHumanActionId(uid, input);
     const roomRef = db.collection('rooms').doc(input.roomId);
+    const userRef = db.collection('users').doc(uid);
 
     return db.runTransaction(async transaction => {
         const snapshot = await transaction.get(roomRef);
@@ -50,10 +51,21 @@ export const submitGameActionTransaction = async (
         }
 
         const room = snapshot.data() as GameRoom;
+        const isSurrender = input.action.type === 'SURRENDER';
+        const userSnapshot = isSurrender ? await transaction.get(userRef) : null;
         if (room.coordinatorVersion !== 1 || !room.gameState) {
             throw new HumanGameActionError('failed-precondition', 'Salle non coordonnee.');
         }
-        if (!room.playerIds?.includes(uid) || !room.gameState.players.some(player => player.id === uid)) {
+        const gamePlayer = room.gameState.players.find(player => player.id === uid);
+        if (
+            !gamePlayer
+            || (!isSurrender && !room.playerIds?.includes(uid))
+            || (
+                isSurrender
+                && !room.participantIds?.includes(uid)
+                && !room.playerIds?.includes(uid)
+            )
+        ) {
             throw new HumanGameActionError('permission-denied', 'Joueur absent de la salle.');
         }
 
@@ -63,20 +75,26 @@ export const submitGameActionTransaction = async (
             turnId: state.turnId ?? 0,
             phase: state.phase,
         };
+        if (isSurrender && gamePlayer.status === 'SURRENDERED') {
+            if (userSnapshot?.exists && userSnapshot.data()?.activeRoomId === input.roomId) {
+                transaction.set(userRef, { activeRoomId: null }, { merge: true });
+            }
+            return { applied: false, reason: 'ALREADY_APPLIED', ...resultBase };
+        }
         if (room.coordinator?.lastHumanActionId === actionId) {
             return { applied: false, reason: 'ALREADY_APPLIED', ...resultBase };
         }
-        if (
+        if (!isSurrender && (
             resultBase.stateVersion !== input.expectedStateVersion
             || resultBase.turnId !== input.expectedTurnId
             || state.phase !== 'PLAYING'
-        ) {
+        )) {
             return { applied: false, reason: 'STALE', ...resultBase };
         }
 
         const applied = computeHumanGameAction(state, uid, input);
         const nextState = applied.nextState;
-        transaction.update(roomRef, {
+        const roomUpdate: admin.firestore.UpdateData<admin.firestore.DocumentData> = {
             gameState: removeUndefinedValues(nextState),
             coordinator: {
                 ...(room.coordinator ?? { version: 1 }),
@@ -85,7 +103,22 @@ export const submitGameActionTransaction = async (
                 lastHumanActionAt: admin.firestore.FieldValue.serverTimestamp(),
             },
             lastActivity: Date.now(),
-        });
+        };
+        if (isSurrender) {
+            const remainingProfiles = room.players
+                .filter(profile => profile.uid !== uid)
+                .map((profile, index) => ({ ...profile, isHost: index === 0 }));
+            roomUpdate.players = remainingProfiles;
+            roomUpdate.playerIds = (room.playerIds ?? []).filter(playerId => playerId !== uid);
+            if (remainingProfiles[0]) {
+                roomUpdate.hostId = remainingProfiles[0].uid;
+                roomUpdate.createdBy = remainingProfiles[0].uid;
+            }
+            if (userSnapshot?.exists && userSnapshot.data()?.activeRoomId === input.roomId) {
+                transaction.set(userRef, { activeRoomId: null }, { merge: true });
+            }
+        }
+        transaction.update(roomRef, roomUpdate);
 
         return {
             applied: true,

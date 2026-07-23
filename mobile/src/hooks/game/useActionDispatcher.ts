@@ -1,6 +1,13 @@
 import { useCallback } from 'react';
 import { GameState, Domino, PlayerId, GameRoom, GamePhase } from '../../core/types';
-import { handleTurn, passTurn, resolveBoude, handleTimeout, computeNextRoundState } from '../../core/LogicEngine';
+import {
+    computeNextRoundState,
+    handleTimeout,
+    handleTurn,
+    passTurn,
+    resolveBoude,
+    surrenderPlayer,
+} from '../../core/LogicEngine';
 import SoundManager from '../../core/audio/SoundManager';
 import { LogService } from '../../core/services/LogService';
 import { submitGameAction } from '../../core/services/gameAction.service';
@@ -8,6 +15,7 @@ import { submitGameAction } from '../../core/services/gameAction.service';
 export type ActionCommand =
     | { type: 'PLAY_TILE'; playerId: PlayerId; tile: Domino; side?: 'start' | 'left' | 'right' }
     | { type: 'PASS_TURN'; playerId: PlayerId }
+    | { type: 'SURRENDER'; playerId: PlayerId }
     | { type: 'TIMEOUT'; playerId: PlayerId; turnId?: number }
     | { type: 'NEXT_ROUND'; stateOverride?: GameState }
     | { type: 'RESOLVE_BOUDE' }
@@ -94,7 +102,10 @@ export const useActionDispatcher = ({
         }
 
         // Tente d'acquérir le verrou
-        const usesTurnLock = command.type !== 'NEXT_ROUND' && command.type !== 'RESOLVE_BOUDE' && command.type !== 'MARK_BOUDE';
+        const usesTurnLock = command.type !== 'NEXT_ROUND'
+            && command.type !== 'RESOLVE_BOUDE'
+            && command.type !== 'MARK_BOUDE'
+            && command.type !== 'SURRENDER';
 
         if (usesTurnLock && !acquireLock()) {
             LogService.info('ActionDispatcher', 'Action rejected because lock is already held.', {
@@ -110,7 +121,11 @@ export const useActionDispatcher = ({
         try {
             const usesSystemCoordinator = !isSoloMode && roomData?.coordinatorVersion === 1;
             if (usesSystemCoordinator) {
-                if (command.type !== 'PLAY_TILE' && command.type !== 'PASS_TURN') return;
+                if (
+                    command.type !== 'PLAY_TILE'
+                    && command.type !== 'PASS_TURN'
+                    && command.type !== 'SURRENDER'
+                ) return;
                 if (command.playerId !== localPlayerId || !gameId) return;
 
                 const action = command.type === 'PLAY_TILE'
@@ -119,7 +134,9 @@ export const useActionDispatcher = ({
                         dominoId: command.tile.id,
                         ...(command.side ? { side: command.side } : {}),
                     }
-                    : { type: 'PASS_TURN' as const };
+                    : command.type === 'PASS_TURN'
+                        ? { type: 'PASS_TURN' as const }
+                        : { type: 'SURRENDER' as const };
                 const result = await submitGameAction({
                     roomId: gameId,
                     expectedStateVersion: gameState.stateVersion ?? 0,
@@ -150,6 +167,10 @@ export const useActionDispatcher = ({
                 case 'PASS_TURN': {
                     if (gameState.phase !== 'PLAYING') break;
                     newState = passTurn(gameState, command.playerId);
+                    break;
+                }
+                case 'SURRENDER': {
+                    newState = surrenderPlayer(gameState, command.playerId);
                     break;
                 }
                 case 'TIMEOUT': {
@@ -275,6 +296,9 @@ export const useActionDispatcher = ({
             }
         } catch (e) {
             LogService.error('ActionDispatcher', 'Erreur durant l\'action:', e);
+            if (command.type === 'SURRENDER') {
+                throw e;
+            }
         } finally {
             // Toujours libérer le verrou à la fin de l'action, qu'elle réussisse ou échoue !
             if (usesTurnLock) {

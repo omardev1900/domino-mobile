@@ -132,6 +132,22 @@ describe('humanGameAction', () => {
         );
     });
 
+    it('autorise un abandon hors de son tour et hors de la phase PLAYING', () => {
+        const terminalState = state();
+        terminalState.phase = 'PARTIE_END';
+        terminalState.currentPlayerId = 'p1';
+        const input = playInput({
+            expectedStateVersion: 1,
+            expectedTurnId: 0,
+            action: { type: 'SURRENDER' },
+        });
+
+        const result = computeHumanGameAction(terminalState, 'p2', input);
+
+        assert.equal(result.nextState.players[1].status, 'SURRENDERED');
+        assert.equal(result.nextState.stateVersion, 13);
+    });
+
     it('produit un identifiant idempotent stable et specifique au cote', () => {
         const right = getHumanActionId('p1', playInput());
         const left = getHumanActionId('p1', playInput({

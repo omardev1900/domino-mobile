@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { handleTurn, passTurn } from './gameCore/LogicEngine';
+import { handleTurn, passTurn, surrenderPlayer } from './gameCore/LogicEngine';
 import { GameState } from './gameCore/types';
 
 const playTileActionSchema = z.object({
@@ -13,11 +13,19 @@ const passTurnActionSchema = z.object({
     type: z.literal('PASS_TURN'),
 }).strict();
 
+const surrenderActionSchema = z.object({
+    type: z.literal('SURRENDER'),
+}).strict();
+
 export const humanGameActionInputSchema = z.object({
     roomId: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/),
     expectedStateVersion: z.number().int().nonnegative(),
     expectedTurnId: z.number().int().nonnegative(),
-    action: z.discriminatedUnion('type', [playTileActionSchema, passTurnActionSchema]),
+    action: z.discriminatedUnion('type', [
+        playTileActionSchema,
+        passTurnActionSchema,
+        surrenderActionSchema,
+    ]),
 }).strict();
 
 export type HumanGameActionInput = z.infer<typeof humanGameActionInputSchema>;
@@ -40,7 +48,7 @@ export interface AppliedHumanGameAction {
 export const getHumanActionId = (uid: string, input: HumanGameActionInput): string => {
     const detail = input.action.type === 'PLAY_TILE'
         ? `${input.action.dominoId}:${input.action.side ?? 'auto'}`
-        : 'pass';
+        : input.action.type === 'PASS_TURN' ? 'pass' : 'surrender';
     return [
         input.roomId,
         input.expectedStateVersion,
@@ -56,6 +64,12 @@ export const computeHumanGameAction = (
     uid: string,
     input: HumanGameActionInput
 ): AppliedHumanGameAction => {
+    if (input.action.type === 'SURRENDER') {
+        return {
+            actionId: getHumanActionId(uid, input),
+            nextState: surrenderPlayer(state, uid),
+        };
+    }
     if (state.phase !== 'PLAYING') {
         throw new HumanGameActionError('failed-precondition', 'La partie n est pas jouable.');
     }

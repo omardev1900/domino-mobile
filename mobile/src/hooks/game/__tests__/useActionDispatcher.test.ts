@@ -105,6 +105,89 @@ describe('useActionDispatcher - RESOLVE_BOUDE Tie-Break', () => {
     expect(mockSubmitGameAction.mock.lastCall?.[0].action).not.toHaveProperty('side');
   });
 
+  it('envoie un abandon coordonne meme si le verrou du tour est occupe', async () => {
+    const mockSubmitGameAction = submitGameAction as jest.MockedFunction<typeof submitGameAction>;
+    mockSubmitGameAction.mockResolvedValue({
+      applied: true,
+      stateVersion: 13,
+      turnId: 8,
+      phase: 'PLAYING',
+    });
+    const releaseLock = jest.fn();
+    const gameState = {
+      gameId: 'atomic-leave',
+      phase: 'PLAYING',
+      players: [
+        { id: 'p1', name: 'P1', hand: [], status: 'HUMAN' },
+        { id: 'p2', name: 'P2', hand: [], status: 'HUMAN' },
+      ],
+      currentPlayerId: 'p2',
+      turnId: 8,
+      stateVersion: 12,
+    } as unknown as GameState;
+
+    const { result } = renderHook(() => useActionDispatcher({
+      gameState,
+      localPlayerId: 'p1',
+      isSoloMode: false,
+      gameId: 'atomic-leave',
+      hasLegacyHostAuthority: false,
+      roomData: { coordinatorVersion: 1 } as GameRoom,
+      acquireLock: () => false,
+      releaseLock,
+      canAction: () => true,
+      safeUpdateGameState: jest.fn(),
+      setGameState: jest.fn(),
+      clearAllTurnTimers: jest.fn(),
+      setOvertime: jest.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.dispatch({ type: 'SURRENDER', playerId: 'p1' });
+    });
+
+    expect(mockSubmitGameAction).toHaveBeenLastCalledWith({
+      roomId: 'atomic-leave',
+      expectedStateVersion: 12,
+      expectedTurnId: 8,
+      action: { type: 'SURRENDER' },
+    });
+    expect(releaseLock).not.toHaveBeenCalled();
+  });
+
+  it('propage une erreur d abandon afin de bloquer la navigation', async () => {
+    const mockSubmitGameAction = submitGameAction as jest.MockedFunction<typeof submitGameAction>;
+    mockSubmitGameAction.mockRejectedValueOnce(new Error('network unavailable'));
+    const gameState = {
+      gameId: 'failed-leave',
+      phase: 'PLAYING',
+      players: [{ id: 'p1', name: 'P1', hand: [], status: 'HUMAN' }],
+      currentPlayerId: 'p1',
+      turnId: 8,
+      stateVersion: 12,
+    } as unknown as GameState;
+
+    const { result } = renderHook(() => useActionDispatcher({
+      gameState,
+      localPlayerId: 'p1',
+      isSoloMode: false,
+      gameId: 'failed-leave',
+      hasLegacyHostAuthority: false,
+      roomData: { coordinatorVersion: 1 } as GameRoom,
+      acquireLock: () => true,
+      releaseLock: jest.fn(),
+      canAction: () => true,
+      safeUpdateGameState: jest.fn(),
+      setGameState: jest.fn(),
+      clearAllTurnTimers: jest.fn(),
+      setOvertime: jest.fn(),
+    }));
+
+    await expect(act(async () => {
+      await result.current.dispatch({ type: 'SURRENDER', playerId: 'p1' });
+    })).rejects.toThrow('network unavailable');
+  });
+
   it('increments stateVersion when MARK_BOUDE is synchronized in multiplayer', async () => {
     const mockGameState = {
       gameId: 'test-game',

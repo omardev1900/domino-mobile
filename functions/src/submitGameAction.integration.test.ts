@@ -105,4 +105,54 @@ describe('submitGameAction avec Firestore Emulator', () => {
         assert.equal(room?.gameState.stateVersion, 13);
         assert.equal(room?.coordinator.lastHumanActionId.includes(':p1:PLAY_TILE:'), true);
     });
+
+    it('retire atomiquement un joueur actif tout en conservant les participants du match', async () => {
+        const roomRef = db.collection('rooms').doc('atomic-surrender-integration');
+        const userRef = db.collection('users').doc('p1');
+        await userRef.set({ activeRoomId: roomRef.id });
+        await roomRef.set({
+            coordinatorVersion: 1,
+            coordinator: { version: 1 },
+            playerIds: ['p1', 'p2', 'p3'],
+            participantIds: ['p1', 'p2', 'p3'],
+            participantProfiles: [
+                { uid: 'p1', displayName: 'P1', status: 'HUMAN', isHost: true },
+                { uid: 'p2', displayName: 'P2', status: 'HUMAN', isHost: false },
+                { uid: 'p3', displayName: 'P3', status: 'HUMAN', isHost: false },
+            ],
+            players: [
+                { uid: 'p1', displayName: 'P1', status: 'HUMAN', isHost: true },
+                { uid: 'p2', displayName: 'P2', status: 'HUMAN', isHost: false },
+                { uid: 'p3', displayName: 'P3', status: 'HUMAN', isHost: false },
+            ],
+            createdBy: 'p1',
+            hostId: 'p1',
+            status: 'PLAYING',
+            gameState: { ...gameState(), gameId: roomRef.id },
+            lastActivity: 1000,
+        });
+        const input = {
+            roomId: roomRef.id,
+            expectedStateVersion: 0,
+            expectedTurnId: 0,
+            action: { type: 'SURRENDER' as const },
+        };
+
+        const first = await submitGameActionTransaction(db, 'p1', input);
+        const duplicate = await submitGameActionTransaction(db, 'p1', input);
+        const room = (await roomRef.get()).data();
+        const user = (await userRef.get()).data();
+
+        assert.equal(first.applied, true);
+        assert.equal(duplicate.applied, false);
+        assert.equal(duplicate.reason, 'ALREADY_APPLIED');
+        assert.deepEqual(room?.playerIds, ['p2', 'p3']);
+        assert.deepEqual(room?.participantIds, ['p1', 'p2', 'p3']);
+        assert.deepEqual(room?.players.map((profile: { uid: string }) => profile.uid), ['p2', 'p3']);
+        assert.equal(room?.players[0].isHost, true);
+        assert.equal(room?.hostId, 'p2');
+        assert.equal(room?.createdBy, 'p2');
+        assert.equal(room?.gameState.players[0].status, 'SURRENDERED');
+        assert.equal(user?.activeRoomId, null);
+    });
 });

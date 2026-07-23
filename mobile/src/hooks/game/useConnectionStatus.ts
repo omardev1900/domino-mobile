@@ -4,7 +4,7 @@ import { doc, runTransaction, updateDoc } from 'firebase/firestore';
 import { ref, set, onValue, onDisconnect as rtdbOnDisconnect } from 'firebase/database';
 import { GameRoom } from '../../core/types';
 import { LogService } from '../../core/services/LogService';
-import { isHeartbeatSuspendedPhase } from './presencePolicy';
+import { isHeartbeatSuspendedPhase, shouldRestoreHumanStatus } from './presencePolicy';
 
 export interface UseConnectionStatusProps {
     gameId: string | undefined;
@@ -163,7 +163,7 @@ export const useConnectionStatus = ({
 
                 let stateUpdated = false;
                 const updatedPlayers = state.players.map((p) => {
-                    if (p.id === localPlayerId && p.status !== 'HUMAN') {
+                    if (p.id === localPlayerId && shouldRestoreHumanStatus(p.status)) {
                         stateUpdated = true;
                         return { ...p, status: 'HUMAN' as const };
                     }

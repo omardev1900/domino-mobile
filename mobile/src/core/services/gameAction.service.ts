@@ -14,6 +14,7 @@ const submitGameActionRequestSchema = z.object({
             side: z.enum(['start', 'left', 'right']).optional(),
         }).strict(),
         z.object({ type: z.literal('PASS_TURN') }).strict(),
+        z.object({ type: z.literal('SURRENDER') }).strict(),
     ]),
 }).strict();
 

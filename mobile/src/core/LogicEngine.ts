@@ -585,6 +585,24 @@ export const handleTimeout = (gameState: GameState, playerId: PlayerId): GameSta
     }
 };
 
+export const surrenderPlayer = (
+    gameState: GameState,
+    playerId: PlayerId,
+    now = Date.now()
+): GameState => {
+    const playerIndex = gameState.players.findIndex(player => player.id === playerId);
+    if (playerIndex === -1) throw new Error('Player not found');
+    if (gameState.players[playerIndex].status === 'BOT') {
+        throw new Error('A bot cannot surrender');
+    }
+
+    const nextState = structuredClone(gameState);
+    nextState.players[playerIndex].status = 'SURRENDERED';
+    nextState.stateVersion = (gameState.stateVersion ?? 0) + 1;
+    nextState.lastActionTimestamp = now;
+    return nextState;
+};
+
 /**
  * computeNextRoundState : Calcule l'état de départ du prochain round ou de la prochaine manche.
  */

@@ -1,10 +1,40 @@
 
-import { dealGame, checkValidMove, determineFirstPlayer, determineWinnerOnBoudé, calculateHandPoints, passTurn, handleTurn, getForcedOpeningDominoId, getForcedTieBreakDominoId } from '../LogicEngine';
+import { dealGame, checkValidMove, determineFirstPlayer, determineWinnerOnBoudé, calculateHandPoints, passTurn, handleTurn, getForcedOpeningDominoId, getForcedTieBreakDominoId, surrenderPlayer } from '../LogicEngine';
 import { Domino, Player, DominoSide, GameState } from '../types';
 import { determineTieBreakStarter, computeNextRoundState, resolveBoude } from '../LogicEngine';
 import { createBaseGameState } from '../../hooks/game/__tests__/testUtils';
 
 describe('LogicEngine', () => {
+    describe('surrenderPlayer', () => {
+        it('marque le joueur sans muter l etat source', () => {
+            const original = createBaseGameState({
+                players: [
+                    { id: 'p1', name: 'P1', hand: [], status: 'HUMAN' } as unknown as Player,
+                    { id: 'p2', name: 'P2', hand: [], status: 'HUMAN' } as unknown as Player,
+                ],
+                currentPlayerId: 'p2',
+                stateVersion: 4,
+                lastActionTimestamp: 100,
+            });
+
+            const surrendered = surrenderPlayer(original, 'p1', 200);
+
+            expect(surrendered.players[0].status).toBe('SURRENDERED');
+            expect(surrendered.stateVersion).toBe(5);
+            expect(surrendered.lastActionTimestamp).toBe(200);
+            expect(original.players[0].status).toBe('HUMAN');
+            expect(original.stateVersion).toBe(4);
+        });
+
+        it('refuse de marquer un bot comme ayant abandonne', () => {
+            const original = createBaseGameState({
+                players: [{ id: 'bot-1', name: 'Bot', hand: [], status: 'BOT' } as unknown as Player],
+            });
+
+            expect(() => surrenderPlayer(original, 'bot-1')).toThrow('A bot cannot surrender');
+        });
+    });
+
     describe('dealGame', () => {
         it('should deal 7 dominos to 3 players', () => {
             const game = dealGame(['Alice', 'Bob', 'Charlie']);
