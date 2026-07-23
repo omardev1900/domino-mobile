@@ -1,6 +1,6 @@
 # Coordinateur Firebase du jeu multijoueur
 
-Statut : plan valide par le client, implementation progressive obligatoire.
+Statut : implementation terminee et campagne generale executee le 2026-07-23.
 
 ## 1. Objectif
 
@@ -398,9 +398,8 @@ Limites connues :
 - Les chemins legacy sont conserves pour laisser finir les anciennes salles ;
   ils ne sont jamais selectionnes par une nouvelle partie, qui fixe
   `coordinatorVersion: 1` au lancement.
-- Le test historique de snapshot `PARTIE_END/MANCHE_END` reste instable et
-  expose une attente anterieure contradictoire. Les tests coordonnes concernes
-  passent et cet ecart n'est pas masque dans la campagne finale.
+- Le defaut historique de snapshot `PARTIE_END/MANCHE_END` a ete confirme par
+  la campagne finale puis corrige dans un commit independant (`be08bbe`).
 
 ## 9. Test general final
 
@@ -422,6 +421,45 @@ termine. Elle comprend au minimum :
 
 Le rapport final doit indiquer clairement les controles executes, leurs resultats,
 les controles impossibles dans l'environnement et les risques residuels.
+
+### Rapport de campagne finale - 2026-07-23
+
+Resultats valides :
+
+- Mobile Jest : 51 suites sur 51 et 449 tests sur 449.
+- Functions : build TypeScript strict et 29 tests unitaires sur 29.
+- Firebase Emulator Functions : campagne transactionnelle complete reussie.
+- Firestore Emulator mobile : 4 scenarios de regles sur 4, dont refus des
+  mutations de jeu client et autorisation bornee de la presence.
+- ESLint mobile : 0 erreur ; 340 avertissements historiques non bloquants.
+- Expo web : export complet reussi, 2 273 modules bundles sans EAS.
+- Regles Firestore de l'etape 5 compilees et publiees sur le projet cible.
+- Validation manuelle multijoueur precedente acceptee par le client.
+
+Correction issue de la campagne :
+
+- Le snapshot de resultat est maintenant rafraichi lors de la transition rapide
+  `PARTIE_END -> MANCHE_END`. La suite `GameScreen.gradeUp` qui echouait passe,
+  ainsi que la campagne mobile complete. Commit : `be08bbe`.
+
+Controles non concluants et dette existante :
+
+- `assembleDebug` Android local a ete tente deux fois sans EAS. Le premier essai
+  a ete bloque par l'acces du bac a sable au cache Kotlin ; le second a depasse
+  dix minutes sans erreur de source et sans produire d'APK. Le build Android
+  reste donc a confirmer hors de cette fenetre d'execution.
+- Le `tsc --noEmit` global mobile remonte 126 erreurs historiques dans les ecrans
+  de debug, les mocks et plusieurs anciennes fixtures. Les fichiers modifies
+  par l'etape 5 ne presentent plus d'erreur introduite par le retrait de l'hote.
+- Jest force encore sa sortie a cause de handles asynchrones ouverts. Tous les
+  tests passent, mais leur nettoyage pourra etre durci dans un chantier dedie.
+
+Conclusion :
+
+Le coordinateur est actif pour les nouvelles salles `coordinatorVersion: 1`.
+Les transitions terminales, les tours automatiques, les actions humaines, la
+finalisation et les regles d'autorite ne dependent plus du telephone hote. Les
+chemins historiques ne servent qu'aux anciennes salles non coordonnees.
 
 ## 10. Conditions d'arret
 
