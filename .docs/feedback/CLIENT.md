@@ -17,3 +17,6 @@
 
 > En quittant la partie, `signalPlayerOffline` echoue avec "Missing or
 > insufficient permissions". Le mode solo fonctionne normalement.
+
+> Apres migration du coordinateur terminal, le jeu multijoueur continue
+> normalement apres la fin du round, sans blocage.

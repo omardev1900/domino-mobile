@@ -2,6 +2,8 @@
 
 ### 2026-07-23
 
+- Les fins de round multijoueur passent automatiquement au round suivant en
+  moins de trois secondes, y compris apres une interruption du coordinateur.
 - Les bots et les joueurs expires jouent de nouveau automatiquement en
   multijoueur grace au coordinateur de tours Gen2.
 - Le premier domino d'une partie multijoueur peut de nouveau etre joue.

@@ -2,6 +2,9 @@
 
 ### 2026-07-23
 
+- [x] `MULTI-COORD-06` Fins de round, manche et match retablies avec
+  `coordinateTerminalGamePhasesV2`, reprise idempotente des salles figees et
+  validation multijoueur reelle sans nouveau blocage.
 - [x] `MULTI-COORD-05` Tours automatiques multijoueur retablis avec
   `coordinateActiveGameTurnsV2`, trigger Firestore Gen2 actif en production et
   valide par une partie reelle commencant par un bot.

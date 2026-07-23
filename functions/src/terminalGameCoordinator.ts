@@ -1,16 +1,15 @@
 import * as admin from 'firebase-admin';
-import * as functions from 'firebase-functions';
+import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 
 import {
     computeCoordinatorDecision,
     getTransitionFingerprint,
     hasTransitionFingerprint,
-    serializeTransitionFingerprint,
 } from './gameCoordinator';
 import { GameRoom } from './gameCore/types';
 import { finalizeCoordinatedMatch } from './matchFinalizer';
 
-const TRANSITION_DELAY_MS = 3000;
+const TRANSITION_DELAY_MS = 2000;
 
 const wait = (delayMs: number): Promise<void> =>
     new Promise(resolve => setTimeout(resolve, delayMs));
@@ -76,12 +75,16 @@ export const applyTerminalTransition = async (
 export const createTerminalGameCoordinator = (
     db: admin.firestore.Firestore
 ) =>
-    functions
-        .region('europe-west1')
-        .runWith({ failurePolicy: true, timeoutSeconds: 60 })
-        .firestore.document('rooms/{roomId}')
-        .onUpdate(async (change, context) => {
-            const beforeRoom = change.before.data() as GameRoom;
+    onDocumentUpdated(
+        {
+            document: 'rooms/{roomId}',
+            region: 'europe-west1',
+            retry: true,
+            timeoutSeconds: 60,
+        },
+        async event => {
+            const change = event.data;
+            if (!change) return;
             const afterRoom = change.after.data() as GameRoom;
             if (afterRoom.coordinatorVersion !== 1) return;
 
@@ -91,18 +94,8 @@ export const createTerminalGameCoordinator = (
 
             if (!expected) return;
 
-            const beforeFingerprint = beforeRoom.gameState
-                ? getTransitionFingerprint(beforeRoom.gameState)
-                : null;
-            if (
-                beforeFingerprint
-                && serializeTransitionFingerprint(beforeFingerprint)
-                    === serializeTransitionFingerprint(expected)
-            ) {
-                return;
-            }
-
             await wait(TRANSITION_DELAY_MS);
 
-            await applyTerminalTransition(db, context.params.roomId, expected);
-        });
+            await applyTerminalTransition(db, event.params.roomId, expected);
+        }
+    );

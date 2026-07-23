@@ -498,6 +498,12 @@ base Firestore multiregion `eur3`. Il est remplace par
 Eventarc en `eur3`. Les transactions et empreintes idempotentes restent
 inchangees.
 
+Le meme remplacement est applique aux transitions avec
+`coordinateTerminalGamePhasesV2`. Toute mise a jour d'une salle encore dans une
+phase terminale peut reprendre la transition ; la transaction rejette les
+executions concurrentes ou obsoletes. Le delai interne est de 2 secondes afin
+de conserver une marge sous les 3 secondes percues.
+
 Les comptes de service Google disposent uniquement des roles techniques requis
 pour Gen2 : `iam.serviceAccountTokenCreator` pour Pub/Sub, puis `run.invoker` et
 `eventarc.eventReceiver` pour le compte Compute. Aucun acces `allUsers` n'a ete
