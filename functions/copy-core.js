@@ -29,6 +29,7 @@ fs.mkdirSync(gameCoreServicesDir, { recursive: true });
 
 [
     'types.ts',
+    'economy.types.ts',
     'store.types.ts',
     'constants.ts',
     'DominoEngine.ts',

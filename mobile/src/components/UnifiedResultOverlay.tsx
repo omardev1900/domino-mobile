@@ -440,17 +440,17 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
                         <Text style={styles.topNavActionText}>Accueil</Text>
                     </TouchableOpacity>
 
-                    {isSoloMode && onReplay && (
+                    {onReplay && (
                         <TouchableOpacity 
                             style={{ alignItems: 'center' }}
                             onPress={onReplay}
                             activeOpacity={0.7}
-                            accessibilityLabel="Rejouer"
+                            accessibilityLabel={isSoloMode ? 'Rejouer' : 'Proposer une revanche'}
                         >
                             <View style={[styles.quitBtn, { backgroundColor: 'rgba(255, 215, 0, 0.15)', borderColor: 'rgba(255, 215, 0, 0.4)', borderWidth: 1 }]}>
                                 <Ionicons name="refresh" size={22} color="#FFD700" />
                             </View>
-                            <Text style={styles.topNavActionText}>Rejouer</Text>
+                            <Text style={styles.topNavActionText}>{isSoloMode ? 'Rejouer' : 'Revanche'}</Text>
                         </TouchableOpacity>
                     )}
 

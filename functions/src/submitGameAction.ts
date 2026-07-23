@@ -80,7 +80,7 @@ export const submitGameActionTransaction = async (
                 lastHumanActionId: applied.actionId,
                 lastHumanActionAt: admin.firestore.FieldValue.serverTimestamp(),
             },
-            lastActivity: admin.firestore.FieldValue.serverTimestamp(),
+            lastActivity: Date.now(),
         });
 
         return {

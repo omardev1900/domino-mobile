@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, act } from '@testing-library/react-native';
+import { render, act, fireEvent } from '@testing-library/react-native';
 import { UnifiedResultOverlay } from '../UnifiedResultOverlay';
 import SoundManager from '../../core/audio/SoundManager';
 
@@ -91,5 +91,33 @@ describe('UnifiedResultOverlay', () => {
         });
 
         expect(SoundManager.playSound).toHaveBeenCalledWith('applause');
+    });
+
+    it('allows every multiplayer participant to vote for a rematch', () => {
+        const onReplay = jest.fn();
+        const gameState: any = {
+            phase: 'MATCH_END',
+            gameMode: 'SCORE',
+            winningCondition: 50,
+            players: [
+                { id: 'p1', name: 'Moi', hand: [], totalPoints: 50 },
+                { id: 'p2', name: 'Adversaire', hand: [], totalPoints: 30 },
+            ],
+        };
+
+        const screen = render(
+            <UnifiedResultOverlay
+                visible={true}
+                gameState={gameState}
+                currentUserId="p2"
+                onContinue={jest.fn()}
+                onReplay={onReplay}
+                isSoloMode={false}
+                isHost={false}
+            />
+        );
+
+        fireEvent.press(screen.getByLabelText('Proposer une revanche'));
+        expect(onReplay).toHaveBeenCalledTimes(1);
     });
 });

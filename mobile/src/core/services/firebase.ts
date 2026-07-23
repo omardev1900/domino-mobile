@@ -35,7 +35,7 @@ import {
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getDatabase } from 'firebase/database';
-import { getFunctions } from 'firebase/functions';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { GameRoom, GameState, PlayerProfile, RoomStatus, GameMode } from '../types';
 import { LogService } from './LogService';
 import { resolveStartingHandSize } from '../startingHandSize';
@@ -411,10 +411,19 @@ export const startGame = async (roomId: string, initialGameState: GameState, cal
             sanitizedGameState.currentPlayerId = sanitizedGameState.players[0].id;
         }
 
+        const roomSnapshot = await getDoc(roomRef);
+        const currentRoom = roomSnapshot.exists() ? roomSnapshot.data() as GameRoom : null;
+        const participantIds = initialGameState.players
+            .filter(player => player.status !== 'BOT')
+            .map(player => player.id);
+
         await updateDoc(roomRef, {
             status: RoomStatus.PLAYING,
             gameState: sanitizedGameState,
             coordinatorVersion: 1,
+            participantIds,
+            participantProfiles: currentRoom?.players ?? [],
+            finalization: null,
         });
 
         // Enregistrer la room comme active uniquement pour l'appelant (l'hôte).
@@ -587,6 +596,16 @@ export const updatePlayerChat = async (roomId: string, playerId: string, content
 export const voteForRematch = async (roomId: string, userId: string): Promise<void> => {
     const roomRef = doc(db, ROOMS_COLLECTION, roomId);
     try {
+        const roomSnapshot = await getDoc(roomRef);
+        const room = roomSnapshot.exists() ? roomSnapshot.data() as GameRoom : null;
+        if (room?.coordinatorVersion === 1) {
+            const requestRematch = httpsCallable<{ roomId: string }, { reset: boolean; votes: string[] }>(
+                gameFunctions,
+                'requestRematch'
+            );
+            await requestRematch({ roomId });
+            return;
+        }
         await updateDoc(roomRef, {
             rematchVotes: arrayUnion(userId)
         });

@@ -8,6 +8,7 @@ import {
     serializeTransitionFingerprint,
 } from './gameCoordinator';
 import { GameRoom } from './gameCore/types';
+import { finalizeCoordinatedMatch } from './matchFinalizer';
 
 const TRANSITION_DELAY_MS = 3000;
 
@@ -35,6 +36,10 @@ export const applyTerminalTransition = async (
 ): Promise<boolean> => {
     if (!expected) return false;
 
+    if (expected.phase === 'MATCH_END') {
+        return finalizeCoordinatedMatch(db, roomId, expected);
+    }
+
     const roomRef = db.collection('rooms').doc(roomId);
     return db.runTransaction(async transaction => {
         const currentSnapshot = await transaction.get(roomRef);
@@ -57,19 +62,12 @@ export const applyTerminalTransition = async (
             version: 1,
         };
 
-        if (decision.kind === 'FINALIZE_MATCH') {
-            transaction.update(roomRef, {
-                status: 'FINISHED',
-                coordinator,
-                lastActivity: admin.firestore.FieldValue.serverTimestamp(),
-            });
-            return true;
-        }
+        if (decision.kind === 'FINALIZE_MATCH') return false;
 
         transaction.update(roomRef, {
             gameState: removeUndefinedValues(decision.nextState),
             coordinator,
-            lastActivity: admin.firestore.FieldValue.serverTimestamp(),
+            lastActivity: Date.now(),
         });
         return true;
     });

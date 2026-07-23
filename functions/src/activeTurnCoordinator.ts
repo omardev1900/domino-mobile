@@ -55,7 +55,7 @@ export const applyCoordinatedTurn = async (
                 lastTurnActionKind: decision.kind,
                 lastTurnActionAt: admin.firestore.FieldValue.serverTimestamp(),
             },
-            lastActivity: admin.firestore.FieldValue.serverTimestamp(),
+            lastActivity: Date.now(),
         });
         return true;
     });

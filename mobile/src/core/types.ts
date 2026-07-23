@@ -122,6 +122,8 @@ export interface GameRoom {
     playerIds?: string[]; // UIDs des joueurs (utilisé par les règles Firestore)
     gameState: GameState | null; // État complet de la partie une fois lancée
     createdBy: string; // UID du créateur
+    participantIds?: string[];
+    participantProfiles?: PlayerProfile[];
     //hostId: string;
     isPrivate: boolean;
     passcode?: string; // Si privé
@@ -146,4 +148,10 @@ export interface GameRoom {
         lastHumanActionId?: string;
         lastHumanActionAt?: unknown;
     };
+    finalization?: {
+        id: string;
+        status: 'COMPLETED';
+        completedAt?: unknown;
+        rewards: Record<string, import('./economy.types').MatchReward>;
+    } | null;
 }

@@ -223,6 +223,7 @@ jest.mock('../../core/services/stats.service', () => ({
     statsService: {
         getStats: jest.fn().mockResolvedValue({ matchHistory: [] }),
         recordMatchResult: jest.fn().mockResolvedValue(undefined),
+        syncWithFirebase: jest.fn().mockResolvedValue(undefined),
     },
 }));
 
@@ -261,6 +262,7 @@ jest.mock('../../core/services/economy.service', () => ({
         }),
         processServerReward: jest.fn().mockResolvedValue(reward),
         deductBuyIn: jest.fn().mockResolvedValue(true),
+        syncFromFirebase: jest.fn().mockResolvedValue(undefined),
     },
 }));
 
@@ -486,6 +488,46 @@ describe('GameScreen grade-up flow', () => {
             expect(lastCall.reward.gradeUp).toBe(true);
             expect(lastCall.reward.newGrade).toBe('DEBUTANT');
         });
+    });
+
+    it('utilise la recompense finalisee par le coordinateur sans recredit client', async () => {
+        const economyService = jest.requireMock('../../core/services/economy.service').economyService;
+        const statsService = jest.requireMock('../../core/services/stats.service').statsService;
+        mockRoomData = {
+            roomId: 'game-123',
+            status: 'FINISHED',
+            createdBy: 'p1',
+            players: [{ uid: 'p1', isHost: true }, { uid: 'p2' }],
+            gameState: mockCurrentGameState,
+            coordinatorVersion: 1,
+            finalization: {
+                id: 'match:game-123:30:1:1',
+                status: 'COMPLETED',
+                rewards: { p1: reward },
+            },
+        };
+
+        render(
+            <GameScreen
+                gameId="game-123"
+                userId="p1"
+                mode="multiplayer"
+                gameMode="MANCHE"
+                winningCondition={3}
+                turnDuration={15}
+                startingHandSize={7}
+            />
+        );
+
+        await waitFor(() => {
+            const lastCall = mockRewardOverlay.mock.calls[mockRewardOverlay.mock.calls.length - 1][0];
+            expect(lastCall.visible).toBe(true);
+            expect(lastCall.reward).toEqual(reward);
+        });
+        expect(economyService.processServerReward).not.toHaveBeenCalled();
+        expect(statsService.recordMatchResult).not.toHaveBeenCalled();
+        expect(economyService.syncFromFirebase).toHaveBeenCalledWith('p1');
+        expect(statsService.syncWithFirebase).toHaveBeenCalledWith('p1');
     });
 
     it('rafraîchit le snapshot de RoundResultCard en MANCHE_END au lieu de réutiliser le round précédent', async () => {

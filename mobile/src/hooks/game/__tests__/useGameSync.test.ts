@@ -128,6 +128,39 @@ describe('useGameSync Hook', () => {
         expect(mockTransaction.update).not.toHaveBeenCalled();
     });
 
+    it('returns every client to the lobby when a rematch clears gameState', async () => {
+        let snapshotCallback: (snapshot: { exists: () => boolean; data: () => GameRoom }) => void = () => undefined;
+        (onSnapshot as jest.Mock).mockImplementation((_ref, callback) => {
+            snapshotCallback = callback;
+            return jest.fn();
+        });
+
+        const { result } = renderHook(() => useGameSync({
+            gameId: 'test-game',
+            isSoloMode: false,
+            localPlayerId: 'p2',
+            signalPlayerOnline: jest.fn().mockResolvedValue(undefined),
+        }));
+
+        act(() => {
+            snapshotCallback({
+                exists: () => true,
+                data: () => mockRoomData,
+            });
+        });
+        expect(result.current.gameState).toEqual(mockGameState);
+
+        act(() => {
+            snapshotCallback({
+                exists: () => true,
+                data: () => ({ ...mockRoomData, status: RoomStatus.WAITING, gameState: null }),
+            });
+        });
+
+        await waitFor(() => expect(result.current.gameState).toBeNull());
+        expect(result.current.roomData?.status).toBe('WAITING');
+    });
+
     it('runs safeUpdateGameState and allows newer states', async () => {
         const mockTransaction = {
             get: jest.fn().mockResolvedValue({

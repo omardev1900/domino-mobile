@@ -276,6 +276,54 @@ reconnexion, les revanches et la fermeture des salles abandonnees.
 feat(coordinator-step-4): finalize matches and rooms atomically
 ```
 
+### Rapport d'implementation
+
+Implementation retenue :
+
+- `MATCH_END` delegue a une transaction Firestore unique qui relit l'etat
+  officiel, calcule les recompenses avec `RewardEngine`, met a jour economie,
+  statistiques, historique et classement mensuel, puis ferme la salle.
+- Un `finalizationId` deterministe est conserve dans la salle. Un retry, un
+  second evenement Firestore ou deux invocations concurrentes ne peuvent donc
+  crediter les participants qu'une seule fois.
+- La liste des participants est photographiee au lancement du match afin de
+  conserver dans le bilan un joueur deconnecte ou ayant abandonne, sans jamais
+  inclure les bots.
+- Les recompenses officielles sont publiees dans `room.finalization.rewards`.
+  Chaque client affiche sa recompense puis resynchronise ses caches economie et
+  statistiques en lecture seule ; aucun credit n'est recalcule sur le telephone.
+- La callable authentifiee `requestRematch` enregistre les votes et remet la
+  salle en attente lorsque tous les participants encore actifs ont vote. Le
+  createur original n'est pas requis et tous les clients reviennent au lobby.
+- `cleanupGhostRoomsCron` ferme les salles `WAITING` ou `PLAYING` inactives
+  depuis 15 minutes, efface les `activeRoomId` encore lies a ces salles, puis
+  supprime les salles `FINISHED` agees de plus de 24 heures.
+- Les timestamps `lastActivity` des nouveaux chemins coordonnes restent des
+  nombres en millisecondes, conformement au contrat mobile existant.
+
+Controles valides :
+
+- 4 tests unitaires de finalisation, plus les 24 tests des etapes precedentes.
+- Firestore Emulator : finalisation concurrente et idempotente, gagnant,
+  perdant, abandon, revanche avec createur absent et fermeture concurrente.
+- Tests mobile : recompense serveur sans double credit, rafraichissement des
+  caches, bouton de revanche pour un non-hote et retour collectif au lobby.
+- Build TypeScript strict des Functions et ESLint cible sans erreur.
+- `coordinateTerminalGamePhases` et `requestRematch` confirmees en v1,
+  `europe-west1`, Node.js 22 ; `cleanupGhostRoomsCron` confirmee en v1 dans sa
+  region historique `us-central1`, Node.js 22.
+
+Limites connues :
+
+- La revanche remet volontairement la salle au lobby ; un joueur doit relancer
+  la distribution avec les parametres visibles avant le nouveau match.
+- Le callable historique `processMatchReward` reste necessaire au mode solo et
+  aux anciennes salles. Le parcours multijoueur coordonne ne l'appelle plus,
+  mais son durcissement global pourra faire l'objet d'un chantier de securite
+  distinct.
+- Les salles fermees restent consultables 24 heures pour le resultat et le
+  diagnostic avant suppression definitive.
+
 ## 8. Etape 5 - Suppression de l'autorite hote en jeu
 
 ### Objectif

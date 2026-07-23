@@ -32,7 +32,7 @@ import { MatchRewardModal } from '../components/MatchRewardModal';
 import { determineFirstPlayer, dealGameSolo, getForcedOpeningDominoId, getForcedTieBreakDominoId, dealGame } from '../core/LogicEngine';
 import { getValidMoves } from '../core/DominoEngine';
 import { GameState, Player, PlayerId, GamePhase, Domino, GameRoom, GameMode } from '@/core/types';
-import { leaveRoom, startGame, clearRematchVotes, updatePlayerChat, resetRoomToLobby, markPlayerAsDebited, markRoomAsFinished, setUserActiveRoom, deleteWaitingRoomIfOwner } from '../core/services/firebase';
+import { leaveRoom, startGame, clearRematchVotes, updatePlayerChat, resetRoomToLobby, markPlayerAsDebited, markRoomAsFinished, setUserActiveRoom, deleteWaitingRoomIfOwner, voteForRematch } from '../core/services/firebase';
 import SoundManager from '../core/audio/SoundManager';
 import HapticManager from '../core/audio/HapticManager';
 import { resolveStartingHandSize } from '../core/startingHandSize';
@@ -597,6 +597,16 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         }
 
         if (gameId && roomData) {
+            if (usesSystemCoordinator) {
+                try {
+                    await voteForRematch(gameId, localPlayerId);
+                } catch (e: unknown) {
+                    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+                    Alert.alert('Erreur', `Impossible d'enregistrer la revanche : ${message}`);
+                }
+                return;
+            }
+
             const isHost = roomData.players[0].uid === localPlayerId;
             if (isHost) {
                 try {
@@ -927,6 +937,40 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         if (gameState?.phase === 'MATCH_END' && !statsRecordedRef.current) {
             const localPlayer = gameState.players.find(p => p.id === localPlayerId);
             if (localPlayer) {
+                if (usesSystemCoordinator && !isSoloMode) {
+                    const reward = roomData?.finalization?.rewards[localPlayerId];
+                    if (!reward) return;
+
+                    setMatchReward(reward);
+                    if (reward.gradeUp || reward.newlyUnlockedFrames.length > 0 || reward.frameCoinsBonus > 0) {
+                        setShowRewardOverlay(true);
+                    }
+                    playerEconomyRef.current = {
+                        level: reward.newLevel,
+                        xp: reward.newXP,
+                        leaguePoints: reward.newLeaguePoints,
+                        cochonsGiven: reward.newCochonsGiven,
+                        unlockedFrames: [
+                            ...(playerEconomyRef.current.unlockedFrames || []),
+                            ...reward.newlyUnlockedFrames.map(frame => frame.frameId),
+                        ],
+                        leagueGrade: reward.newGrade,
+                    };
+                    if (persistenceUserId) {
+                        Promise.all([
+                            economyService.syncFromFirebase(persistenceUserId),
+                            statsService.syncWithFirebase(persistenceUserId),
+                        ]).catch(error => {
+                            LogService.error('GameScreen', 'Impossible de rafraichir les caches apres finalisation.', error);
+                        });
+                    }
+                    statsRecordedRef.current = true;
+                    LogService.info('GameScreen', 'Finalisation multijoueur recue du coordinateur.', {
+                        finalizationId: roomData.finalization?.id,
+                    });
+                    return;
+                }
+
                 // Determine Match Winner
                 const sorted = [...gameState.players].sort((a, b) => {
                     if (gameState.gameMode === 'COCHON') {
@@ -1027,7 +1071,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             setMatchReward(null); // Reset pour la prochaine partie
             setShowRewardOverlay(false);
         }
-    }, [gameState?.phase, localPlayerId, isSoloMode, persistenceUserId]);
+    }, [gameState?.phase, localPlayerId, isSoloMode, persistenceUserId, usesSystemCoordinator, roomData?.finalization?.id]);
 
     useEffect(() => {
         if (Platform.OS === 'web' && !showScoreOverlay && !showRoomInfo && !isPaused) {
@@ -1328,15 +1372,16 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     }, [scoreOverlayPhase, isSoloMode]);
 
 
-    // Auto-redirect non-hôtes quand l'hôte reset la room après le match
+    // Compatibilite legacy : l'ancien reset par l'hote renvoie les invites a l'accueil.
+    // Les salles coordonnees reviennent toutes au lobby via useGameSync.
     useEffect(() => {
-        if (isSoloMode || isLocalHost) return;
+        if (isSoloMode || usesSystemCoordinator || isLocalHost) return;
         if (!roomData) return;
         const hostReset = roomData.status === 'WAITING' && !roomData.gameState;
         if (hostReset && gameState?.phase === 'MATCH_END') {
             handleLeaveRoom();
         }
-    }, [roomData?.status, roomData?.gameState]);
+    }, [roomData?.status, roomData?.gameState, usesSystemCoordinator]);
 
     // Audio & Firebase Subscription
     // Buy-in Deduction (Delayed)
