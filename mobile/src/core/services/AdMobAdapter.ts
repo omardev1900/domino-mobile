@@ -17,21 +17,33 @@ export const initializeAdMob = async () => {
 
 export const useAppOpenAd = (adUnitId: string) => {
     if (Platform.OS === 'web' || typeof _useAppOpenAd !== 'function') {
-        return { isLoaded: false, isClosed: false, load: () => {}, show: () => {} };
+        return {
+            isLoaded: false, isOpened: false, isClosed: false, isClicked: false,
+            isShowing: false, isEarnedReward: false, error: undefined,
+            reward: undefined, revenue: undefined, load: () => {}, show: () => {},
+        };
     }
     return _useAppOpenAd(adUnitId);
 };
 
 export const useInterstitialAd = (adUnitId: string) => {
     if (Platform.OS === 'web' || typeof _useInterstitialAd !== 'function') {
-        return { isLoaded: false, isClosed: false, load: () => {}, show: () => {} };
+        return {
+            isLoaded: false, isOpened: false, isClosed: false, isClicked: false,
+            isShowing: false, isEarnedReward: false, error: undefined,
+            reward: undefined, revenue: undefined, load: () => {}, show: () => {},
+        };
     }
     return _useInterstitialAd(adUnitId);
 };
 
 export const useRewardedAd = (adUnitId: string) => {
     if (Platform.OS === 'web' || typeof _useRewardedAd !== 'function') {
-        return { isLoaded: false, isClosed: false, isEarnedReward: false, load: () => {}, show: () => {} };
+        return {
+            isLoaded: false, isOpened: false, isClosed: false, isClicked: false,
+            isShowing: false, isEarnedReward: false, error: undefined,
+            reward: undefined, revenue: undefined, load: () => {}, show: () => {},
+        };
     }
     return _useRewardedAd(adUnitId);
 };

@@ -4,22 +4,42 @@ export const initializeAdMob = async () => {
 
 export const useRewardedAd = (id: string) => ({
     isLoaded: false,
+    isOpened: false,
     isClosed: false,
+    isClicked: false,
+    isShowing: false,
     isEarnedReward: false,
+    error: undefined,
+    reward: undefined,
+    revenue: undefined,
     load: () => {},
     show: () => {}
 });
 
 export const useInterstitialAd = (id: string) => ({
     isLoaded: false,
+    isOpened: false,
     isClosed: false,
+    isClicked: false,
+    isShowing: false,
+    isEarnedReward: false,
+    error: undefined,
+    reward: undefined,
+    revenue: undefined,
     load: () => {},
     show: () => {}
 });
 
 export const useAppOpenAd = (id: string) => ({
     isLoaded: false,
+    isOpened: false,
     isClosed: false,
+    isClicked: false,
+    isShowing: false,
+    isEarnedReward: false,
+    error: undefined,
+    reward: undefined,
+    revenue: undefined,
     load: () => {},
     show: () => {}
 });

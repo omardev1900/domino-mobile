@@ -1,45 +1,33 @@
-/**
- * AdRewardButton.tsx
- *
- * ╔══════════════════════════════════════════════════════╗
- * ║  Bouton réutilisable "Voir une pub → +X coins"      ║
- * ║  • Un seul clic par montage (guard interne)         ║
- * ║  • Affiche un message de confirmation après         ║
- * ║  • Entièrement piloté par les props (stateless)     ║
- * ║  • Compatible avec tous les placements de l'app     ║
- * ╚══════════════════════════════════════════════════════╝
- *
- * Usage :
- *   <AdRewardButton
- *     coinsAmount={100}
- *     onClaim={async () => { await economyService.creditAdReward(userId); }}
- *   />
- */
-
-import React, { useState } from 'react';
-import { TouchableOpacity, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { useRewardedAd, TestIds, AdMobIds } from '../core/services/AdMobAdapter';
-import { Platform, Alert } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+    ActivityIndicator,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
+import { classifyRewardedAdError } from '../core/ads/rewardedAdPolicy';
+import { AdMobIds, useRewardedAd } from '../core/services/AdMobAdapter';
+import { LogService } from '../core/services/LogService';
+
+export type AdRewardClaimSource = 'admob' | 'no_fill';
 
 export interface AdRewardButtonProps {
-    /** Montant crédité après la pub (affiché dans le bouton). */
     coinsAmount: number;
-    /**
-     * Callback appelé quand l'utilisateur clique.
-     * Peut être async — le bouton passe en état "chargement" pendant l'exécution.
-     */
-    onClaim: () => void | Promise<void>;
-    /** Libellé principal du bouton (défaut : "Voir une pub"). */
+    onClaim: (source: AdRewardClaimSource) => void | Promise<void>;
     label?: string;
-    /** Désactive le bouton sans l'appel onClaim (ex: déjà utilisé dans la session). */
     disabled?: boolean;
-    /** Variante visuelle : 'default' (fond sombre) | 'prominent' (fond doré). */
     variant?: 'default' | 'prominent';
-    /** Délai d'entrée pour l'animation (ms). Défaut : 0. */
     enterDelay?: number;
 }
+
+type RewardButtonState = 'idle' | 'loading' | 'no_fill' | 'claiming' | 'claimed';
+
+const AD_LOAD_TIMEOUT_MS = 8000;
+const LATE_REWARD_GRACE_MS = 1000;
 
 export const AdRewardButton: React.FC<AdRewardButtonProps> = ({
     coinsAmount,
@@ -49,127 +37,214 @@ export const AdRewardButton: React.FC<AdRewardButtonProps> = ({
     variant = 'default',
     enterDelay = 0,
 }) => {
-    const [claimed, setClaimed] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [buttonState, setButtonState] = useState<RewardButtonState>('idle');
+    const [statusMessage, setStatusMessage] = useState<string | null>(null);
+    const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingShowRef = useRef(false);
+    const awaitingRewardRef = useRef(false);
+    const claimStartedRef = useRef(false);
 
-    const AD_FALLBACK_TIMEOUT_MS = 8000;
-    const fallbackTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-    const isWaitingRef = React.useRef(false);
+    const {
+        isLoaded,
+        isClosed,
+        isEarnedReward,
+        error: rewardError,
+        load,
+        show,
+    } = useRewardedAd(AdMobIds.REWARDED_FIN_PARTIE);
 
-    // Google AdMob Rewarded
-    const { isLoaded: isAdMobLoaded, isClosed: isAdMobClosed, isEarnedReward, error: rewardError, load: loadAdMob, show: showAdMob } = useRewardedAd(AdMobIds.REWARDED_FIN_PARTIE);
-
-    React.useEffect(() => {
-        if (Platform.OS !== 'web') {
-            loadAdMob();
+    const clearLoadTimer = useCallback(() => {
+        if (loadTimerRef.current) {
+            clearTimeout(loadTimerRef.current);
+            loadTimerRef.current = null;
         }
-    }, [loadAdMob]);
+    }, []);
 
-    React.useEffect(() => {
-        if (isAdMobClosed) {
-            isWaitingRef.current = false;
-            if (fallbackTimerRef.current) {
-                clearTimeout(fallbackTimerRef.current);
-                fallbackTimerRef.current = null;
-            }
-            const processReward = async () => {
-                if (isEarnedReward) {
-                    try {
-                        await onClaim();
-                        setClaimed(true);
-                    } catch (e) {
-                        console.error("Erreur après visionnage pub AdMob :", e);
-                    }
-                }
-                setLoading(false);
-                if (Platform.OS !== 'web') {
-                    loadAdMob();
-                }
-            };
-            processReward();
-        }
-    }, [isAdMobClosed, isEarnedReward, loadAdMob]);
+    const claimOnce = useCallback(async (source: AdRewardClaimSource) => {
+        if (claimStartedRef.current) return;
+        claimStartedRef.current = true;
+        pendingShowRef.current = false;
+        awaitingRewardRef.current = false;
+        clearLoadTimer();
+        setButtonState('claiming');
+        setStatusMessage(null);
 
-    const handlePress = async () => {
-        if (claimed || loading || disabled) return;
-        if (Platform.OS === 'web') return;
-        setLoading(true);
         try {
-            if (isAdMobLoaded) {
-                showAdMob();
-                return;
-            }
-            
-            loadAdMob();
-            isWaitingRef.current = true;
-            fallbackTimerRef.current = setTimeout(async () => {
-                if (isWaitingRef.current) {
-                    isWaitingRef.current = false;
-                    try {
-                        await onClaim();
-                        setClaimed(true);
-                    } catch (e) {
-                        console.error("Erreur fallback pub :", e);
-                    }
-                    setLoading(false);
-                }
-            }, AD_FALLBACK_TIMEOUT_MS);
-        } catch (e) {
-            console.error("Erreur chargement pub :", e);
-            setLoading(false);
-            Alert.alert("Erreur", "Une erreur est survenue lors du chargement de la publicité.");
+            await onClaim(source);
+            setButtonState('claimed');
+        } catch (error) {
+            claimStartedRef.current = false;
+            setButtonState(source === 'no_fill' ? 'no_fill' : 'idle');
+            setStatusMessage('Bonus non credite. Reessayez.');
+            LogService.error('AdRewardButton', 'Reward claim failed', error);
         }
-    };
+    }, [clearLoadTimer, onClaim]);
 
-    const isProminent = variant === 'prominent';
+    useEffect(() => {
+        if (Platform.OS !== 'web') load();
+    }, [load]);
+
+    useEffect(() => () => {
+        clearLoadTimer();
+        if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    }, [clearLoadTimer]);
+
+    useEffect(() => {
+        if (!rewardError) return;
+
+        clearLoadTimer();
+        pendingShowRef.current = false;
+        awaitingRewardRef.current = false;
+        const failure = classifyRewardedAdError(rewardError);
+        LogService.warn('AdRewardButton', `Rewarded ad load failed: ${failure}`, rewardError);
+
+        if (failure === 'NO_FILL') {
+            setButtonState('no_fill');
+            setStatusMessage('Aucune pub disponible. Le bonus est offert.');
+            return;
+        }
+
+        setButtonState('idle');
+        setStatusMessage(
+            failure === 'NETWORK'
+                ? 'Connexion requise pour charger la publicite.'
+                : 'Publicite indisponible. Reessayez plus tard.'
+        );
+    }, [clearLoadTimer, rewardError]);
+
+    useEffect(() => {
+        if (!isLoaded || !pendingShowRef.current || claimStartedRef.current) return;
+
+        clearLoadTimer();
+        pendingShowRef.current = false;
+        awaitingRewardRef.current = true;
+        setStatusMessage(null);
+        try {
+            show();
+        } catch (error) {
+            awaitingRewardRef.current = false;
+            setButtonState('idle');
+            setStatusMessage('Impossible d afficher la publicite.');
+            LogService.error('AdRewardButton', 'Rewarded ad show failed', error);
+        }
+    }, [clearLoadTimer, isLoaded, show]);
+
+    useEffect(() => {
+        if (isEarnedReward && awaitingRewardRef.current) {
+            void claimOnce('admob');
+        }
+    }, [claimOnce, isEarnedReward]);
+
+    useEffect(() => {
+        if (!isClosed) return;
+
+        clearLoadTimer();
+        if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = setTimeout(() => {
+            awaitingRewardRef.current = false;
+            if (!claimStartedRef.current) {
+                setButtonState('idle');
+                setStatusMessage('Publicite fermee avant la recompense.');
+            }
+            load();
+        }, LATE_REWARD_GRACE_MS);
+    }, [clearLoadTimer, isClosed, load]);
+
+    const handlePress = useCallback(() => {
+        if (
+            Platform.OS === 'web'
+            || disabled
+            || buttonState === 'loading'
+            || buttonState === 'claiming'
+            || buttonState === 'claimed'
+        ) {
+            return;
+        }
+
+        if (buttonState === 'no_fill') {
+            void claimOnce('no_fill');
+            return;
+        }
+
+        setButtonState('loading');
+        setStatusMessage(null);
+        if (isLoaded) {
+            awaitingRewardRef.current = true;
+            try {
+                show();
+            } catch (error) {
+                awaitingRewardRef.current = false;
+                setButtonState('idle');
+                setStatusMessage('Impossible d afficher la publicite.');
+                LogService.error('AdRewardButton', 'Rewarded ad show failed', error);
+            }
+            return;
+        }
+
+        pendingShowRef.current = true;
+        load();
+        clearLoadTimer();
+        loadTimerRef.current = setTimeout(() => {
+            pendingShowRef.current = false;
+            setButtonState('idle');
+            setStatusMessage('Chargement trop long. Reessayez.');
+        }, AD_LOAD_TIMEOUT_MS);
+    }, [buttonState, claimOnce, clearLoadTimer, disabled, isLoaded, load, show]);
 
     if (Platform.OS === 'web') return null;
 
-    if (claimed) {
+    const isProminent = variant === 'prominent';
+    const isBusy = buttonState === 'loading' || buttonState === 'claiming';
+    const isNoFill = buttonState === 'no_fill';
+
+    if (buttonState === 'claimed') {
         return (
             <Animated.View entering={FadeIn.duration(300)} style={styles.confirmWrap}>
                 <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-                <Text style={styles.confirmText}>+{coinsAmount} coins crédités !</Text>
+                <Text style={styles.confirmText}>+{coinsAmount} coins credites !</Text>
             </Animated.View>
         );
     }
 
     return (
-        <Animated.View
-            entering={FadeInUp.delay(enterDelay).duration(280)}
-            style={styles.wrap}
-        >
+        <Animated.View entering={FadeInUp.delay(enterDelay).duration(280)} style={styles.wrap}>
             <TouchableOpacity
                 style={[
                     styles.btn,
                     isProminent && styles.btnProminent,
-                    (disabled || loading) && styles.btnDisabled,
+                    (disabled || isBusy) && styles.btnDisabled,
                 ]}
                 activeOpacity={0.82}
                 onPress={handlePress}
-                disabled={disabled || loading}
-                accessibilityLabel={`${label} pour gagner ${coinsAmount} coins`}
+                disabled={disabled || isBusy}
+                accessibilityLabel={
+                    isNoFill
+                        ? `Recuperer le bonus offert de ${coinsAmount} coins`
+                        : `${label} pour gagner ${coinsAmount} coins`
+                }
                 accessibilityRole="button"
             >
-                {loading ? (
+                {isBusy ? (
                     <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
                 ) : (
-                    <Text style={styles.icon}>📺</Text>
+                    <Ionicons name={isNoFill ? 'gift-outline' : 'tv-outline'} size={22} color="#FFD700" />
                 )}
 
                 <View style={styles.textBlock}>
                     <Text style={[styles.labelText, isProminent && styles.labelTextProminent]}>
-                        {label}
+                        {isNoFill ? 'Recuperer le bonus' : label}
                     </Text>
-                    <Text style={styles.bonusText}>+{coinsAmount} 🪙</Text>
+                    <Text style={styles.bonusText}>+{coinsAmount} coins</Text>
                 </View>
 
                 <Ionicons
-                    name="play-circle"
+                    name={isNoFill ? 'gift' : 'play-circle'}
                     size={22}
                     color={isProminent ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.75)'}
                 />
             </TouchableOpacity>
+            {statusMessage && <Text style={styles.statusText}>{statusMessage}</Text>}
         </Animated.View>
     );
 };
@@ -181,8 +256,6 @@ const styles = StyleSheet.create({
         width: '100%',
         paddingHorizontal: 4,
     },
-
-    // ── Variante par défaut (fond sombre, discret) ──
     btn: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -190,13 +263,11 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.06)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.16)',
-        borderRadius: 14,
+        borderRadius: 8,
         paddingVertical: 10,
         paddingHorizontal: 16,
         width: '100%',
     },
-
-    // ── Variante prominente (fond doré, appel à l'action fort) ──
     btnProminent: {
         backgroundColor: 'rgba(255,215,0,0.15)',
         borderColor: 'rgba(255,215,0,0.5)',
@@ -206,40 +277,35 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 5,
     },
-
     btnDisabled: {
         opacity: 0.45,
     },
-
-    icon: {
-        fontSize: 22,
-    },
-
     textBlock: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
     },
-
     labelText: {
         color: 'rgba(255,255,255,0.8)',
         fontSize: 13,
         fontWeight: '700',
     },
-
     labelTextProminent: {
         color: '#FFD700',
         fontSize: 14,
     },
-
     bonusText: {
         color: '#FFD700',
         fontSize: 12,
         fontWeight: '900',
     },
-
-    // ── Confirmation post-clic ──
+    statusText: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 12,
+        marginTop: 8,
+        textAlign: 'center',
+    },
     confirmWrap: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -247,7 +313,6 @@ const styles = StyleSheet.create({
         marginTop: 8,
         justifyContent: 'center',
     },
-
     confirmText: {
         color: '#4CAF50',
         fontWeight: '700',

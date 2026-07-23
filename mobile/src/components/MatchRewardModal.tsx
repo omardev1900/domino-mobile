@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, Modal, useWindowDimensions, Platform } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, withSequence, withRepeat } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { AdRewardButton } from './AdRewardButton';
+import { AdRewardButton, AdRewardClaimSource } from './AdRewardButton';
 import SoundManager from '../core/audio/SoundManager';
 import { PremiumButton } from './common/PremiumButton';
 
@@ -11,11 +11,11 @@ interface MatchRewardModalProps {
     visible: boolean;
     amount: number;
     onClose: () => void;
-    onClaim: () => void;
+    onClaim: (source: AdRewardClaimSource) => void | Promise<void>;
 }
 
 export const MatchRewardModal: React.FC<MatchRewardModalProps> = ({ visible, amount, onClose, onClaim }) => {
-    const { width, height } = useWindowDimensions();
+    const { width } = useWindowDimensions();
 
     const scale = useSharedValue(0);
     const glowOpacity = useSharedValue(0.5);
@@ -36,7 +36,7 @@ export const MatchRewardModal: React.FC<MatchRewardModalProps> = ({ visible, amo
             scale.value = withTiming(0, { duration: 200 });
             glowOpacity.value = 0;
         }
-    }, [visible]);
+    }, [glowOpacity, scale, visible]);
 
     const overlayStyle = useAnimatedStyle(() => ({
         opacity: withTiming(visible ? 1 : 0, { duration: 300 }),
@@ -78,9 +78,9 @@ export const MatchRewardModal: React.FC<MatchRewardModalProps> = ({ visible, amo
                     <View style={styles.btnWrap}>
                         <AdRewardButton
                             coinsAmount={amount}
-                            onClaim={async () => {
+                            onClaim={async (source) => {
                                 SoundManager.playSound('win');
-                                await onClaim();
+                                await onClaim(source);
                                 setTimeout(onClose, 2000); // Ferme automatiquement après l'animation de succès
                             }}
                             enterDelay={0}
