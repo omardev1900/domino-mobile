@@ -34,8 +34,21 @@ fs.mkdirSync(gameCoreServicesDir, { recursive: true });
     'DominoEngine.ts',
     'ScoringEngine.ts',
     'LogicEngine.ts',
+    'BotEngine.ts',
+    'MeytKayaliEngine.ts',
 ].forEach(file => {
     fs.copyFileSync(path.join(srcDir, file), path.join(gameCoreDir, file));
+});
+
+const gameCoreAiDir = path.join(gameCoreDir, 'ai');
+fs.mkdirSync(gameCoreAiDir, { recursive: true });
+[
+    'EndgameAnalyzer.ts',
+    'MonteCarlo.ts',
+    'OpponentModeler.ts',
+    'TileTracker.ts',
+].forEach(file => {
+    fs.copyFileSync(path.join(srcDir, 'ai', file), path.join(gameCoreAiDir, file));
 });
 
 fs.copyFileSync(

@@ -4,6 +4,7 @@ import { RewardEngine } from './core/RewardEngine';
 import { RewardCalculationInput } from './core/economy.types';
 import { logSystemEvent } from './systemLog';
 import { createTerminalGameCoordinator } from './terminalGameCoordinator';
+import { createActiveTurnCoordinator } from './activeTurnCoordinator';
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -469,3 +470,4 @@ export const resetMonthlyLeague = functions.pubsub
 export * from './cleanupRooms';
 
 export const coordinateTerminalGamePhases = createTerminalGameCoordinator(db);
+export const coordinateActiveGameTurns = createActiveTurnCoordinator(db);

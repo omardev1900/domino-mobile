@@ -22,6 +22,9 @@ jest.mock('../../../core/LogicEngine', () => ({
     getForcedTieBreakDominoId: jest.fn(),
 }));
 
+jest.mock('../useBotDecision', () => ({ useBotDecision: jest.fn() }));
+jest.mock('../useAutoPass', () => ({ useAutoPass: jest.fn() }));
+
 describe('useGameEngine Hook (Component Wrapper)', () => {
     let mockSafeUpdateGameState: jest.Mock;
     let mockSetGameState: jest.Mock;
@@ -58,7 +61,15 @@ describe('useGameEngine Hook (Component Wrapper)', () => {
         ...overrides
     });
 
-    const TestComponent = ({ gameState, isSoloMode = false }: { gameState: GameState, isSoloMode?: boolean }) => {
+    const TestComponent = ({
+        gameState,
+        isSoloMode = false,
+        usesSystemCoordinator = false,
+    }: {
+        gameState: GameState;
+        isSoloMode?: boolean;
+        usesSystemCoordinator?: boolean;
+    }) => {
         const engine = useGameEngine({
             gameState,
             localPlayerId: 'p1',
@@ -66,6 +77,7 @@ describe('useGameEngine Hook (Component Wrapper)', () => {
             gameId: 'test-room',
             isPaused: false,
             isLocalHost: true,
+            usesSystemCoordinator,
             safeUpdateGameState: mockSafeUpdateGameState,
             setGameState: mockSetGameState,
             clearAllTurnTimers: mockClearAllTimers,
@@ -143,5 +155,15 @@ describe('useGameEngine Hook (Component Wrapper)', () => {
         expect(LogicEngine.passTurn).toHaveBeenCalled();
         expect(mockSetGameState).toHaveBeenCalled();
         expect(mockClearAllTimers).toHaveBeenCalled();
+    });
+
+    it('desactive les automatismes client dans une salle coordonnee', () => {
+        const { useBotDecision } = require('../useBotDecision');
+        const { useAutoPass } = require('../useAutoPass');
+
+        render(<TestComponent gameState={createMockState()} usesSystemCoordinator />);
+
+        expect(useBotDecision).toHaveBeenLastCalledWith(expect.objectContaining({ isPaused: true }));
+        expect(useAutoPass).toHaveBeenLastCalledWith(expect.objectContaining({ isPaused: true }));
     });
 });

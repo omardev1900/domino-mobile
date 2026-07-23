@@ -435,7 +435,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         gameState: currentDisplayState,
         isPaused: isGamePaused || isMoveAnimationActive,
         localPlayerId,
-        onTimeout: (pId, turnId) => handleTimeoutCb(pId, turnId)
+        onTimeout: (pId, turnId) => {
+            if (!usesSystemCoordinator) handleTimeoutCb(pId, turnId);
+        }
     });
 
     // -- 5. The Façade Game Engine --
@@ -626,6 +628,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         gameId,
         isPaused: isPaused || showOptions || isAdVisible || isMoveAnimationPending,
         isLocalHost,
+        usesSystemCoordinator,
         roomData,
         userId,
         startingHandSize,

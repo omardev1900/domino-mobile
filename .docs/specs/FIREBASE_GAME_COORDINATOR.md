@@ -138,6 +138,47 @@ joueurs deconnectes, les passages automatiques et les expirations de tour.
 feat(coordinator-step-2): own automated turns and deadlines
 ```
 
+### Rapport d'implementation
+
+Implementation retenue :
+
+- Function `coordinateActiveGameTurns` en `europe-west1`, activee uniquement
+  pour `coordinatorVersion: 1` et la phase `PLAYING`.
+- Empreinte idempotente composee du jeu, de `stateVersion`, de `turnId`, du
+  joueur courant, de son statut et de `boudePlayerId`.
+- Relecture transactionnelle obligatoire avant chaque action : un retour
+  `DISCONNECTED -> HUMAN` invalide donc le remplacement encore en attente.
+- Delais serveur : bot 1,25 s, absent 2,5 s, badge boude 2 s ou 3,5 s pour un
+  joueur deconnecte, humain 60 s maximum plus 3 s de grace.
+- `MARK_BOUDE`, passage, coup de bot et timeout utilisent les moteurs purs
+  generes depuis `mobile/src/core` ; aucun telephone ni hote ne les pilote.
+- Les automatismes historiques `useBotDecision`, `useAutoPass` et l'ecriture
+  de timeout sont suspendus uniquement dans les salles coordonnees.
+- Le dernier identifiant et le type d'action serveur sont conserves dans
+  `room.coordinator` pour faciliter le diagnostic.
+
+Controles valides :
+
+- 9 tests unitaires de tours actifs et 8 tests des phases terminales.
+- Transaction concurrente validee avec Firestore Emulator : une seule decision.
+- Reconnexion avant echeance, bot, timeout, boudes humain et deconnecte testes.
+- 5 tests `useGameEngine`, dont la suspension des automatismes client.
+- 2 tests `GameScreen` pour les salles coordonnees.
+- 4 scenarios de regression reseau, reconnexion et boude.
+- Build TypeScript Functions, ESLint mobile sans erreur et `git diff --check`.
+- Function deployee et confirmee en v1, Firestore `document.update`,
+  `europe-west1`, Node.js 22.
+
+Limites connues :
+
+- La version 1 attend dans la Function jusqu'a l'echeance. C'est simple et
+  robuste pour ce palier, mais consomme du temps d'execution ; une migration
+  future vers Cloud Tasks pourra reduire ce cout sans changer l'empreinte.
+- Le test historique `SprintValidation` qui exige encore un bouton `Continuer`
+  en fin de manche est obsolete depuis le passage automatique demande. Les
+  quatre scenarios de ce fichier lies a cette etape passent ; l'assertion
+  obsolete reste visible et n'est pas masquee dans ce commit.
+
 ## 6. Etape 3 - Actions humaines validees par le serveur
 
 ### Objectif

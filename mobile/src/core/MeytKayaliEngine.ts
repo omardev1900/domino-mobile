@@ -195,8 +195,8 @@ function rebuildStateFromGame(gameState: GameState, botId: string): MeytKayaliSt
         seqByDominoId.set(se.domino.id, { sideAtTable: se.sideAtTable, isReversed: se.isReversed });
     }
 
-    let currentLeft: number | null = null;
-    let currentRight: number | null = null;
+    let currentLeft: DominoSide | null = null;
+    let currentRight: DominoSide | null = null;
     let isFirstPlay = true;
 
     for (const entry of gameState.history) {

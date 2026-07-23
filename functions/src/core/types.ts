@@ -138,7 +138,10 @@ export interface GameRoom {
     coordinatorVersion?: number;
     coordinator?: {
         version: number;
-        lastTransitionId: string;
+        lastTransitionId?: string;
         lastTransitionAt?: unknown;
+        lastTurnActionId?: string;
+        lastTurnActionKind?: 'MARK_BOUDE' | 'PASS' | 'PLAY' | 'TIMEOUT';
+        lastTurnActionAt?: unknown;
     };
 }

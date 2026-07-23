@@ -15,6 +15,7 @@ export interface UseGameEngineProps {
     gameId: string | undefined;
     isPaused: boolean;
     isLocalHost: boolean;
+    usesSystemCoordinator?: boolean;
     roomData?: GameRoom | null;
     userId?: string;
     startingHandSize?: number;
@@ -35,6 +36,7 @@ export const useGameEngine = ({
     gameId,
     isPaused,
     isLocalHost,
+    usesSystemCoordinator = false,
     roomData,
     startingHandSize,
     safeUpdateGameState,
@@ -82,7 +84,7 @@ export const useGameEngine = ({
         roomData: roomData || null,
         localPlayerId,
         isSoloMode,
-        isPaused,
+        isPaused: isPaused || usesSystemCoordinator,
         isLocalHost,
         canAction: turnManager.canAction,
         dispatch
@@ -93,7 +95,7 @@ export const useGameEngine = ({
         gameState,
         localPlayerId,
         isLocalHost,
-        isPaused,
+        isPaused: isPaused || usesSystemCoordinator,
         dispatch
     });
 
