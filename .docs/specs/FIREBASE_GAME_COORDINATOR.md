@@ -80,6 +80,37 @@ fermeture `MATCH_END`, sans dependre du createur de la salle ni d'un acting host
 feat(coordinator-step-1): own terminal game transitions
 ```
 
+### Rapport d'implementation
+
+Statut : realise et deploye le 2026-07-23.
+
+- Function `coordinateTerminalGamePhases` deployee sur `domino-martinique-v1`.
+- Runtime Node.js 22, generation v1, region `europe-west1`.
+- Delai serveur de trois secondes et politique de retry idempotente.
+- Activation explicite par salle avec `coordinatorVersion: 1`.
+- Les anciennes salles sans version conservent le parcours client historique.
+- Les salles coordonnees n'envoient plus de transition depuis leurs overlays.
+- Le moteur serveur est genere depuis les sources pures du mobile au build.
+
+Controles valides :
+
+- 8 tests unitaires du coordinateur Functions.
+- Transaction concurrente validee avec Firestore Emulator : une seule ecriture.
+- 2 tests `GameScreen` propres aux salles coordonnees.
+- 17 tests de logique multijoueur, Cochon et `MancheEndFlow`.
+- Build TypeScript des Functions.
+- ESLint mobile sans nouvelle erreur et `git diff --check`.
+- Presence de la Function confirmee avec `firebase functions:list`.
+
+Limites connues :
+
+- L'emulateur Functions local ne s'arrete pas correctement sur cette machine ;
+  la transaction est testee avec Firestore Emulator et le trigger est compile,
+  puis sa presence reelle est verifiee apres deploiement.
+- La suite complete `GameScreen.gradeUp.test.tsx` conserve son echec historique
+  sur le snapshot `PARTIE_END` attendu en `MANCHE_END`. Les deux nouveaux tests
+  coordonnes passent et cette assertion n'a pas ete masquee dans cette etape.
+
 ## 5. Etape 2 - Bots, absences et delais
 
 ### Objectif

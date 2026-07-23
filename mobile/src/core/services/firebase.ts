@@ -411,7 +411,8 @@ export const startGame = async (roomId: string, initialGameState: GameState, cal
 
         await updateDoc(roomRef, {
             status: RoomStatus.PLAYING,
-            gameState: sanitizedGameState
+            gameState: sanitizedGameState,
+            coordinatorVersion: 1,
         });
 
         // Enregistrer la room comme active uniquement pour l'appelant (l'hôte).

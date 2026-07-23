@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 /.docs/
+/functions/src/gameCore/
 *.local
 .env
 .env.local

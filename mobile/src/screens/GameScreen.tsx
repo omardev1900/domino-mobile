@@ -192,6 +192,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     }
 
     const isLocalHost = isSoloMode || (currentHostUid === localPlayerId);
+    const usesSystemCoordinator = !isSoloMode && roomData?.coordinatorVersion === 1;
 
     // -- VIGILANCE FIRESTORE: fallback heartbeat (tous les joueurs, seuil 25s) --
     // FIX-VIGILANCE: Guard !isLocalHost supprimé → tous les clients peuvent marquer DISCONNECTED.
@@ -894,13 +895,13 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // -- stats & economy recording effect --
     // Mark room as FINISHED when match ends (Multiplayer only)
     useEffect(() => {
-        if (!isSoloMode && gameId && isLocalHost && gameState?.phase === 'MATCH_END') {
+        if (!isSoloMode && !usesSystemCoordinator && gameId && isLocalHost && gameState?.phase === 'MATCH_END') {
             LogService.info('GameScreen', `Match ended, marking room ${gameId} as FINISHED`);
             markRoomAsFinished(gameId).catch(err => {
                 LogService.error('GameScreen', 'Error marking room as finished', err);
             });
         }
-    }, [gameState?.phase, isSoloMode, gameId, isLocalHost]);
+    }, [gameState?.phase, isSoloMode, usesSystemCoordinator, gameId, isLocalHost]);
 
     // FIX-SURRENDER: Filet de sécurité — si tous les joueurs sont SURRENDERED/BOT (aucun HUMAN)
     // en phase MATCH_END, personne ne peut cliquer "Continuer". On déclenche un exit automatique
@@ -1120,7 +1121,11 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // Ref stable vers handleOverlayContinue (disponible dès useGameEngine, avant ce point)
     // Pour PARTIE_END : l'intercept ne fait qu'appeler handleOverlayContinue (la branche récompenses est MATCH_END only)
     const partieEndContinueRef = useRef(handleOverlayContinue);
-    useEffect(() => { partieEndContinueRef.current = handleOverlayContinue; }, [handleOverlayContinue]);
+    useEffect(() => {
+        partieEndContinueRef.current = usesSystemCoordinator
+            ? () => undefined
+            : handleOverlayContinue;
+    }, [handleOverlayContinue, usesSystemCoordinator]);
 
     const resolveBoudeOnce = useCallback((resultKey: string) => {
         if (resolvedBoudeResultKeysRef.current.has(resultKey)) return;
@@ -1204,6 +1209,14 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         // score de manche (MancheEndFlow) et non l'écran de fin de match.
         if (gameState.phase === 'MANCHE_END') {
             setScoreOverlayPhase(null);
+            if (usesSystemCoordinator) {
+                // Le serveur avancera l'etat apres trois secondes. Afficher le
+                // resultat de manche immediatement lui laisse toute la fenetre UX.
+                setRoundResultSnapshot(gameState);
+                setShowRoundResult(false);
+                setScoreOverlayPhase('MANCHE_END');
+                return;
+            }
             // Conserver le snapshot PARTIE_END si déjà défini (transition rapide),
             // sinon initialiser avec l'état MANCHE_END courant (arrivée directe).
             setRoundResultSnapshot(prev => prev ?? gameState);
@@ -1295,7 +1308,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 }
             };
         }
-    }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, isLocalHost, resolveBoudeOnce, isMoveAnimationActive]);
+    }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, isLocalHost, usesSystemCoordinator, resolveBoudeOnce, isMoveAnimationActive]);
 
     // Afficher la popup récompensée dans les 3 secondes suivant les scores.
     // Uniquement en mode SOLO — en multi la pub interstitielle AdMob est déjà gérée ailleurs.
@@ -1780,6 +1793,10 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         setScoreOverlayPhase(null);
         if (gameState?.phase === 'MATCH_END') {
              handleLeaveRoom(); // Quitte la salle définitivement après la fin du match complet
+        } else if (usesSystemCoordinator) {
+            // Les overlays se ferment localement ; seule la Function fait
+            // progresser l'etat partage des salles coordonnees.
+            return;
         } else {
             // Guard : une seule tentative NEXT_ROUND par (manche, round)
             if (gameState && !isSoloMode) {
@@ -1792,7 +1809,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             }
             handleOverlayContinue(); // Continue vers la prochaine manche
         }
-    }, [gameState?.phase, gameState?.mancheNumber, gameState?.roundNumber, isSoloMode, handleLeaveRoom, handleOverlayContinue]);
+    }, [gameState?.phase, gameState?.mancheNumber, gameState?.roundNumber, isSoloMode, usesSystemCoordinator, handleLeaveRoom, handleOverlayContinue]);
 
 
 

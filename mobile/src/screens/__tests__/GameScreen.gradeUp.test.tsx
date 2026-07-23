@@ -16,6 +16,21 @@ const mockHandleOverlayContinue = jest.fn();
 const getLastOverlayProps = () => mockGameOverlays.mock.calls[mockGameOverlays.mock.calls.length - 1][0];
 const getLastRoundResultProps = () => mockRoundResultCard.mock.calls[mockRoundResultCard.mock.calls.length - 1][0];
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+    __esModule: true,
+    default: {
+        getItem: jest.fn().mockResolvedValue(null),
+        setItem: jest.fn().mockResolvedValue(undefined),
+        removeItem: jest.fn().mockResolvedValue(undefined),
+    },
+}));
+
+jest.mock('firebase/database', () => ({
+    ref: jest.fn(() => ({})),
+    onValue: jest.fn(() => jest.fn()),
+    off: jest.fn(),
+}));
+
 jest.mock('react-native-reanimated', () => {
     const Reanimated = require('react-native-reanimated/mock');
     Reanimated.default.call = () => {};
@@ -155,11 +170,12 @@ let mockCurrentGameState = {
     mancheNumber: 1,
     startingHandSize: 7,
 };
+let mockRoomData: Record<string, unknown> | null = null;
 
 jest.mock('../../hooks/game/useGameSync', () => ({
     useGameSync: () => ({
         gameState: mockCurrentGameState,
-        roomData: null,
+        roomData: mockRoomData,
         isStarting: false,
         setIsStarting: jest.fn(),
         safeUpdateGameState: jest.fn().mockResolvedValue(undefined),
@@ -333,6 +349,7 @@ describe('GameScreen grade-up flow', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        mockRoomData = null;
         mockCurrentGameState = {
             gameId: 'game-123',
             players: [
@@ -557,6 +574,73 @@ describe('GameScreen grade-up flow', () => {
 
         expect(mockHandleOverlayContinue).toHaveBeenCalledTimes(1);
         expect(getLastOverlayProps().showScoreOverlay).toBe(false);
+    });
+
+    it('laisse Firebase avancer une salle coordonnee apres PARTIE_END', async () => {
+        mockCurrentGameState = {
+            ...mockCurrentGameState,
+            phase: 'PARTIE_END',
+        } as any;
+        mockRoomData = {
+            roomId: 'game-123',
+            status: 'PLAYING',
+            createdBy: 'p1',
+            players: [{ uid: 'p1', isHost: true }, { uid: 'p2' }],
+            gameState: mockCurrentGameState,
+            coordinatorVersion: 1,
+        };
+
+        render(
+            <GameScreen
+                gameId="game-123"
+                userId="p1"
+                mode="multiplayer"
+                gameMode="MANCHE"
+                winningCondition={3}
+                turnDuration={15}
+                startingHandSize={7}
+            />
+        );
+
+        await waitFor(() => expect(getLastRoundResultProps().visible).toBe(true));
+        await act(async () => getLastRoundResultProps().onDismiss());
+
+        expect(mockHandleOverlayContinue).not.toHaveBeenCalled();
+    });
+
+    it('affiche immediatement MANCHE_END pour une salle coordonnee', async () => {
+        mockCurrentGameState = {
+            ...mockCurrentGameState,
+            phase: 'MANCHE_END',
+            mancheResult: 'COCHON',
+        } as any;
+        mockRoomData = {
+            roomId: 'game-123',
+            status: 'PLAYING',
+            createdBy: 'p1',
+            players: [{ uid: 'p1', isHost: true }, { uid: 'p2' }],
+            gameState: mockCurrentGameState,
+            coordinatorVersion: 1,
+        };
+
+        render(
+            <GameScreen
+                gameId="game-123"
+                userId="p1"
+                mode="multiplayer"
+                gameMode="COCHON"
+                winningCondition={3}
+                turnDuration={15}
+                startingHandSize={7}
+            />
+        );
+
+        await waitFor(() => {
+            expect(mockMancheEndFlow).toHaveBeenCalled();
+            const props = mockMancheEndFlow.mock.calls[mockMancheEndFlow.mock.calls.length - 1][0];
+            expect(props.visible).toBe(true);
+            expect(getLastRoundResultProps().visible).toBe(false);
+        });
     });
 
     it('n affiche pas l overlay final de match avant la fin du RoundResultCard quand on sort d une fin de manche', async () => {

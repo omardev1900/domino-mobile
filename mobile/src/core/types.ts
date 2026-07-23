@@ -135,4 +135,10 @@ export interface GameRoom {
     buyIn?: number; // 🪙 Quantité de coins nécessaires pour entrer
     quickChats?: { [playerId: string]: { content: string; timestamp: number; nonce?: string } | null }; // NEW: Decoupled chat
     heartbeats?: { [playerId: string]: number }; // NEW: Web Disconnect tracking
+    coordinatorVersion?: number;
+    coordinator?: {
+        version: number;
+        lastTransitionId: string;
+        lastTransitionAt?: unknown;
+    };
 }
