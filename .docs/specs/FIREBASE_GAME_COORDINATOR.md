@@ -461,6 +461,21 @@ Les transitions terminales, les tours automatiques, les actions humaines, la
 finalisation et les regles d'autorite ne dependent plus du telephone hote. Les
 chemins historiques ne servent qu'aux anciennes salles non coordonnees.
 
+### Correctif post-validation - invocation des callables
+
+Le test reel web a montre que `submitGameAction` et `requestRematch` etaient
+actives mais privees au niveau IAM. Google rejetait le preflight avant le
+middleware callable, ce que le navigateur presentait comme une erreur CORS.
+
+- Le binding `roles/cloudfunctions.invoker` avec membre `allUsers` a ete ajoute
+  uniquement sur ces deux Functions.
+- Le middleware `onCall` valide Firebase Auth avant le handler metier.
+- Les handlers utilisent exclusivement `context.auth.uid`; aucun `userId`
+  client n'est accepte par les schemas stricts.
+- Verification production : OPTIONS `204` avec CORS et POST sans jeton `401`.
+- App Check reste planifie apres configuration des fournisseurs web, Android et
+  debug local.
+
 ## 10. Conditions d'arret
 
 Le travail s'arrete avant l'etape suivante si :

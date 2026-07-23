@@ -113,7 +113,10 @@ export const closeRoomAndClearUsers = async (
 };
 
 export const createRequestRematch = (db: admin.firestore.Firestore) =>
-    functions.region('europe-west1').https.onCall(async (data: unknown, context) => {
+    functions
+        .region('europe-west1')
+        .runWith({ timeoutSeconds: 60 })
+        .https.onCall(async (data: unknown, context) => {
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'Connexion requise.');
         }

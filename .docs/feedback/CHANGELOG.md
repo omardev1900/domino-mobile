@@ -2,6 +2,8 @@
 
 ### 2026-07-23
 
+- Les commandes de jeu et de revanche multijoueur sont de nouveau joignables
+  depuis le web local ; une requete sans session Firebase reste rejetee.
 - Les parties multijoueur coordonnees ne dependent plus de l'hote pour avancer.
 - Les transitions BOUDE, fin de round, fin de manche et fin de match sont gerees
   par Firebase avec des delais bornes et des protections contre les doublons.
