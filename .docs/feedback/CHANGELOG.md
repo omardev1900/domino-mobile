@@ -2,6 +2,12 @@
 
 ### 2026-07-23
 
+- La sortie d'une salle multijoueur nettoie desormais atomiquement la presence
+  du joueur et son rattachement a la salle.
+- Le bouton plein ecran reste visible sur le web a cote des options pendant
+  toute la partie.
+- L'ecran de fin de round laisse davantage de temps pour lire le resultat et
+  consulter les dominos adverses avant de continuer automatiquement.
 - Les fins de round multijoueur passent automatiquement au round suivant en
   moins de trois secondes, y compris apres une interruption du coordinateur.
 - Les bots et les joueurs expires jouent de nouveau automatiquement en

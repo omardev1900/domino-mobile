@@ -2,6 +2,16 @@
 
 ### 2026-07-23
 
+- [x] `MULTI-COORD-03` Abandon et nettoyage de salle rendus atomiques afin
+  d'eviter les salles fantomes et les erreurs `signalPlayerOffline` apres une
+  sortie (`30e3aef`).
+- [x] `WEB-VERCEL-01` Cloture sans deploiement Vercel : la cible retenue est
+  desormais Firebase Hosting, avec export Expo dans `mobile/dist`. Le CI/CD
+  GitHub est reporte dans `WEB-FIREBASE-CI-01`.
+- [x] Controle plein ecran web maintenu a cote du bouton des options pendant
+  une partie (`c0bc0b7`).
+- [x] Resultat de round rendu plus lisible avant la transition automatique,
+  avec consultation des dominos adverses (`b0e156e`).
 - [x] `MULTI-COORD-06` Fins de round, manche et match retablies avec
   `coordinateTerminalGamePhasesV2`, reprise idempotente des salles figees et
   validation multijoueur reelle sans nouveau blocage.
