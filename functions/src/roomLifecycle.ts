@@ -4,6 +4,10 @@ import { z, ZodError } from 'zod';
 
 import { getMatchParticipantIds } from './matchFinalizer';
 import { GameRoom } from './gameCore/types';
+import {
+    enforceCallableRateLimit,
+    REQUEST_REMATCH_LIMIT,
+} from './callableRateLimit';
 
 const roomRequestSchema = z.object({
     roomId: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/),
@@ -121,6 +125,12 @@ export const createRequestRematch = (db: admin.firestore.Firestore) =>
             throw new functions.https.HttpsError('unauthenticated', 'Connexion requise.');
         }
         try {
+            await enforceCallableRateLimit(
+                db,
+                context.auth.uid,
+                'requestRematch',
+                REQUEST_REMATCH_LIMIT
+            );
             return await requestCoordinatedRematch(db, context.auth.uid, data);
         } catch (error) {
             if (error instanceof ZodError) {

@@ -2,6 +2,8 @@
 
 ### 2026-07-23
 
+- Les commandes multijoueur disposent maintenant d'un garde-fou anti-spam par
+  joueur, partage entre les instances Firebase.
 - Les commandes de jeu et de revanche multijoueur sont de nouveau joignables
   depuis le web local ; une requete sans session Firebase reste rejetee.
 - Les parties multijoueur coordonnees ne dependent plus de l'hote pour avancer.

@@ -1,4 +1,4 @@
 # Backlog
 
-Aucune demande en attente. Les deux anomalies multijoueur du 2026-07-23 sont
-en traitement dans `TASKS.md`.
+- [ ] `SEC-APP-CHECK` Configurer les fournisseurs App Check web, Android et
+  debug local, puis activer son enforcement sur les callables multijoueur.

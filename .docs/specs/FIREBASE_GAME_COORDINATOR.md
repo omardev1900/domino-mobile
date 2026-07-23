@@ -476,6 +476,20 @@ middleware callable, ce que le navigateur presentait comme une erreur CORS.
 - App Check reste planifie apres configuration des fournisseurs web, Android et
   debug local.
 
+### Garde-fou anti-spam
+
+Les callables publiques utilisent la collection serveur `_callableRateLimits`.
+Une transaction Firestore maintient deux fenetres fixes par UID et par endpoint.
+La collection n'est jamais accessible directement au client.
+
+- `submitGameAction` : 6 requetes par seconde et 90 par minute.
+- `requestRematch` : 2 requetes par seconde et 10 par minute.
+- Un depassement retourne `resource-exhausted` avant toute lecture de salle.
+- Les compteurs sont partages entre les instances Cloud Functions et isoles par
+  UID ; les requetes sans Firebase Auth sont rejetees avant le compteur.
+- Validation : 34 tests unitaires, suite d'integration Firestore et controles
+  production CORS `204` / sans Auth `401`.
+
 ## 10. Conditions d'arret
 
 Le travail s'arrete avant l'etape suivante si :

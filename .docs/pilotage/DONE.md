@@ -2,6 +2,9 @@
 
 ### 2026-07-23
 
+- [x] `MULTI-COORD-02` Quota Firestore partage par UID ajoute aux deux callables
+  publiques : `submitGameAction` limite a 6/s et 90/min, `requestRematch` a
+  2/s et 10/min.
 - [x] `MULTI-COORD-01` Invocation HTTP retablie uniquement pour
   `submitGameAction` et `requestRematch` : binding IAM
   `roles/cloudfunctions.invoker -> allUsers`, CORS local valide et rejet 401

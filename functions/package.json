@@ -3,8 +3,8 @@
   "scripts": {
     "prebuild": "node copy-core.js",
     "build": "tsc",
-    "test": "npm run build && node --test lib/gameCoordinator.test.js lib/turnCoordinator.test.js lib/humanGameAction.test.js lib/matchFinalizer.test.js lib/callableDeployment.test.js",
-    "test:emulator": "npm run build && firebase emulators:exec --project demo-domino --only firestore \"node --test --test-concurrency=1 lib/terminalGameCoordinator.integration.test.js lib/activeTurnCoordinator.integration.test.js lib/submitGameAction.integration.test.js lib/matchFinalizer.integration.test.js lib/roomLifecycle.integration.test.js\"",
+    "test": "npm run build && node --test lib/gameCoordinator.test.js lib/turnCoordinator.test.js lib/humanGameAction.test.js lib/matchFinalizer.test.js lib/callableDeployment.test.js lib/callableRateLimit.test.js",
+    "test:emulator": "npm run build && firebase emulators:exec --project demo-domino --only firestore \"node --test --test-concurrency=1 lib/terminalGameCoordinator.integration.test.js lib/activeTurnCoordinator.integration.test.js lib/submitGameAction.integration.test.js lib/matchFinalizer.integration.test.js lib/roomLifecycle.integration.test.js lib/callableRateLimit.integration.test.js\"",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",

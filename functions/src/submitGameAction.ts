@@ -9,6 +9,10 @@ import {
     HumanGameActionError,
     humanGameActionInputSchema,
 } from './humanGameAction';
+import {
+    enforceCallableRateLimit,
+    SUBMIT_GAME_ACTION_LIMIT,
+} from './callableRateLimit';
 
 export type SubmitGameActionResult = {
     applied: boolean;
@@ -102,6 +106,12 @@ export const createSubmitGameAction = (db: admin.firestore.Firestore) =>
         }
 
         try {
+            await enforceCallableRateLimit(
+                db,
+                context.auth.uid,
+                'submitGameAction',
+                SUBMIT_GAME_ACTION_LIMIT
+            );
             return await submitGameActionTransaction(db, context.auth.uid, data);
         } catch (error) {
             if (error instanceof ZodError) {
