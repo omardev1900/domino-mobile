@@ -92,15 +92,9 @@ export const AdRewardButton: React.FC<AdRewardButtonProps> = ({
 
     const handlePress = async () => {
         if (claimed || loading || disabled) return;
+        if (Platform.OS === 'web') return;
         setLoading(true);
         try {
-            if (Platform.OS === 'web') {
-                await onClaim();
-                setClaimed(true);
-                setLoading(false);
-                return;
-            }
-
             if (isAdMobLoaded) {
                 showAdMob();
                 return;
@@ -128,6 +122,8 @@ export const AdRewardButton: React.FC<AdRewardButtonProps> = ({
     };
 
     const isProminent = variant === 'prominent';
+
+    if (Platform.OS === 'web') return null;
 
     if (claimed) {
         return (

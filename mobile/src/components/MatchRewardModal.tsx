@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, withSequence, withRepeat } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +21,7 @@ export const MatchRewardModal: React.FC<MatchRewardModalProps> = ({ visible, amo
     const glowOpacity = useSharedValue(0.5);
 
     useEffect(() => {
-        if (visible) {
+        if (visible && Platform.OS !== 'web') {
             SoundManager.playSound('notify');
             scale.value = withSpring(1, { damping: 12, stiffness: 100 });
             glowOpacity.value = withRepeat(
@@ -46,7 +46,7 @@ export const MatchRewardModal: React.FC<MatchRewardModalProps> = ({ visible, amo
         transform: [{ scale: scale.value }],
     }));
 
-    if (!visible) return null;
+    if (!visible || Platform.OS === 'web') return null;
 
     return (
         <Modal transparent visible={visible} animationType="none">

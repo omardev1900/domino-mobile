@@ -27,6 +27,7 @@ import { RoundEndFlow } from '../components/game/RoundEndFlow';
 import { MancheEndFlow } from '../components/game/MancheEndFlow';
 import { RewardOverlay } from '../components/RewardOverlay';
 import { MatchRewardModal } from '../components/MatchRewardModal';
+import { shouldOfferMatchAdReward } from '../core/ads/matchRewardPolicy';
 
 // Core
 import { determineFirstPlayer, dealGameSolo, getForcedOpeningDominoId, getForcedTieBreakDominoId, dealGame } from '../core/LogicEngine';
@@ -1344,7 +1345,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // Afficher la popup récompensée dans les 3 secondes suivant les scores.
     // Uniquement en mode SOLO — en multi la pub interstitielle AdMob est déjà gérée ailleurs.
     useEffect(() => {
-        if (scoreOverlayPhase === 'MATCH_END' && isSoloMode) {
+        if (shouldOfferMatchAdReward(Platform.OS, isSoloMode, scoreOverlayPhase)) {
             setMatchRewardAmount(100);
             const timer = setTimeout(() => {
                 setShowMatchRewardModal(true);
@@ -2094,16 +2095,18 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
 
             {/* Popup cadeau de fin de partie */}
-            <MatchRewardModal
-                visible={showMatchRewardModal}
-                amount={matchRewardAmount}
-                onClose={() => setShowMatchRewardModal(false)}
-                onClaim={() => {
-                    economyService.creditAdReward(persistenceUserId, undefined, matchRewardAmount).catch(e =>
-                        LogService.error('GameScreen', '[ADS-REWARD] creditAdReward failed:', e)
-                    );
-                }}
-            />
+            {Platform.OS !== 'web' && (
+                <MatchRewardModal
+                    visible={showMatchRewardModal}
+                    amount={matchRewardAmount}
+                    onClose={() => setShowMatchRewardModal(false)}
+                    onClaim={() => {
+                        economyService.creditAdReward(persistenceUserId, undefined, matchRewardAmount).catch(e =>
+                            LogService.error('GameScreen', '[ADS-REWARD] creditAdReward failed:', e)
+                        );
+                    }}
+                />
+            )}
             {flyingDomino && (
                 <FlyingDomino
                     key={flyingDomino.animationId}
