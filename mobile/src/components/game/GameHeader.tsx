@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { EdgeInsets } from 'react-native-safe-area-context';
 import { GameState } from '../../core/types';
+import { WebFullscreenButton } from '../WebFullscreenButton';
 
 export interface GameHeaderProps {
     gameState: GameState | null;
@@ -15,14 +16,15 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
     insets,
     onOpenOptions,
 }) => {
-    // Visible en PLAYING, MANCHE_END et MATCH_END pour garantir un chemin de sortie en cas de blocage
-    const visiblePhases = ['PLAYING', 'MANCHE_END', 'MATCH_END'];
+    const visiblePhases = ['DEALING', 'PLAYING', 'BOUDE', 'PARTIE_END', 'MANCHE_END', 'MATCH_END'];
     if (!gameState || !visiblePhases.includes(gameState.phase)) return null;
 
     return (
         <View style={[styles.unifiedHeader, { top: Math.max(insets.top, 10) }]} testID="game-header">
-
-            {/* Bouton unique ⚙️ */}
+            <WebFullscreenButton
+                style={styles.fullscreenBtn}
+                size={22}
+            />
             <TouchableOpacity
                 onPress={onOpenOptions}
                 activeOpacity={0.7}
@@ -51,6 +53,13 @@ const styles = StyleSheet.create({
         padding: 8,
         borderRadius: 20,
         borderWidth: 1,
+        borderColor: 'rgba(255,215,0,0.3)',
+    },
+    fullscreenBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0,0,0,0.6)',
         borderColor: 'rgba(255,215,0,0.3)',
     },
 });

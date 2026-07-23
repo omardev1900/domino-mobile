@@ -3,6 +3,13 @@ import { render, fireEvent, act } from '@testing-library/react-native';
 import { GameHeader } from '../GameHeader';
 import { GameState } from '../../../core/types';
 
+jest.mock('../../WebFullscreenButton', () => ({
+    WebFullscreenButton: () => {
+        const { View } = jest.requireActual('react-native');
+        return <View testID="btn-fullscreen" />;
+    },
+}));
+
 describe('GameHeader Component', () => {
     const mockInsets = { top: 20, bottom: 0, left: 0, right: 0 };
     const mockGameState = {
@@ -48,5 +55,17 @@ describe('GameHeader Component', () => {
         });
         expect(defaultProps.onOpenOptions).toHaveBeenCalledTimes(1);
     });
+
+    it.each(['PLAYING', 'BOUDE', 'PARTIE_END', 'MANCHE_END', 'MATCH_END'])(
+        'keeps fullscreen next to options during %s',
+        phase => {
+            const { getByTestId } = render(
+                <GameHeader {...defaultProps} gameState={{ ...mockGameState, phase } as GameState} />
+            );
+
+            expect(getByTestId('btn-fullscreen')).toBeTruthy();
+            expect(getByTestId('btn-options')).toBeTruthy();
+        }
+    );
 
 });
