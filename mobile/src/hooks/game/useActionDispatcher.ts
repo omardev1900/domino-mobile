@@ -3,6 +3,7 @@ import { GameState, Domino, PlayerId, GameRoom, GamePhase } from '../../core/typ
 import { handleTurn, passTurn, resolveBoude, handleTimeout, computeNextRoundState } from '../../core/LogicEngine';
 import SoundManager from '../../core/audio/SoundManager';
 import { LogService } from '../../core/services/LogService';
+import { submitGameAction } from '../../core/services/gameAction.service';
 
 export type ActionCommand =
     | { type: 'PLAY_TILE'; playerId: PlayerId; tile: Domino; side?: 'start' | 'left' | 'right' }
@@ -109,9 +110,36 @@ export const useActionDispatcher = ({
             return;
         }
 
-
-
         try {
+            const usesSystemCoordinator = !isSoloMode && roomData?.coordinatorVersion === 1;
+            if (usesSystemCoordinator) {
+                if (command.type !== 'PLAY_TILE' && command.type !== 'PASS_TURN') return;
+                if (command.playerId !== localPlayerId || !gameId) return;
+
+                const action = command.type === 'PLAY_TILE'
+                    ? {
+                        type: 'PLAY_TILE' as const,
+                        dominoId: command.tile.id,
+                        side: command.side,
+                    }
+                    : { type: 'PASS_TURN' as const };
+                const result = await submitGameAction({
+                    roomId: gameId,
+                    expectedStateVersion: gameState.stateVersion ?? 0,
+                    expectedTurnId: gameState.turnId ?? 0,
+                    action,
+                });
+
+                if (result.applied) {
+                    setOvertime(null);
+                    clearAllTurnTimers();
+                    if (command.type === 'PLAY_TILE' && onTilePlayed) {
+                        onTilePlayed(command.tile);
+                    }
+                }
+                return;
+            }
+
             let newState: GameState | null = null;
             let tilePlayed: Domino | null = null;
 
@@ -263,6 +291,7 @@ export const useActionDispatcher = ({
         isSoloMode,
         gameId,
         isLocalHost,
+        roomData?.coordinatorVersion,
         startingHandSize,
         acquireLock,
         releaseLock,

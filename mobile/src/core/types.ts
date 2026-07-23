@@ -143,5 +143,7 @@ export interface GameRoom {
         lastTurnActionId?: string;
         lastTurnActionKind?: 'MARK_BOUDE' | 'PASS' | 'PLAY' | 'TIMEOUT';
         lastTurnActionAt?: unknown;
+        lastHumanActionId?: string;
+        lastHumanActionAt?: unknown;
     };
 }

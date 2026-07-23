@@ -1,13 +1,68 @@
 import { renderHook, act } from '@testing-library/react-native';
 import { useActionDispatcher } from '../useActionDispatcher';
-import { GameState, GamePhase } from '../../../core/types';
+import { GameRoom, GameState, GamePhase } from '../../../core/types';
+import { submitGameAction } from '../../../core/services/gameAction.service';
 
 jest.mock('../../../core/audio/SoundManager', () => ({
   playSound: jest.fn(),
   playClack: jest.fn(),
 }));
 
+jest.mock('../../../core/services/gameAction.service', () => ({
+  submitGameAction: jest.fn(),
+}));
+
 describe('useActionDispatcher - RESOLVE_BOUDE Tie-Break', () => {
+  it('envoie une commande minimale pour une salle coordonnee', async () => {
+    const mockSubmitGameAction = submitGameAction as jest.MockedFunction<typeof submitGameAction>;
+    mockSubmitGameAction.mockResolvedValue({ applied: true, stateVersion: 13, turnId: 9, phase: 'PLAYING' });
+    const tile = { id: 'd-6-5', left: 6, right: 5, isDouble: false } as const;
+    const gameState = {
+      gameId: 'test-game',
+      phase: 'PLAYING',
+      players: [{ id: 'p1', name: 'P1', hand: [tile], status: 'HUMAN' }],
+      currentPlayerId: 'p1',
+      turnId: 8,
+      stateVersion: 12,
+    } as GameState;
+    const safeUpdateGameState = jest.fn();
+    const setGameState = jest.fn();
+    const releaseLock = jest.fn();
+    const onTilePlayed = jest.fn();
+
+    const { result } = renderHook(() => useActionDispatcher({
+      gameState,
+      localPlayerId: 'p1',
+      isSoloMode: false,
+      gameId: 'test-game',
+      isLocalHost: false,
+      roomData: { coordinatorVersion: 1 } as GameRoom,
+      acquireLock: () => true,
+      releaseLock,
+      canAction: () => true,
+      safeUpdateGameState,
+      setGameState,
+      clearAllTurnTimers: jest.fn(),
+      setOvertime: jest.fn(),
+      onTilePlayed,
+    }));
+
+    await act(async () => {
+      await result.current.dispatch({ type: 'PLAY_TILE', playerId: 'p1', tile, side: 'right' });
+    });
+
+    expect(mockSubmitGameAction).toHaveBeenCalledWith({
+      roomId: 'test-game',
+      expectedStateVersion: 12,
+      expectedTurnId: 8,
+      action: { type: 'PLAY_TILE', dominoId: 'd-6-5', side: 'right' },
+    });
+    expect(safeUpdateGameState).not.toHaveBeenCalled();
+    expect(setGameState).not.toHaveBeenCalled();
+    expect(onTilePlayed).toHaveBeenCalledWith(tile);
+    expect(releaseLock).toHaveBeenCalledTimes(1);
+  });
+
   it('increments stateVersion when MARK_BOUDE is synchronized in multiplayer', async () => {
     const mockGameState = {
       gameId: 'test-game',

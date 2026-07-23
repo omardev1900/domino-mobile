@@ -206,6 +206,48 @@ minimales validees et executees cote serveur.
 feat(coordinator-step-3): validate human actions server-side
 ```
 
+### Rapport d'implementation
+
+Implementation retenue :
+
+- Callable Function authentifiee `submitGameAction` en `europe-west1`.
+- Commande Zod stricte : salle, `stateVersion`, `turnId`, type d'action,
+  identifiant du domino et cote ; aucun `gameState` client n'est accepte.
+- L'UID vient exclusivement du contexte Firebase Auth, jamais de la commande.
+- La transaction verifie l'appartenance a la salle, le statut `HUMAN`, le tour,
+  la version, la possession du domino et la legalite du placement.
+- `LogicEngine.handleTurn` et `passTurn` calculent seuls l'etat resultant.
+- Un identifiant stable rend un rejeu inoffensif ; une commande concurrente
+  differente devient `STALE` et ne modifie rien.
+- Le dispatcher mobile utilise la callable uniquement pour `PLAY_TILE` et
+  `PASS_TURN` dans les salles coordonnees. Solo et anciennes salles restent
+  compatibles avec le parcours historique.
+
+Controles valides :
+
+- 7 tests unitaires d'actions humaines, 9 de tours actifs et 8 terminaux.
+- Zod, mauvais joueur, joueur absent, mauvais cote, domino absent et passage
+  illegal couverts.
+- Rejeu identique et commande concurrente testes avec Firestore Emulator.
+- Test mobile confirmant l'envoi minimal et l'absence d'ecriture directe de
+  `gameState` par le dispatcher coordonne.
+- Tests coordonnes `GameScreen` et suspension des automatismes client.
+- Build TypeScript strict des Functions, ESLint cible sans erreur et
+  `git diff --check`.
+- Callable deployee et confirmee en v1, `europe-west1`, Node.js 22.
+
+Limites connues :
+
+- Jusqu'a l'etape 5, les regles Firestore historiques autorisent encore un
+  ancien client membre a ecrire directement `gameState`. Le nouveau client ne
+  le fait plus, mais la fermeture de ce contournement attend volontairement la
+  suppression complete des fallbacks hote.
+- App Check n'est pas impose dans cette etape ; Firebase Auth, l'appartenance a
+  la salle et la transaction serveur sont obligatoires.
+- Le `tsc --noEmit` mobile global expose une dette TypeScript anterieure dans
+  plusieurs ecrans et tests sans lien avec cette etape. Les fichiers modifies
+  sont couverts par Jest et ESLint cible, et les Functions compilent en strict.
+
 ## 7. Etape 4 - Economie et cycle de salle atomiques
 
 ### Objectif

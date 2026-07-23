@@ -5,6 +5,7 @@ import { RewardCalculationInput } from './core/economy.types';
 import { logSystemEvent } from './systemLog';
 import { createTerminalGameCoordinator } from './terminalGameCoordinator';
 import { createActiveTurnCoordinator } from './activeTurnCoordinator';
+import { createSubmitGameAction } from './submitGameAction';
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -471,3 +472,4 @@ export * from './cleanupRooms';
 
 export const coordinateTerminalGamePhases = createTerminalGameCoordinator(db);
 export const coordinateActiveGameTurns = createActiveTurnCoordinator(db);
+export const submitGameAction = createSubmitGameAction(db);

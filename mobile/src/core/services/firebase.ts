@@ -35,6 +35,7 @@ import {
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getDatabase } from 'firebase/database';
+import { getFunctions } from 'firebase/functions';
 import { GameRoom, GameState, PlayerProfile, RoomStatus, GameMode } from '../types';
 import { LogService } from './LogService';
 import { resolveStartingHandSize } from '../startingHandSize';
@@ -69,6 +70,7 @@ export const storage = getStorage(app);
 // Realtime Database — utilisé uniquement pour la présence (onDisconnect).
 // Toute la logique de jeu reste sur Firestore.
 export const rtdb = getDatabase(app);
+export const gameFunctions = getFunctions(app, 'europe-west1');
 
 // Initialize Auth with cross-platform persistence
 let authInstance;
