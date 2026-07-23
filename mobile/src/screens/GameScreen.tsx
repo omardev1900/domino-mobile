@@ -162,40 +162,14 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [debitFeedback, setDebitFeedback] = useState<string | null>(null);
     const isIntentionalLeave = useRef(false);
 
-    // -- ACTING HOST LOGIC --
-    // Le vrai hôte est celui désigné par isHost, ou à défaut le créateur.
-    let currentHostUid = roomData?.players.find(p => p.isHost)?.uid || roomData?.createdBy;
-    
-    // Si la partie est lancée et que l'hôte officiel est déconnecté (ou est un bot), 
-    // FIX-HOST-ELECTION: Lire gameState.players (statut en jeu) et NON roomData.players
-    // (statut de lobby, jamais mis à jour pendant la partie via signalPlayerOffline).
-    // Avant ce fix, isDesignatedHostActive était toujours true → aucune élection ne se déclenchait.
-    if (!isSoloMode && roomData?.players && gameState?.players) {
-        const isDesignatedHostActive = gameState.players.some(
-            gp => gp.id === currentHostUid && gp.status === 'HUMAN'
-        );
-        if (!isDesignatedHostActive) {
-            const firstActiveHumanUid = roomData.players
-                .map(rp => rp.uid)
-                .find(uid => gameState.players.some(gp => gp.id === uid && gp.status === 'HUMAN'));
-            if (firstActiveHumanUid) {
-                currentHostUid = firstActiveHumanUid;
-                LogService.info('GameScreen', `[HOST-ELECTION] Acting host elected: ${firstActiveHumanUid}`);
-            } else {
-                // Aucun joueur HUMAN trouvé — l'élection échoue silencieusement.
-                // Dans ce cas, currentHostUid reste l'hôte d'origine (déconnecté), personne
-                // n'est isLocalHost → le bot ne sera pas joué. Cela ne devrait pas arriver
-                // en jeu normal (au moins un joueur HUMAN = le joueur local lui-même).
-                LogService.warn('GameScreen', '[HOST-ELECTION] No active HUMAN player found — election produced no result. currentHostUid kept as original.');
-            }
-        }
-    }
-
-    const isLocalHost = isSoloMode || (currentHostUid === localPlayerId);
     const usesSystemCoordinator = !isSoloMode && roomData?.coordinatorVersion === 1;
+    // Le createur ne garde une autorite en jeu que pour les anciennes salles.
+    // Une salle coordonnee n'elit jamais de responsable de match sur un telephone.
+    const legacyHostUid = roomData?.players.find(player => player.isHost)?.uid ?? roomData?.createdBy;
+    const hasLegacyHostAuthority = isSoloMode || (!usesSystemCoordinator && legacyHostUid === localPlayerId);
 
     // -- VIGILANCE FIRESTORE: fallback heartbeat (tous les joueurs, seuil 25s) --
-    // FIX-VIGILANCE: Guard !isLocalHost supprimé → tous les clients peuvent marquer DISCONNECTED.
+    // Tous les clients peuvent signaler un pair dont la presence a expire.
     // FIX-VIGILANCE-REF: roomData lu via ref pour éviter le reset de l'intervalle à chaque snapshot.
     const roomDataRef = useRef(roomData);
     useEffect(() => { roomDataRef.current = roomData; }, [roomData]);
@@ -637,7 +611,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         isSoloMode,
         gameId,
         isPaused: isPaused || showOptions || isAdVisible || isMoveAnimationPending,
-        isLocalHost,
+        hasLegacyHostAuthority,
         usesSystemCoordinator,
         roomData,
         userId,
@@ -908,13 +882,13 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // -- stats & economy recording effect --
     // Mark room as FINISHED when match ends (Multiplayer only)
     useEffect(() => {
-        if (!isSoloMode && !usesSystemCoordinator && gameId && isLocalHost && gameState?.phase === 'MATCH_END') {
+        if (!isSoloMode && !usesSystemCoordinator && gameId && hasLegacyHostAuthority && gameState?.phase === 'MATCH_END') {
             LogService.info('GameScreen', `Match ended, marking room ${gameId} as FINISHED`);
             markRoomAsFinished(gameId).catch(err => {
                 LogService.error('GameScreen', 'Error marking room as finished', err);
             });
         }
-    }, [gameState?.phase, isSoloMode, usesSystemCoordinator, gameId, isLocalHost]);
+    }, [gameState?.phase, isSoloMode, usesSystemCoordinator, gameId, hasLegacyHostAuthority]);
 
     // FIX-SURRENDER: Filet de sécurité — si tous les joueurs sont SURRENDERED/BOT (aucun HUMAN)
     // en phase MATCH_END, personne ne peut cliquer "Continuer". On déclenche un exit automatique
@@ -1223,14 +1197,15 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 setRoundResultSnapshot(gameState);
                 setShowRoundResult(true);
             }
-            if (isLocalHost && !boudeTimerRef.current) {
+            if (usesSystemCoordinator) return;
+            if (hasLegacyHostAuthority && !boudeTimerRef.current) {
                 // L'hôte résout avant la limite UX de 3 secondes.
                 boudeTimerRef.current = setTimeout(() => {
                     resolveBoudeOnce(boudeResultKey);
                     boudeTimerRef.current = null;
                 }, RESULT_TRANSITION_FALLBACK_MS);
-            } else if (!isLocalHost && !boudeTimerRef.current) {
-                // Secours (Acting Host transition fallback) : 
+            } else if (!hasLegacyHostAuthority && !boudeTimerRef.current) {
+                // Secours reserve aux anciennes salles sans coordinateur :
                 // Si l'hôte est indisponible, un autre joueur résout au plus tard à 3s.
                 // Firestore n'enregistrera l'update qu'une seule fois grâce à l'idempotence de resolveBoude
                 boudeTimerRef.current = setTimeout(() => {
@@ -1355,7 +1330,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 }
             };
         }
-    }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, isLocalHost, usesSystemCoordinator, resolveBoudeOnce, isMoveAnimationActive]);
+    }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, hasLegacyHostAuthority, usesSystemCoordinator, resolveBoudeOnce, isMoveAnimationActive]);
 
     // Afficher la popup récompensée dans les 3 secondes suivant les scores.
     // Uniquement en mode SOLO — en multi la pub interstitielle AdMob est déjà gérée ailleurs.
@@ -1375,7 +1350,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // Compatibilite legacy : l'ancien reset par l'hote renvoie les invites a l'accueil.
     // Les salles coordonnees reviennent toutes au lobby via useGameSync.
     useEffect(() => {
-        if (isSoloMode || usesSystemCoordinator || isLocalHost) return;
+        if (isSoloMode || usesSystemCoordinator || hasLegacyHostAuthority) return;
         if (!roomData) return;
         const hostReset = roomData.status === 'WAITING' && !roomData.gameState;
         if (hostReset && gameState?.phase === 'MATCH_END') {
@@ -1415,10 +1390,10 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         };
 
         // Only guests deduct here. Host deducts in handleStartGame for atomic transition.
-        if (!isLocalHost) {
+        if (!hasLegacyHostAuthority) {
             deductBuyInAction();
         }
-    }, [gameState?.phase, isLocalHost, isSoloMode, gameId, activeTableTier, localPlayerId]);
+    }, [gameState?.phase, hasLegacyHostAuthority, isSoloMode, gameId, activeTableTier, localPlayerId]);
     useEffect(() => {
         // Solo mode - wait for profile to load first
         if (isSoloMode) {
@@ -2100,7 +2075,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     visible={true}
                     localPlayerId={localPlayerId}
                     onContinue={interceptOverlayContinue}
-                    isHost={isLocalHost}
+                    isHost={hasLegacyHostAuthority}
                 />
             )}
 
@@ -2112,7 +2087,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     onDismiss={handleDismissRoundResult}
                     localPlayerId={localPlayerId}
                     opponents={opponents}
-                    isHost={isLocalHost}
+                    isHost={hasLegacyHostAuthority}
                     autoAdvanceDelay={ROUND_RESULT_AUTO_ADVANCE_MS}
                     localPlayerIndex={(roundResultSnapshot ?? gameState)?.players.findIndex(p => p.id === localPlayerId) ?? 0}
                 />

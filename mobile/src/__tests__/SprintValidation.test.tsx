@@ -88,7 +88,7 @@ describe('Scénario 1 : Anti-Rollback et File FIFO (P1)', () => {
             localPlayerId: 'p1',
             isSoloMode: false,
             gameId: 'test-game',
-            isLocalHost: true,
+            hasLegacyHostAuthority: true,
             roomData: {} as any,
             acquireLock,
             releaseLock,
@@ -148,7 +148,7 @@ describe('Scénario 2 : Coupure Réseau et Watchdog (P2)', () => {
             localPlayerId: 'p1',
             isSoloMode: false,
             gameId: 'test-game',
-            isLocalHost: true,
+            hasLegacyHostAuthority: true,
             roomData: {} as any,
             acquireLock,
             releaseLock,
@@ -202,10 +202,9 @@ describe('Scénario 3 : Reconnexion et Vol de Tour par les Bots (P2)', () => {
             ]
         } as any;
 
-        const { rerender } = renderHook((state) => useBotDecision({
+        const { rerender } = renderHook((state: GameState) => useBotDecision({
             gameState: state,
-            isLocalHost: true,
-            roomData: {} as any,
+            hasLegacyHostAuthority: true,
             dispatch: mockDispatch,
             localPlayerId: 'p1',
             isSoloMode: false,
@@ -263,10 +262,10 @@ describe('Scénario 4 : Délai de Grâce et "Boudé" (P3)', () => {
             ]
         } as any;
 
-        const { rerender } = renderHook((state) => useAutoPass({
+        const { rerender } = renderHook((state: GameState) => useAutoPass({
             gameState: state,
             dispatch: mockDispatch,
-            isLocalHost: true,
+            hasLegacyHostAuthority: true,
             localPlayerId: 'p2',
             isPaused: false,
         }), { initialProps: mockGameState });
@@ -307,9 +306,9 @@ describe('Scénario 4 : Délai de Grâce et "Boudé" (P3)', () => {
 });
 
 // ==========================================
-// SCENARIO 5: UI Fin de Manche et Bouton Continuer (P3)
+// SCENARIO 5: UI Fin de Manche sans autorite interactive de l'hote (P3)
 // ==========================================
-describe('Scénario 5 : UI Fin de Manche et Bouton "Continuer" (P3)', () => {
+describe('Scénario 5 : UI Fin de Manche sans bouton "Continuer" (P3)', () => {
     beforeEach(() => {
         jest.useFakeTimers();
     });
@@ -326,8 +325,8 @@ describe('Scénario 5 : UI Fin de Manche et Bouton "Continuer" (P3)', () => {
         mancheWins: 1
     };
 
-    it('skips counting and shows Continue button ONLY to the host', () => {
-        const { getByText, queryByText, rerender } = render(
+    it('ne donne aucun bouton Continuer au createur de la salle', () => {
+        const { queryByText, rerender } = render(
             <RoundEndFlow
                 gameState={mockGameState}
                 visible={true}
@@ -342,10 +341,9 @@ describe('Scénario 5 : UI Fin de Manche et Bouton "Continuer" (P3)', () => {
             jest.advanceTimersByTime(2000); // Advance past all timeouts
         });
 
-        // Since it's not the host, there should be NO "Continuer" button
         expect(queryByText('Continuer')).toBeNull();
 
-        // Rerender as host
+        // Le statut historique d'hote ne doit plus creer de commande interactive.
         rerender(
             <RoundEndFlow
                 gameState={mockGameState}
@@ -357,12 +355,10 @@ describe('Scénario 5 : UI Fin de Manche et Bouton "Continuer" (P3)', () => {
             />
         );
 
-        // Advance any remaining effects
         act(() => {
             jest.runAllTimers();
         });
 
-        // Now the host should see the "Continuer" button
-        expect(getByText('Continuer')).toBeTruthy();
+        expect(queryByText('Continuer')).toBeNull();
     });
 });

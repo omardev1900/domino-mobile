@@ -8,7 +8,7 @@ global.XMLHttpRequest = require('xhr2');
 
 
 
-import { initializeTestEnvironment, RulesTestEnvironment, assertSucceeds } from '@firebase/rules-unit-testing';
+import { initializeTestEnvironment, RulesTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
 import { doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -132,5 +132,74 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
         expect(snapshotData?.gameState?.turnId).toBe(2);
 
         unsubscribe();
+    });
+
+    it('Scenario 3: coordinated rooms reject client state replacement but allow presence', async () => {
+        const memberDb = testEnv.authenticatedContext('user_guest').firestore();
+        const roomRef = doc(memberDb, 'rooms', 'ROOM_COORDINATED');
+        const gameState = {
+            phase: 'PLAYING',
+            turnId: 1,
+            currentPlayerId: 'user_host',
+            players: [
+                { id: 'user_host', status: 'HUMAN', hand: [] },
+                { id: 'user_guest', status: 'HUMAN', hand: [] },
+            ],
+        };
+
+        await testEnv.withSecurityRulesDisabled(async context => {
+            await setDoc(doc(context.firestore(), 'rooms', 'ROOM_COORDINATED'), {
+                roomId: 'ROOM_COORDINATED',
+                status: 'PLAYING',
+                coordinatorVersion: 1,
+                createdBy: 'user_host',
+                playerIds: ['user_host', 'user_guest'],
+                gameState,
+            });
+        });
+
+        await assertFails(updateDoc(roomRef, {
+            gameState: { ...gameState, turnId: 2, currentPlayerId: 'user_guest' },
+        }));
+        await assertFails(updateDoc(roomRef, { 'gameState.turnId': 2 }));
+        await assertFails(updateDoc(roomRef, {
+            'gameState.players': [
+                { ...gameState.players[0], status: 'SURRENDERED' },
+                gameState.players[1],
+            ],
+        }));
+        await assertSucceeds(updateDoc(roomRef, {
+            'gameState.players': [
+                gameState.players[0],
+                { ...gameState.players[1], status: 'DISCONNECTED' },
+            ],
+        }));
+        await assertSucceeds(updateDoc(roomRef, { 'heartbeats.user_guest': Date.now() }));
+    });
+
+    it('Scenario 4: the creator can still start a coordinated rematch from the lobby', async () => {
+        const hostDb = testEnv.authenticatedContext('user_host').firestore();
+        const guestDb = testEnv.authenticatedContext('user_guest').firestore();
+        const roomRef = doc(hostDb, 'rooms', 'ROOM_REMATCH');
+
+        await testEnv.withSecurityRulesDisabled(async context => {
+            await setDoc(doc(context.firestore(), 'rooms', 'ROOM_REMATCH'), {
+                roomId: 'ROOM_REMATCH',
+                status: 'WAITING',
+                coordinatorVersion: 1,
+                createdBy: 'user_host',
+                playerIds: ['user_host', 'user_guest'],
+                gameState: null,
+            });
+        });
+
+        await assertFails(updateDoc(doc(guestDb, 'rooms', 'ROOM_REMATCH'), {
+            status: 'PLAYING',
+            gameState: { phase: 'PLAYING', turnId: 1, players: [] },
+        }));
+        await assertSucceeds(updateDoc(roomRef, {
+            status: 'PLAYING',
+            gameState: { phase: 'PLAYING', turnId: 1, players: [] },
+        }));
     });
 });

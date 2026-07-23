@@ -352,6 +352,56 @@ que du salon avant le lancement de la partie.
 refactor(coordinator-step-5): remove in-game host authority
 ```
 
+### Rapport d'implementation
+
+Implementation retenue :
+
+- L'election d'`acting host` a ete supprimee de `GameScreen`. Dans une salle
+  `coordinatorVersion: 1`, aucun telephone ne recoit d'autorite de match quand
+  le createur se deconnecte.
+- Les anciens automatismes client restent disponibles uniquement pour une salle
+  legacy non coordonnee sous le nom explicite `hasLegacyHostAuthority`. Cette
+  valeur est toujours `false` dans le nouveau systeme.
+- Les timers BOUDE, bot, auto-pass, timeout et transition ne soumettent aucune
+  mutation dans une salle coordonnee. Les overlays restent des vues locales et
+  adoptent les phases diffusees par Firebase.
+- `safeUpdateGameState` refuse desormais explicitement tout remplacement client
+  pour une salle coordonnee, en plus de la protection serveur.
+- Les regles Firestore refusent le remplacement complet de `gameState` et la
+  modification directe du tour pendant un match coordonne.
+- Les seules mutations client encore admises dans `gameState` sont les statuts
+  de presence bornes : chacun gere son propre retour/abandon ; un membre peut
+  seulement signaler un pair `HUMAN -> DISCONNECTED`, jamais l'abandonner ou le
+  transformer en bot.
+- Au lobby, les reglages restent collaboratifs comme auparavant, mais seul le
+  createur peut effectuer la transition `WAITING -> PLAYING`. Cette autorite
+  s'arrete des que le match commence.
+- La commande `test:multi` cible maintenant reellement la suite de regles et
+  s'execute en serie avec Firestore Emulator.
+
+Controles valides :
+
+- 4 scenarios de regles : compatibilite legacy, synchronisation, refus des
+  ecritures coordonnees, presence autorisee et lancement de revanche par le
+  createur uniquement.
+- 33 tests des hooks de jeu, dispatcher, bots, synchronisation et overlays.
+- 4 tests `GameScreen` propres au parcours coordonne.
+- 29 tests unitaires Functions et build TypeScript strict.
+- ESLint cible sans erreur et `git diff --check` sans anomalie.
+- Regles compilees et publiees avec succes sur `domino-martinique-v1`.
+
+Limites connues :
+
+- App Check n'est pas impose : l'application web et les environnements locaux
+  actuels ne disposent pas encore tous d'un jeton configure. Firebase Auth, les
+  regles et les validations transactionnelles serveur restent obligatoires.
+- Les chemins legacy sont conserves pour laisser finir les anciennes salles ;
+  ils ne sont jamais selectionnes par une nouvelle partie, qui fixe
+  `coordinatorVersion: 1` au lancement.
+- Le test historique de snapshot `PARTIE_END/MANCHE_END` reste instable et
+  expose une attente anterieure contradictoire. Les tests coordonnes concernes
+  passent et cet ecart n'est pas masque dans la campagne finale.
+
 ## 9. Test general final
 
 La campagne finale est executee apres l'etape 5 et avant de declarer le systeme

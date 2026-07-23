@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { GameState, GameRoom } from '../../core/types';
+import { GameState } from '../../core/types';
 import { computeBotDecision, computeEmergencyBotDecision } from '../../core/BotEngine';
 import { ActionCommand } from './useActionDispatcher';
 import { LogService } from '../../core/services/LogService';
@@ -7,22 +7,20 @@ import { getMeytKayaliMove } from '../../core/MeytKayaliEngine';
 
 export interface UseBotDecisionProps {
     gameState: GameState | null;
-    roomData: GameRoom | null;
     localPlayerId: string;
     isSoloMode: boolean;
     isPaused: boolean;
-    isLocalHost: boolean;
+    hasLegacyHostAuthority: boolean;
     canAction: (playerId: string, options?: { isAuto?: boolean; minAgeMs?: number }) => boolean;
     dispatch: (command: ActionCommand) => Promise<void>;
 }
 
 export const useBotDecision = ({
     gameState,
-    roomData,
     localPlayerId,
     isSoloMode,
     isPaused,
-    isLocalHost,
+    hasLegacyHostAuthority,
     canAction,
     dispatch
 }: UseBotDecisionProps) => {
@@ -64,8 +62,8 @@ export const useBotDecision = ({
             return;
         }
 
-        // Anti-split-brain en multi : Seul le host calcule et envoie le coup du bot
-        if (!isSoloMode && !isLocalHost) {
+        // Compatibilite uniquement pour les anciennes salles non coordonnees.
+        if (!isSoloMode && !hasLegacyHostAuthority) {
             return;
         }
 
@@ -259,7 +257,6 @@ export const useBotDecision = ({
         isPaused,
         localPlayerId,
         isSoloMode,
-        isLocalHost,
-        roomData?.createdBy
+        hasLegacyHostAuthority,
     ]);
 };

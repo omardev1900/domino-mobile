@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
-    "test:multi": "firebase emulators:exec --project domino-martinique-v1 --only firestore \"jest --testPathPattern=MultiplayerSync --forceExit\"",
+    "test:multi": "firebase emulators:exec --project domino-martinique-v1 --only firestore \"jest src/core/__tests__/MultiplayerSync.integration.test.ts --testPathIgnorePatterns=NEVER_MATCH_THIS_PATH --runInBand --forceExit --silent\"",
     "build:android:release": "cd android && ./gradlew bundleRelease",
     "build:android:apk": "cd android && ./gradlew assembleRelease",
     "eas": "echo '❌ EAS interdit sur ce projet. Builds via gradlew uniquement. Voir AGENTS.md § Build Android.' && exit 1"

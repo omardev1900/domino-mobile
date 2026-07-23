@@ -74,11 +74,10 @@ describe('useBotDecision', () => {
 
         renderHook(() => useBotDecision({
             gameState,
-            roomData: null,
             localPlayerId: 'player1',
             isSoloMode: true,
             isPaused: false,
-            isLocalHost: true,
+            hasLegacyHostAuthority: true,
             canAction: () => true,
             dispatch,
         }));
@@ -148,11 +147,10 @@ describe('useBotDecision', () => {
 
         renderHook(() => useBotDecision({
             gameState,
-            roomData: null,
             localPlayerId: 'player1',
             isSoloMode: true,
             isPaused: false,
-            isLocalHost: true,
+            hasLegacyHostAuthority: true,
             canAction,
             dispatch,
         }));

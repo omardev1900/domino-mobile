@@ -14,7 +14,7 @@ export interface UseGameEngineProps {
     isSoloMode: boolean;
     gameId: string | undefined;
     isPaused: boolean;
-    isLocalHost: boolean;
+    hasLegacyHostAuthority: boolean;
     usesSystemCoordinator?: boolean;
     roomData?: GameRoom | null;
     userId?: string;
@@ -35,7 +35,7 @@ export const useGameEngine = ({
     isSoloMode,
     gameId,
     isPaused,
-    isLocalHost,
+    hasLegacyHostAuthority,
     usesSystemCoordinator = false,
     roomData,
     startingHandSize,
@@ -65,7 +65,7 @@ export const useGameEngine = ({
         localPlayerId,
         isSoloMode,
         gameId,
-        isLocalHost,
+        hasLegacyHostAuthority,
         roomData: roomData || null,
         startingHandSize,
         acquireLock: turnManager.acquireLock,
@@ -81,11 +81,10 @@ export const useGameEngine = ({
     // 3. Activer la réflexion autonome des bots
     useBotDecision({
         gameState,
-        roomData: roomData || null,
         localPlayerId,
         isSoloMode,
         isPaused: isPaused || usesSystemCoordinator,
-        isLocalHost,
+        hasLegacyHostAuthority,
         canAction: turnManager.canAction,
         dispatch
     });
@@ -94,7 +93,7 @@ export const useGameEngine = ({
     useAutoPass({
         gameState,
         localPlayerId,
-        isLocalHost,
+        hasLegacyHostAuthority,
         isPaused: isPaused || usesSystemCoordinator,
         dispatch
     });

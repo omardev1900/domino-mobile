@@ -116,4 +116,19 @@ describe('GameOverlays Component', () => {
             isHost: true
         });
     });
+
+    it('does not grant host authority to the creator of a coordinated room', () => {
+        render(
+            <GameOverlays
+                {...defaultProps}
+                isSoloMode={false}
+                showScoreOverlay={true}
+                roomData={{ createdBy: 'player1', coordinatorVersion: 1 }}
+            />
+        );
+
+        const calls = (UnifiedResultOverlay as jest.Mock).mock.calls;
+        const [props] = calls[calls.length - 1];
+        expect(props.isHost).toBe(false);
+    });
 });

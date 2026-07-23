@@ -10,7 +10,6 @@ export interface UseConnectionStatusProps {
     gameId: string | undefined;
     localPlayerId: string;
     isSoloMode: boolean;
-    isLocalHost?: boolean;
     roomData?: GameRoom | null;
     /**
      * Ref mis à jour par GameScreen après useGameSync — suspend le heartbeat Firestore

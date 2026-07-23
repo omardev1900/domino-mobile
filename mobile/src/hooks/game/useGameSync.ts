@@ -155,6 +155,10 @@ export const useGameSync = ({
                 const currentData = roomDoc.data() as GameRoom;
                 const currentState = currentData.gameState;
 
+                if (currentData.coordinatorVersion === 1) {
+                    throw new Error('Les salles coordonnees refusent les remplacements client de gameState.');
+                }
+
                 const cleanUndefineds = (obj: any): any => {
                     if (obj === undefined) return null;
                     if (typeof obj === 'number' && !isFinite(obj)) return null; // NaN, Infinity, -Infinity → rejetés par Firestore

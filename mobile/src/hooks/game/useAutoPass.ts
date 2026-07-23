@@ -11,7 +11,7 @@ const BOUDE_DISPLAY_MS = 2000;
 export interface UseAutoPassProps {
     gameState: GameState | null;
     localPlayerId: string;
-    isLocalHost: boolean;
+    hasLegacyHostAuthority: boolean;
     isPaused: boolean;
     dispatch: (command: ActionCommand) => Promise<void>;
 }
@@ -19,7 +19,7 @@ export interface UseAutoPassProps {
 export const useAutoPass = ({
     gameState,
     localPlayerId,
-    isLocalHost,
+    hasLegacyHostAuthority,
     isPaused,
     dispatch
 }: UseAutoPassProps) => {
@@ -54,7 +54,7 @@ export const useAutoPass = ({
 
         // Cas B : C'est un Bot ou un Déconnecté, et nous sommes le Host
         const isBotOrDisco = activePlayer.status !== 'HUMAN';
-        const shouldIDispatch = isLocalTurn || (isBotOrDisco && isLocalHost);
+        const shouldIDispatch = isLocalTurn || (isBotOrDisco && hasLegacyHostAuthority);
 
         if (!shouldIDispatch) return;
 
@@ -83,7 +83,7 @@ export const useAutoPass = ({
         return () => {
             clearTimeout(timer);
         };
-    }, [gameState?.turnId, isPaused, localPlayerId, isLocalHost]);
+    }, [gameState?.turnId, isPaused, localPlayerId, hasLegacyHostAuthority]);
 
     // --- WATCHDOG ANTI-BOUCLE BOUDÉ (FIX-MULTI-01) ---
     // Si l'état boudé reste coincé plus de 5 secondes, on force la résolution du tour
@@ -91,7 +91,7 @@ export const useAutoPass = ({
         if (!gameState?.boudePlayerId || gameState.phase !== 'PLAYING') return;
 
         // Seul l'hôte (ou le joueur local en solo) a le droit de forcer le passage pour éviter les conflits
-        if (!isLocalHost) return;
+        if (!hasLegacyHostAuthority) return;
 
         const capturedTurnId = gameState.turnId;
         const capturedPlayerId = gameState.boudePlayerId;
@@ -109,5 +109,5 @@ export const useAutoPass = ({
         }, 6500); // 6.5 secondes = largement le temps de voir l'animation + délai DISCONNECTED + latence réseau
 
         return () => clearTimeout(watchdogTimer);
-    }, [gameState?.boudePlayerId, gameState?.turnId, gameState?.phase, isLocalHost]);
+    }, [gameState?.boudePlayerId, gameState?.turnId, gameState?.phase, hasLegacyHostAuthority]);
 };

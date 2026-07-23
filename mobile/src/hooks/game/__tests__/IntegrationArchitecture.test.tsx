@@ -47,7 +47,7 @@ describe('Integration Architecture', () => {
                 localPlayerId: 'p1',
                 isSoloMode: false,
                 gameId: 'game-123',
-                isLocalHost: true,
+                hasLegacyHostAuthority: true,
                 roomData: { createdBy: 'p1' } as any,
                 startingHandSize: 7,
                 acquireLock: turnManager.acquireLock,
@@ -63,11 +63,10 @@ describe('Integration Architecture', () => {
             // 3. Bot Decision
             useBotDecision({
                 gameState,
-                roomData: { createdBy: 'p1' } as any,
                 localPlayerId: 'p1', // local = l'hôte p1, c'est lui qui héberge le bot
                 isSoloMode: false,
                 isPaused: false,
-                isLocalHost: true,
+                hasLegacyHostAuthority: true,
                 canAction: turnManager.canAction,
                 dispatch
             });

@@ -36,6 +36,55 @@ service cloud.firestore {
 
     // Règle pour les Rooms de jeu
     match /rooms/{roomId} {
+      function isRoomMember() {
+        return request.auth != null &&
+          (request.auth.uid in resource.data.playerIds || request.auth.uid in request.resource.data.playerIds);
+      }
+
+      function onlyPlayerStatusChanged(before, after) {
+        return before.id == after.id &&
+          after.diff(before).affectedKeys().hasOnly(['status']) &&
+          (
+            before.status == after.status ||
+            (
+              before.id == request.auth.uid &&
+              before.status != 'BOT' &&
+              after.status in ['HUMAN', 'DISCONNECTED', 'SURRENDERED']
+            ) ||
+            (
+              before.id != request.auth.uid &&
+              before.status == 'HUMAN' &&
+              after.status == 'DISCONNECTED'
+            )
+          );
+      }
+
+      function isPresenceOnlyGameStateUpdate() {
+        let before = resource.data.gameState;
+        let after = request.resource.data.gameState;
+        return before != null && after != null &&
+          after.diff(before).affectedKeys().hasOnly(['players']) &&
+          before.players.size() == after.players.size() &&
+          before.players.size() <= 3 &&
+          (before.players.size() < 1 || onlyPlayerStatusChanged(before.players[0], after.players[0])) &&
+          (before.players.size() < 2 || onlyPlayerStatusChanged(before.players[1], after.players[1])) &&
+          (before.players.size() < 3 || onlyPlayerStatusChanged(before.players[2], after.players[2]));
+      }
+
+      function isCoordinatorLobbyStart() {
+        return resource.data.status == 'WAITING' &&
+          resource.data.gameState == null &&
+          request.resource.data.status == 'PLAYING' &&
+          request.resource.data.gameState != null &&
+          request.auth.uid == resource.data.createdBy;
+      }
+
+      function respectsCoordinatorAuthority() {
+        return resource.data.get('coordinatorVersion', 0) != 1 ||
+          request.resource.data.gameState == resource.data.gameState ||
+          isCoordinatorLobbyStart() ||
+          (resource.data.status != 'WAITING' && isPresenceOnlyGameStateUpdate());
+      }
       // Admin : accès complet
       allow read, write: if isAdmin();
 
@@ -43,7 +92,7 @@ service cloud.firestore {
       allow read, create: if request.auth != null;
 
       // Un joueur ne peut mettre à jour que s'il est dans la room (ou s'y ajoute)
-      allow update: if request.auth != null && (request.auth.uid in resource.data.playerIds || request.auth.uid in request.resource.data.playerIds);
+      allow update: if isRoomMember() && respectsCoordinatorAuthority();
 
       // Seul le créateur (host) peut supprimer la room, OU la room est vide (plus de joueurs)
       allow delete: if request.auth != null && (request.auth.uid == resource.data.createdBy || resource.data.playerIds.size() == 0);

@@ -18,7 +18,7 @@ export interface UseActionDispatcherProps {
     localPlayerId: string;
     isSoloMode: boolean;
     gameId: string | undefined;
-    isLocalHost: boolean;
+    hasLegacyHostAuthority: boolean;
     roomData: GameRoom | null;
     startingHandSize?: number;
     acquireLock: () => boolean;
@@ -36,7 +36,7 @@ export const useActionDispatcher = ({
     localPlayerId,
     isSoloMode,
     gameId,
-    isLocalHost,
+    hasLegacyHostAuthority,
     roomData,
     startingHandSize,
     acquireLock,
@@ -54,14 +54,11 @@ export const useActionDispatcher = ({
 
         LogService.info('ActionDispatcher', `[DISPATCH] ➔ ${command.type}`, 'playerId' in command ? command.playerId : '');
 
-        // Autorité de l'Hôte pour le TIMEOUT
-        // FIX-HOST-TIMEOUT: Utiliser isLocalHost (suit l'élection dynamique) au lieu de
-        // roomData.createdBy (statique). Si le créateur déconnecte, l'hôte élu peut
-        // continuer à exécuter les timeouts pour les bots/joueurs déconnectés.
+        // Compatibilite uniquement pour les anciennes salles non coordonnees.
         if (command.type === 'TIMEOUT') {
             const player = gameState.players.find(p => p.id === command.playerId);
             const isBotOrDisconnected = player?.status !== 'HUMAN';
-            if (isBotOrDisconnected && !isSoloMode && !isLocalHost) {
+            if (isBotOrDisconnected && !isSoloMode && !hasLegacyHostAuthority) {
                 return;
             }
         }
@@ -174,7 +171,7 @@ export const useActionDispatcher = ({
                     break;
                 }
                 case 'NEXT_ROUND': {
-                    if (!isLocalHost) break; // Seul l'hôte pilote la transition
+                    if (!hasLegacyHostAuthority) break;
                     const activeState = command.stateOverride || gameState;
                     newState = computeNextRoundState(activeState, startingHandSize);
 
@@ -185,7 +182,7 @@ export const useActionDispatcher = ({
                     break;
                 }
                 case 'RESOLVE_BOUDE': {
-                    if (!isLocalHost) break; // Seul l'hôte pilote la transition
+                    if (!hasLegacyHostAuthority) break;
                     if (gameState.phase !== 'BOUDE') break;
                     const { newState: resolvedState, isTie, tiedPlayerIds } = resolveBoude(gameState);
                     if (isTie) {
@@ -290,7 +287,7 @@ export const useActionDispatcher = ({
         localPlayerId,
         isSoloMode,
         gameId,
-        isLocalHost,
+        hasLegacyHostAuthority,
         roomData?.coordinatorVersion,
         startingHandSize,
         acquireLock,

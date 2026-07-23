@@ -76,7 +76,7 @@ describe('useGameEngine Hook (Component Wrapper)', () => {
             isSoloMode,
             gameId: 'test-room',
             isPaused: false,
-            isLocalHost: true,
+            hasLegacyHostAuthority: true,
             usesSystemCoordinator,
             safeUpdateGameState: mockSafeUpdateGameState,
             setGameState: mockSetGameState,

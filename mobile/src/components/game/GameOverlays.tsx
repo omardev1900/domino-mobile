@@ -48,7 +48,10 @@ export const GameOverlays: React.FC<GameOverlaysProps> = ({
     onReplay,
     matchReward,
 }) => {
-    const isHost = isSoloMode || roomData?.createdBy === localPlayerId;
+    const isHost = isSoloMode || (
+        roomData?.coordinatorVersion !== 1
+        && roomData?.createdBy === localPlayerId
+    );
     const reducedMotion = useReducedMotion();
     const [showQuitConfirm, setShowQuitConfirm] = useState(false);
 
