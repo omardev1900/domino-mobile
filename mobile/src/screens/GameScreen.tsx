@@ -1239,9 +1239,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 setScoreOverlayPhase('MANCHE_END');
                 return;
             }
-            // Conserver le snapshot PARTIE_END si déjà défini (transition rapide),
-            // sinon initialiser avec l'état MANCHE_END courant (arrivée directe).
-            setRoundResultSnapshot(prev => prev ?? gameState);
+            // Rafraichir le resultat avec l'etat final de la manche. La transition
+            // rapide PARTIE_END -> MANCHE_END ne doit pas figer l'ancien historique.
+            setRoundResultSnapshot(gameState);
             setShowRoundResult(true);
             // Après dismiss du RoundEndFlow → afficher l'écran de score de manche
             pendingRoundResultTransition.current = () => {
