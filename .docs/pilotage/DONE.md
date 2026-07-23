@@ -2,6 +2,9 @@
 
 ### 2026-07-23
 
+- [x] `MULTI-COORD-05` Tours automatiques multijoueur retablis avec
+  `coordinateActiveGameTurnsV2`, trigger Firestore Gen2 actif en production et
+  valide par une partie reelle commencant par un bot.
 - [x] `MULTI-COORD-04` Premier domino multijoueur debloque : la commande omet
   desormais `side` quand aucun cote n'est defini, au lieu de transmettre `null`
   au schema serveur.

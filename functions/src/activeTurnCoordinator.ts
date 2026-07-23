@@ -1,5 +1,5 @@
 import * as admin from 'firebase-admin';
-import * as functions from 'firebase-functions';
+import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 
 import { GameRoom } from './gameCore/types';
 import {
@@ -62,11 +62,16 @@ export const applyCoordinatedTurn = async (
 };
 
 export const createActiveTurnCoordinator = (db: admin.firestore.Firestore) =>
-    functions
-        .region('europe-west1')
-        .runWith({ failurePolicy: true, timeoutSeconds: 120 })
-        .firestore.document('rooms/{roomId}')
-        .onUpdate(async (change, context) => {
+    onDocumentUpdated(
+        {
+            document: 'rooms/{roomId}',
+            region: 'europe-west1',
+            retry: true,
+            timeoutSeconds: 120,
+        },
+        async event => {
+            const change = event.data;
+            if (!change) return;
             const beforeRoom = change.before.data() as GameRoom;
             const afterRoom = change.after.data() as GameRoom;
             if (afterRoom.coordinatorVersion !== 1 || !afterRoom.gameState) return;
@@ -85,5 +90,6 @@ export const createActiveTurnCoordinator = (db: admin.firestore.Firestore) =>
             const delayMs = getCoordinatedTurnDelayMs(afterRoom.gameState);
             if (delayMs === null) return;
             await wait(delayMs);
-            await applyCoordinatedTurn(db, context.params.roomId, expected);
-        });
+            await applyCoordinatedTurn(db, event.params.roomId, expected);
+        }
+    );

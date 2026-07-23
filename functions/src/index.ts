@@ -472,6 +472,6 @@ export const resetMonthlyLeague = functions.pubsub
 export * from './cleanupRooms';
 
 export const coordinateTerminalGamePhases = createTerminalGameCoordinator(db);
-export const coordinateActiveGameTurns = createActiveTurnCoordinator(db);
+export const coordinateActiveGameTurnsV2 = createActiveTurnCoordinator(db);
 export const submitGameAction = createSubmitGameAction(db);
 export const requestRematch = createRequestRematch(db);

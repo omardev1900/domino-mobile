@@ -490,6 +490,19 @@ La collection n'est jamais accessible directement au client.
 - Validation : 34 tests unitaires, suite d'integration Firestore et controles
   production CORS `204` / sans Auth `401`.
 
+### Migration des triggers Firestore
+
+Le trigger Gen1 `coordinateActiveGameTurns` ne pouvait pas etre cree pour la
+base Firestore multiregion `eur3`. Il est remplace par
+`coordinateActiveGameTurnsV2`, execute en `europe-west1` avec son trigger
+Eventarc en `eur3`. Les transactions et empreintes idempotentes restent
+inchangees.
+
+Les comptes de service Google disposent uniquement des roles techniques requis
+pour Gen2 : `iam.serviceAccountTokenCreator` pour Pub/Sub, puis `run.invoker` et
+`eventarc.eventReceiver` pour le compte Compute. Aucun acces `allUsers` n'a ete
+ajoute au coordinateur.
+
 ## 10. Conditions d'arret
 
 Le travail s'arrete avant l'etape suivante si :

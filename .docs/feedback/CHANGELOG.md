@@ -2,6 +2,8 @@
 
 ### 2026-07-23
 
+- Les bots et les joueurs expires jouent de nouveau automatiquement en
+  multijoueur grace au coordinateur de tours Gen2.
 - Le premier domino d'une partie multijoueur peut de nouveau etre joue.
 - Les commandes multijoueur disposent maintenant d'un garde-fou anti-spam par
   joueur, partage entre les instances Firebase.

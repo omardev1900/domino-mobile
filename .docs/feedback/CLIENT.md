@@ -11,3 +11,9 @@
 
 > Le premier domino en multi envoie `side: null` et `submitGameAction` repond
 > `400 INVALID_ARGUMENT` avec le message "Commande invalide".
+
+> En multi, un bot qui devait jouer en premier ne joue pas, meme lorsque son
+> temps est ecoule. Aucun log applicatif n'apparait dans la console.
+
+> En quittant la partie, `signalPlayerOffline` echoue avec "Missing or
+> insufficient permissions". Le mode solo fonctionne normalement.
