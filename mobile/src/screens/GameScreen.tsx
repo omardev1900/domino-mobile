@@ -77,7 +77,7 @@ interface GameScreenProps {
     tableTier?: string; // TableTier passé depuis solo.tsx / lobby.tsx
 }
 
-const ROUND_RESULT_AUTO_ADVANCE_MS = 2000;
+const ROUND_RESULT_AUTO_ADVANCE_MS = 3000;
 const RESULT_TRANSITION_FALLBACK_MS = 3000;
 const MATCH_REWARD_DELAY_MS = 2500;
 

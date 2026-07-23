@@ -607,7 +607,7 @@ describe('GameScreen grade-up flow', () => {
 
         await waitFor(() => {
             expect(getLastRoundResultProps().visible).toBe(true);
-            expect(getLastRoundResultProps().autoAdvanceDelay).toBe(2000);
+            expect(getLastRoundResultProps().autoAdvanceDelay).toBe(3000);
         });
 
         await act(async () => {

@@ -3,7 +3,10 @@ import { describe, it } from 'node:test';
 import * as admin from 'firebase-admin';
 
 import { createActiveTurnCoordinator } from './activeTurnCoordinator';
-import { createTerminalGameCoordinator } from './terminalGameCoordinator';
+import {
+    createTerminalGameCoordinator,
+    TERMINAL_TRANSITION_DELAY_MS,
+} from './terminalGameCoordinator';
 
 const fakeDb = {} as admin.firestore.Firestore;
 
@@ -23,5 +26,6 @@ describe('coordinator deployment', () => {
         }
         assert.equal(activeTurn.__endpoint.timeoutSeconds, 120);
         assert.equal(terminal.__endpoint.timeoutSeconds, 60);
+        assert.equal(TERMINAL_TRANSITION_DELAY_MS, 3000);
     });
 });

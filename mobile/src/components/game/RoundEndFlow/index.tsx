@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { GameState, Player, Domino } from '../../../core/types';
 import SoundManager from '../../../core/audio/SoundManager';
 import { RoundEndBanner } from './RoundEndBanner';
@@ -68,7 +68,7 @@ export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, 
                 }
             }
 
-            // Timeline (Accélérée)
+            // Reveal quickly so the complete hands remain readable before the 3s transition.
             timeouts.push(setTimeout(() => {
                 setPhase('reveal');
                 // Simulate clack sounds
@@ -86,9 +86,9 @@ export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, 
                     } else {
                         setPhase('counting');
                     }
-                }, 800));
+                }, 400));
 
-            }, 600));
+            }, 200));
         }
 
         return () => {

@@ -9,7 +9,7 @@ import {
 import { GameRoom } from './gameCore/types';
 import { finalizeCoordinatedMatch } from './matchFinalizer';
 
-const TRANSITION_DELAY_MS = 2000;
+export const TERMINAL_TRANSITION_DELAY_MS = 3000;
 
 const wait = (delayMs: number): Promise<void> =>
     new Promise(resolve => setTimeout(resolve, delayMs));
@@ -94,7 +94,7 @@ export const createTerminalGameCoordinator = (
 
             if (!expected) return;
 
-            await wait(TRANSITION_DELAY_MS);
+            await wait(TERMINAL_TRANSITION_DELAY_MS);
 
             await applyTerminalTransition(db, event.params.roomId, expected);
         }
