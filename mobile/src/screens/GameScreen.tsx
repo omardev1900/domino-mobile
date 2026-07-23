@@ -49,6 +49,7 @@ import { markPlayersDisconnected } from '../hooks/game/playerPresence';
 import { useGameSync } from '../hooks/game/useGameSync';
 import { useGameTimers } from '../hooks/game/useGameTimers';
 import { useGameEngine } from '../hooks/game/useGameEngine';
+import { useRoundBanner } from '../hooks/game/useRoundBanner';
 import { statsService } from '../core/services/stats.service';
 import { getMonthlyCochonsFromHistory } from '../core/leagueProgress';
 import { economyService } from '../core/services/economy.service';
@@ -654,7 +655,11 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [isBgmEnabled, setIsBgmEnabled] = useState(() => SettingsManager.getSettings().isBgmEnabled ?? true);
     const [isSfxEnabled, setIsSfxEnabled] = useState(() => SettingsManager.getSettings().isSfxEnabled ?? true);
     const [isVibrationEnabled, setIsVibrationEnabled] = useState(() => SettingsManager.getSettings().isVibrationEnabled);
-    const [bannerState, setBannerState] = useState<'NONE' | 'MANCHE' | 'ROUND'>('NONE');
+    const bannerState = useRoundBanner({
+        phase: gameState?.phase,
+        mancheNumber: gameState?.mancheNumber,
+        roundNumber: gameState?.roundNumber,
+    });
     const [playersChat, setPlayersChat] = useState<{ [playerId: string]: string | null }>({});
     const chatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastChatTimeRef = useRef<number>(0);
@@ -813,8 +818,6 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const processedBotTurnRef = useRef<string | null>(null);
     const lastSeenChatNonces = useRef<{ [playerId: string]: string }>({});
     const isFirstChatLoad = useRef<boolean>(true);
-    const prevMancheRef = useRef<number>(1);
-
     const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingRoundResultTransition = useRef<(() => void) | null>(null);
 
@@ -1318,47 +1321,6 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             handleLeaveRoom();
         }
     }, [roomData?.status, roomData?.gameState]);
-
-    // Show Round/Manche Banner when a new round starts
-    // 🔧 FIX: On utilise prevMancheRef pour détecter un VRAI changement de manche
-    // et éviter les faux positifs causés par les re-renders intermédiaires Firebase
-    // (ex: mancheNumber=1 stale + roundNumber=1 du nouvel état → M1/R1 affiché à tort).
-    useEffect(() => {
-        if (!gameState || gameState.phase !== 'PLAYING') return;
-
-        const rn = gameState.roundNumber ?? 1;
-        const mn = gameState.mancheNumber ?? 1;
-
-        const isFirstRoundOfNewManche = rn === 1 && mn > prevMancheRef.current;
-        const isNewRound = rn > 1;
-
-        // Met à jour la ref AVANT de programmer quoi que ce soit
-        prevMancheRef.current = mn;
-
-        if (isFirstRoundOfNewManche) {
-            // Nouvelle manche : affiche "Manche X" 1s puis "Round 1" 1s
-            setBannerState('MANCHE');
-            let timer2: ReturnType<typeof setTimeout>;
-            const timer1 = setTimeout(() => {
-                setBannerState('ROUND');
-                timer2 = setTimeout(() => {
-                    setBannerState('NONE');
-                }, 1000);
-            }, 1000);
-            return () => {
-                clearTimeout(timer1);
-                clearTimeout(timer2);
-            };
-        } else if (isNewRound) {
-            // Round 2+ dans la même manche : affiche juste "Round Y" 1s
-            setBannerState('ROUND');
-            const timer = setTimeout(() => {
-                setBannerState('NONE');
-            }, 1000);
-            return () => clearTimeout(timer);
-        }
-        // rn === 1 ET mn === prevManche → premier round du tout premier match OU re-render parasite : rien
-    }, [gameState?.roundNumber, gameState?.mancheNumber, gameState?.phase]);
 
     // Audio & Firebase Subscription
     // Buy-in Deduction (Delayed)
