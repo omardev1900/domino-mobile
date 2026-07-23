@@ -2,6 +2,7 @@
 
 ### 2026-07-23
 
+- Le premier domino d'une partie multijoueur peut de nouveau etre joue.
 - Les commandes multijoueur disposent maintenant d'un garde-fou anti-spam par
   joueur, partage entre les instances Firebase.
 - Les commandes de jeu et de revanche multijoueur sont de nouveau joignables

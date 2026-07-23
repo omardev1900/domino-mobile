@@ -117,7 +117,7 @@ export const useActionDispatcher = ({
                     ? {
                         type: 'PLAY_TILE' as const,
                         dominoId: command.tile.id,
-                        side: command.side,
+                        ...(command.side ? { side: command.side } : {}),
                     }
                     : { type: 'PASS_TURN' as const };
                 const result = await submitGameAction({

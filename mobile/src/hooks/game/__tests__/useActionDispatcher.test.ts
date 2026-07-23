@@ -63,6 +63,48 @@ describe('useActionDispatcher - RESOLVE_BOUDE Tie-Break', () => {
     expect(releaseLock).toHaveBeenCalledTimes(1);
   });
 
+  it('omet side pour le premier domino au lieu de transmettre null', async () => {
+    const mockSubmitGameAction = submitGameAction as jest.MockedFunction<typeof submitGameAction>;
+    mockSubmitGameAction.mockResolvedValue({ applied: true, stateVersion: 2, turnId: 1, phase: 'PLAYING' });
+    const tile = { id: 'd-22', left: 2, right: 2, isDouble: true } as const;
+    const gameState = {
+      gameId: 'CQDBSN',
+      phase: 'PLAYING',
+      players: [{ id: 'p1', name: 'P1', hand: [tile], status: 'HUMAN' }],
+      currentPlayerId: 'p1',
+      turnId: 0,
+      stateVersion: 1,
+    } as GameState;
+
+    const { result } = renderHook(() => useActionDispatcher({
+      gameState,
+      localPlayerId: 'p1',
+      isSoloMode: false,
+      gameId: 'CQDBSN',
+      hasLegacyHostAuthority: false,
+      roomData: { coordinatorVersion: 1 } as GameRoom,
+      acquireLock: () => true,
+      releaseLock: jest.fn(),
+      canAction: () => true,
+      safeUpdateGameState: jest.fn(),
+      setGameState: jest.fn(),
+      clearAllTurnTimers: jest.fn(),
+      setOvertime: jest.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.dispatch({ type: 'PLAY_TILE', playerId: 'p1', tile });
+    });
+
+    expect(mockSubmitGameAction).toHaveBeenLastCalledWith({
+      roomId: 'CQDBSN',
+      expectedStateVersion: 1,
+      expectedTurnId: 0,
+      action: { type: 'PLAY_TILE', dominoId: 'd-22' },
+    });
+    expect(mockSubmitGameAction.mock.lastCall?.[0].action).not.toHaveProperty('side');
+  });
+
   it('increments stateVersion when MARK_BOUDE is synchronized in multiplayer', async () => {
     const mockGameState = {
       gameId: 'test-game',

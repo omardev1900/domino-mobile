@@ -8,3 +8,6 @@
 > Apres avoir confirme la sortie d'une salle, le joueur reconnecte recoit encore
 > le message "Match en cours detecte". La console affiche aussi des erreurs
 > "Missing or insufficient permissions" pour quitter et retrouver la salle.
+
+> Le premier domino en multi envoie `side: null` et `submitGameAction` repond
+> `400 INVALID_ARGUMENT` avec le message "Commande invalide".

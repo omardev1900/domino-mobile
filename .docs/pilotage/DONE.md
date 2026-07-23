@@ -2,6 +2,9 @@
 
 ### 2026-07-23
 
+- [x] `MULTI-COORD-04` Premier domino multijoueur debloque : la commande omet
+  desormais `side` quand aucun cote n'est defini, au lieu de transmettre `null`
+  au schema serveur.
 - [x] `MULTI-COORD-02` Quota Firestore partage par UID ajoute aux deux callables
   publiques : `submitGameAction` limite a 6/s et 90/min, `requestRematch` a
   2/s et 10/min.
