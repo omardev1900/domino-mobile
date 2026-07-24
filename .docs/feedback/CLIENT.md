@@ -30,3 +30,8 @@
 > L'interstitielle existante reste reservee a la fin des matchs multijoueur.
 > En cas de `no-fill` AdMob, le bonus doit pouvoir etre recupere sans pub, mais
 > une recompense ne doit jamais etre creditee deux fois pour le meme match.
+
+### 2026-07-24
+
+> Le projet Sentry a ete supprime. Retirer Sentry de l'application afin que
+> l'envoi des source maps ne bloque plus la generation Android Release.

@@ -16,7 +16,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import SoundManager from '@/core/audio/SoundManager';
 import SettingsManager from '@/core/SettingsManager';
 import NetInfo from '@react-native-community/netinfo';
-import * as Sentry from '@sentry/react-native';
 import * as Notifications from 'expo-notifications';
 import { updateDoc, doc, getDoc } from 'firebase/firestore';
 import { initializeAdMob } from '@/core/services/AdMobAdapter';
@@ -35,30 +34,6 @@ import { WebFullscreenButton } from '@/components/WebFullscreenButton';
 import { USE_NEW_SIDEBAR, SIDEBAR_HIDDEN_ROUTES, SIDEBAR_HIDDEN_PREFIXES } from '@/core/config/navigation.config';
 import { LogService } from '@/core/services/LogService';
 import { AndroidStoreBanner } from '@/components/AndroidStoreBanner';
-
-Sentry.init({
-  dsn: 'https://b42b9f54cd5334acbc2310a30f9fc5fb@o4511343295987712.ingest.de.sentry.io/4511343301034064',
-
-  // Adds more context data to events (IP address, cookies, user, etc.)
-  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
-  sendDefaultPii: true,
-
-  // Enable Logs
-  enableLogs: true,
-  replaysSessionSampleRate: 1.0,
-  replaysOnErrorSampleRate: 1.0,
-  integrations: [
-    Sentry.feedbackIntegration(),
-    Sentry.mobileReplayIntegration({
-      maskAllText: true,
-      maskAllImages: true,
-      maskAllVectors: true,
-    }),
-  ],
-
-  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
-  // spotlight: __DEV__,
-});
 
 // Keep the native splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -117,7 +92,7 @@ async function applyImmersiveMode() {
   }
 }
 
-export default Sentry.wrap(function RootLayout() {
+export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [appReady, setAppReady] = useState(false);
   const [fontsLoaded] = useFonts({
@@ -145,11 +120,6 @@ export default Sentry.wrap(function RootLayout() {
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
       setIsConnected(state.isConnected !== false);
-      Sentry.addBreadcrumb({
-        category: 'network',
-        message: `Network state changed: isConnected=${state.isConnected}, type=${state.type}`,
-        level: 'info',
-      });
     });
     return () => unsubscribe();
   }, []);
@@ -171,10 +141,8 @@ export default Sentry.wrap(function RootLayout() {
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
       if (firebaseUser && !firebaseUser.isAnonymous && firebaseUser.email) {
         setIsAuthenticated(true);
-        Sentry.setUser({ id: firebaseUser.uid, email: firebaseUser.email });
       } else {
         setIsAuthenticated(false);
-        Sentry.setUser(null);
       }
       setAuthLoading(false);
     });
@@ -458,11 +426,11 @@ export default Sentry.wrap(function RootLayout() {
       </ThemeProvider>
     </GestureHandlerRootView>
   );
-});
+}
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    LogService.error('RootLayout', 'Unhandled route error', error);
   }, [error]);
 
   return (

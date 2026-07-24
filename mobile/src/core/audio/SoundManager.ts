@@ -123,7 +123,7 @@ class SoundManager {
         if (Platform.OS !== 'web') return true;
         // Safari iOS : l'API HTMLMediaElement.play() jette NotSupportedError dans plusieurs
         // contextes (mode privé, Low Power Mode, iOS < 14.5). On désactive l'audio plutôt
-        // que de polluer Sentry de 135+ erreurs/jour. À retirer si on ajoute un fallback WebAudio.
+        // que de generer des erreurs repetitives. A retirer si on ajoute un fallback WebAudio.
         if (typeof navigator !== 'undefined') {
             const ua = navigator.userAgent || '';
             const isIOSSafari = /iPad|iPhone|iPod/.test(ua) && /WebKit/.test(ua) && !/CriOS|FxiOS/.test(ua);

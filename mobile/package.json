@@ -22,7 +22,7 @@
       "./jest.setup.js"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!.+/node_modules/)(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|@sentry/.*|native-base|react-native-svg|firebase|@firebase/.*))"
+      "node_modules/(?!.+/node_modules/)(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|native-base|react-native-svg|firebase|@firebase/.*))"
     ],
     "testPathIgnorePatterns": [
       "MultiplayerSync.integration.test.ts"
@@ -47,7 +47,6 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
-    "@sentry/react-native": "^8.10.0",
     "expo": "~54.0.33",
     "expo-application": "~7.0.8",
     "expo-asset": "~12.0.13",

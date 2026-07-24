@@ -45,7 +45,6 @@
 - Sidebar navigation + partage social (victoire + grade)
 - Publicité admin-managed (6 emplacements) + cadeau quotidien conditionné pub
 - Notifications push Android (FCM)
-- Sentry monitoring (crashs + erreurs JS)
 - IA MÈTKAYALI Niveau 4 (Monte-Carlo) + bots adaptatifs au grade
 - Suppression de compte (exigence Google Play)
 - Landing page + Politique de confidentialité

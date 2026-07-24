@@ -9,7 +9,6 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import * as NavigationBar from 'expo-navigation-bar';
-import * as Sentry from '@sentry/react-native';
 import { GameTable , GameTableRef } from '../components/GameTable';
 import { PlayerHand } from '../components/PlayerHand';
 import { PlayerAvatar } from '../components/PlayerAvatar';
@@ -123,15 +122,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             setUserActiveRoom(localPlayerId, gameId).catch(err => LogService.error('GameScreen', 'Error setting user active room', err));
         }
 
-        // --- SENTRY ENRICHMENT ---
-        Sentry.setTag('roomId', gameId);
-        Sentry.setTag('gameMode', mode || 'unknown');
-
-        return () => {
-            Sentry.setTag('roomId', 'none');
-            Sentry.setTag('gameMode', 'none');
-        };
-    }, [gameId, isSoloMode, localPlayerId, mode]);
+    }, [gameId, isSoloMode, localPlayerId]);
 
     // -- 3. Sync Hook (Network & Reconnection) --
     const {
