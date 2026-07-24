@@ -4,3 +4,6 @@
   match solo : aucune publicite ni recompense associee sur le web, bypass
   explicite limite au `no-fill` AdMob sur mobile, credit Firestore idempotent
   par match et validation finale sur un APK Android reel.
+- [ ] `UI-MULTI-LOBBY-01` Pret pour validation visuelle Android - Layout
+  scrollable respectant les safe areas, sections sans superposition, statut
+  d'attente passif et suppression integree au bloc TABLE.

@@ -35,3 +35,9 @@
 
 > Le projet Sentry a ete supprime. Retirer Sentry de l'application afin que
 > l'envoi des source maps ne bloque plus la generation Android Release.
+
+> Sur l'application Android, la salle d'attente multijoueur semble avoir un
+> header fixe qui masque le bloc TABLE. Le bloc TABLE masque a son tour le haut
+> des cartes joueurs et leurs avatars. Le bouton d'attente et l'icone de
+> suppression ont une hauteur excessive. Le probleme n'apparait pas sur le web
+> mobile, ou la page reste scrollable.

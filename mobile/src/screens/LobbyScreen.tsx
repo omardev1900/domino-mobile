@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Linking as RNLinking, Platform, Alert } from 'react-native';
-import * as Linking from 'expo-linking';
+import { View, Text, StyleSheet, Linking as RNLinking, Platform, Alert } from 'react-native';
 import { Image } from 'expo-image';
-import { GameRoom, GameMode } from '../core/types';
+import { GameRoom } from '../core/types';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { getAvatarImage, AVAILABLE_AVATARS, AvatarId } from '../core/avatars';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getAvatarImage } from '../core/avatars';
 import { EconomyHeader } from '../components/EconomyHeader';
 import { AvatarFrame } from '../components/AvatarFrame';
 import { GradeBadge } from '../components/GradeBadge';
@@ -16,6 +16,7 @@ import { addBotToWaitingRoom, leaveRoom } from '../core/services/firebase';
 import { BotSelectionModal } from '../components/BotSelectionModal';
 import { BotDifficulty } from '../core/services/bot.service';
 import { PremiumButton } from '../components/common/PremiumButton';
+import { LogService } from '../core/services/LogService';
 
 interface LobbyScreenProps {
     roomData: GameRoom;
@@ -37,6 +38,7 @@ const MODE_UNIT_LABELS: Record<string, string> = {
 };
 
 export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserId, onStartGame, onDeleteRoom }) => {
+    const insets = useSafeAreaInsets();
     const isHost = roomData.players[0]?.uid === currentUserId;
     const canStart = roomData.players.length === 3;
     const canDeleteWaitingRoom = isHost && roomData.status === 'WAITING' && roomData.players.length <= 1 && !roomData.gameState;
@@ -89,8 +91,6 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
     const gameMode = roomData.gameMode || 'MANCHE';
     const winningCondition = roomData.winningCondition || 3;
     const turnDuration = roomData.turnDuration ?? 15;
-    const startingHandSize = roomData.startingHandSize || 7;
-
     // AUTO-START: Lancer automatiquement la partie dès que 3 joueurs sont présents
     useEffect(() => {
         if (!canStart || hasAutoStarted.current) {
@@ -99,7 +99,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
 
         const delay = isHost ? 2000 : 5000;
 
-        console.log(`🎮 3 joueurs détectés - Démarrage ${isHost ? 'prioritaire (hôte)' : 'fallback'} dans ${delay / 1000}s...`);
+        LogService.info('LobbyScreen', `3 joueurs détectés - démarrage ${isHost ? 'prioritaire' : 'fallback'} dans ${delay / 1000}s.`);
 
         setAutoStartCountdown(2);
 
@@ -116,7 +116,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
         const autoStartTimer = setTimeout(() => {
             if (roomData.players.length === 3 && !hasAutoStarted.current) {
                 hasAutoStarted.current = true;
-                console.log(`🚀 Lancement automatique ${isHost ? 'par l\'hôte' : 'par fallback'} !`);
+                LogService.info('LobbyScreen', `Lancement automatique ${isHost ? 'par l\'hôte' : 'par fallback'}.`);
                 onStartGame();
             }
         }, delay);
@@ -137,6 +137,12 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
             isEmpty: !player,
         };
     });
+    const missingPlayerCount = Math.max(0, 3 - roomData.players.length);
+    const waitingMessage = autoStartCountdown !== null
+        ? `Démarrage dans ${autoStartCountdown}...`
+        : canStart
+            ? 'Préparation de la partie...'
+            : `En attente de ${missingPlayerCount} joueur${missingPlayerCount > 1 ? 's' : ''}...`;
 
     const shareToWhatsApp = () => {
         const deepLink = `https://domino-martinique.online/join/${roomData.roomId}`;
@@ -244,34 +250,57 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
                 style={styles.container}
                 {...({ ref: rootRef, tabIndex: -1 } as any)}
             >
+            <Animated.ScrollView
+                style={styles.scroll}
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    {
+                        paddingTop: Math.max(12, insets.top + 8),
+                        paddingRight: Math.max(16, insets.right + 12),
+                        paddingBottom: Math.max(16, insets.bottom + 12),
+                        paddingLeft: Math.max(16, insets.left + 12),
+                    },
+                ]}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+            >
             <Animated.View entering={FadeIn.delay(100)} style={styles.header}>
-                <View style={styles.headerLeft}>
-                    {/* Left side empty to balance header and avoid option overlap */}
-                </View>
                 <View style={styles.headerCenter}>
                     <EconomyHeader />
                 </View>
-                <View style={styles.headerRight}>
-                    <View style={styles.headerRightContent}>
-                        <PremiumButton style={styles.shareIconButton} onPress={shareToWhatsApp} soundName="notify">
-                            <Ionicons name="logo-whatsapp" size={24} color="#FFF" />
-                        </PremiumButton>
-                        <View style={styles.roomInfoContainer}>
-                            <Text style={styles.roomCode}>Code : {roomData.roomId}</Text>
-                        </View>
+                <View style={styles.headerRightContent}>
+                    <PremiumButton
+                        style={styles.shareIconButton}
+                        onPress={shareToWhatsApp}
+                        soundName="notify"
+                        accessibilityRole="button"
+                        accessibilityLabel="Partager la salle sur WhatsApp"
+                    >
+                        <Ionicons name="logo-whatsapp" size={22} color="#FFF" />
+                    </PremiumButton>
+                    <View style={styles.roomInfoContainer}>
+                        <Text style={styles.roomCode}>Code : {roomData.roomId}</Text>
                     </View>
                 </View>
             </Animated.View>
 
-            <Animated.ScrollView 
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                bounces={false}
-            >
                 <View style={styles.mainContent}>
-                    {/* Game Options - Absolute left */}
                     <Animated.View entering={FadeIn.delay(400)} style={styles.optionsSection}>
-                        <Text style={styles.sectionTitle}>TABLE</Text>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>TABLE</Text>
+                            {canDeleteWaitingRoom && onDeleteRoom ? (
+                                <PremiumButton
+                                    style={styles.deleteRoomButton}
+                                    onPress={handleDeleteRoom}
+                                    soundName="clack1"
+                                    hitSlop={6}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Supprimer la table"
+                                >
+                                    <Ionicons name="trash-outline" size={20} color="#FF8A65" />
+                                </PremiumButton>
+                            ) : null}
+                        </View>
                         <View style={styles.optionsGrid}>
                             <View style={styles.optionChip}>
                                 <Text style={styles.optionChipLabel}>Mode</Text>
@@ -294,61 +323,15 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
                     </View>
                 </View>
 
-                {/* Action Button - Bottom */}
-                <Animated.View entering={FadeInUp.delay(600).duration(500)} style={styles.footer}>
-                {isHost ? (
-                    <View style={styles.hostActionsContainer}>
-                        <View style={styles.hostActionsRow}>
-                            <PremiumButton
-                                style={[styles.actionButton, !canStart && styles.actionButtonDisabled]}
-                                onPress={() => {
-                                    if (canStart && !hasAutoStarted.current) {
-                                        hasAutoStarted.current = true;
-                                        onStartGame();
-                                    }
-                                }}
-                                disabled={!canStart}
-                                soundName="notify"
-                            >
-                                <LinearGradient
-                                    colors={canStart ? ['#4CAF50', '#2E7D32'] : ['#555', '#333']}
-                                    style={styles.buttonGradient}
-                                >
-                                    <Text style={styles.actionButtonText} adjustsFontSizeToFit numberOfLines={1}>
-                                        {autoStartCountdown !== null
-                                            ? `DÉMARRAGE DANS ${autoStartCountdown}...`
-                                            : canStart
-                                                ? 'JOUER'
-                                                : `ATTENDRE ${3 - roomData.players.length} PLUS`}
-                                    </Text>
-                                </LinearGradient>
-                            </PremiumButton>
-
-                            {canDeleteWaitingRoom && onDeleteRoom ? (
-                                <PremiumButton
-                                    style={styles.deleteRoomButton}
-                                    onPress={handleDeleteRoom}
-                                    soundName="clack1"
-                                >
-                                    <Ionicons name="trash-outline" size={24} color="#FF8A65" />
-                                </PremiumButton>
-                            ) : null}
-                        </View>
-                        {autoStartCountdown !== null && (
-                            <Text style={styles.autoStartHint}>
-                                Appuyez pour démarrer immédiatement
-                            </Text>
-                        )}
-                    </View>
-                ) : (
-                    <View style={styles.waitingContainer}>
-                        <Text style={styles.waitingText}>
-                            {autoStartCountdown !== null
-                                ? `Démarrage dans ${autoStartCountdown}...`
-                                : 'En attente du hote...'}
-                        </Text>
-                    </View>
-                )}
+                <Animated.View entering={FadeInUp.delay(600).duration(500)} style={styles.waitingStatus}>
+                    <Ionicons
+                        name={canStart ? 'checkmark-circle-outline' : 'time-outline'}
+                        size={18}
+                        color={canStart ? '#81C784' : 'rgba(255,255,255,0.55)'}
+                    />
+                    <Text style={[styles.waitingText, canStart && styles.readyText]}>
+                        {waitingMessage}
+                    </Text>
                 </Animated.View>
             </Animated.ScrollView>
         </LinearGradient>
@@ -363,35 +346,32 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        paddingHorizontal: 20,
-        paddingVertical: 20,
+    },
+    scroll: {
+        flex: 1,
     },
     // ─── Header ─────────────────────────────────────────────────
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 10,
-        zIndex: 50,
-    },
-    headerLeft: {
-        flex: 1,
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        rowGap: 10,
+        columnGap: 16,
+        marginBottom: 14,
     },
     headerCenter: {
-        alignItems: 'center',
-    },
-    headerRight: {
-        flex: 1,
-        alignItems: 'flex-end',
+        flexShrink: 1,
     },
     headerRightContent: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 15,
+        gap: 10,
+        marginLeft: 'auto',
         backgroundColor: 'rgba(0,0,0,0.3)',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 15,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 12,
         borderWidth: 1,
         borderColor: 'rgba(255,215,0,0.2)',
     },
@@ -410,9 +390,9 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
     },
     shareIconButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         backgroundColor: '#25D366',
         justifyContent: 'center',
         alignItems: 'center',
@@ -425,19 +405,18 @@ const styles = StyleSheet.create({
     // ─── Main Content ───────────────────────────────────────────
     scrollContent: {
         flexGrow: 1,
-        justifyContent: 'center',
-        paddingBottom: 20,
     },
     mainContent: {
-        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 16,
         minHeight: 180,
     },
     // ─── Player Cards (Reduced -20%) ────────────────────────────
     playersContainer: {
         flex: 1,
+        minWidth: 0,
         flexDirection: 'row',
         justifyContent: 'center',
         gap: 10,
@@ -505,24 +484,26 @@ const styles = StyleSheet.create({
     },
     // ─── Options Section (2x2 Grid) ─────────────────────────────
     optionsSection: {
-        position: 'absolute',
-        left: 0,
-        zIndex: 10,
         backgroundColor: 'rgba(0,0,0,0.2)',
-        borderRadius: 16,
+        borderRadius: 12,
         padding: 10,
         borderWidth: 1,
         borderColor: 'rgba(255,215,0,0.15)',
-        width: 140,
+        width: 150,
         justifyContent: 'center',
     },
+    sectionHeader: {
+        minHeight: 40,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
     sectionTitle: {
-        fontSize: 8,
+        fontSize: 10,
         fontWeight: 'bold',
         color: '#FFD700',
-        textAlign: 'center',
         letterSpacing: 2,
-        marginBottom: 8,
     },
     optionsGrid: {
         flexDirection: 'column',
@@ -549,35 +530,6 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     // ─── Footer ─────────────────────────────────────────────────
-    footer: {
-        marginTop: 20,
-        alignItems: 'center',
-        zIndex: 20, // Ensure button stays above cards if overlap occurs
-    },
-    hostActionsContainer: {
-        width: '100%',
-        maxWidth: 400,
-        alignItems: 'center',
-    },
-    hostActionsRow: {
-        flexDirection: 'row',
-        width: '100%',
-        gap: 12,
-        alignItems: 'stretch',
-    },
-    actionButton: {
-        flex: 1,
-        borderRadius: 16,
-        overflow: 'hidden',
-        elevation: 6,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 6,
-    },
-    deleteButtonDisabled: {
-        opacity: 0.5,
-    },
     addBotButton: {
         marginTop: 12,
         paddingVertical: 6,
@@ -605,47 +557,32 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#1A0E2E',
     },
-    actionButtonDisabled: {
-        opacity: 0.6,
-    },
-    buttonGradient: {
-        paddingVertical: 16,
-        paddingHorizontal: 24,
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-    },
-    actionButtonText: {
-        color: '#FFF',
-        fontWeight: 'bold',
-        fontSize: 16,
-        letterSpacing: 1,
-    },
-    autoStartHint: {
-        color: 'rgba(255,255,255,0.4)',
-        fontSize: 11,
-        marginTop: 6,
-    },
     deleteRoomButton: {
-        width: 56,
-        borderRadius: 16,
+        width: 40,
+        height: 40,
+        borderRadius: 10,
         backgroundColor: 'rgba(255,255,255,0.08)',
         borderWidth: 1,
         borderColor: 'rgba(255,99,71,0.5)',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    deleteRoomButtonText: {
-        color: '#FF8A65',
-        fontSize: 13,
-        fontWeight: '800',
-    },
-    waitingContainer: {
-        paddingVertical: 15,
+    waitingStatus: {
+        minHeight: 40,
+        marginTop: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
     },
     waitingText: {
         color: 'rgba(255,255,255,0.5)',
         fontSize: 14,
         fontStyle: 'italic',
+    },
+    readyText: {
+        color: '#A5D6A7',
+        fontStyle: 'normal',
+        fontWeight: '700',
     },
 });
