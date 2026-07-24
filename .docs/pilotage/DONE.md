@@ -1,5 +1,11 @@
 # Taches terminees
 
+### 2026-07-24
+
+- [x] `BUILD-ANDROID-01` Integration Sentry obsolete retiree du runtime,
+  d'Expo, de Metro et de Gradle. Generation locale `bundleRelease` validee
+  avec un AAB signe (`c11b521`).
+
 ### 2026-07-23
 
 - [x] `MULTI-COORD-03` Abandon et nettoyage de salle rendus atomiques afin
