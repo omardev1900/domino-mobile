@@ -2,6 +2,8 @@
 
 ### 2026-07-24
 
+- [x] `RELEASE-2.0.2` Version applicative alignee sur `2.0.2` et
+  `versionCode` Android incremente de 16 a 17 pour Google Play.
 - [x] `BUILD-ANDROID-01` Integration Sentry obsolete retiree du runtime,
   d'Expo, de Metro et de Gradle. Generation locale `bundleRelease` validee
   avec un AAB signe (`c11b521`).
