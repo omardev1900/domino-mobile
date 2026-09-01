@@ -89,16 +89,34 @@ jest.mock('firebase/firestore', () => ({
 }));
 
 jest.mock('firebase/auth', () => ({
+  browserPopupRedirectResolver: {},
   getAuth: jest.fn(),
   initializeAuth: jest.fn(),
   getReactNativePersistence: jest.fn(),
   browserLocalPersistence: {},
+  getAdditionalUserInfo: jest.fn(),
+  GoogleAuthProvider: class GoogleAuthProvider {
+    static credential = jest.fn(() => ({ providerId: 'google.com' }));
+    setCustomParameters = jest.fn();
+  },
   onAuthStateChanged: jest.fn(() => jest.fn()),
   signInWithEmailAndPassword: jest.fn(),
   createUserWithEmailAndPassword: jest.fn(),
+  signInWithCredential: jest.fn(),
+  signInWithPopup: jest.fn(),
   signOut: jest.fn(),
   sendPasswordResetEmail: jest.fn(),
   deleteUser: jest.fn(),
+}));
+
+jest.mock('@react-native-google-signin/google-signin', () => ({
+  GoogleSignin: {
+    configure: jest.fn(),
+    hasPlayServices: jest.fn(),
+    signIn: jest.fn(),
+    getTokens: jest.fn(),
+    signOut: jest.fn(),
+  },
 }));
 
 jest.mock('firebase/functions', () => ({

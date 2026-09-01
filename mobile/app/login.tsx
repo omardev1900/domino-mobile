@@ -1,23 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     StyleSheet,
     Text,
     TouchableOpacity,
     ActivityIndicator,
-    Alert,
     TextInput,
     ScrollView,
     KeyboardAvoidingView,
     Platform,
-    useWindowDimensions,
-    ImageBackground
+    useWindowDimensions
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authService } from '../src/core/services/auth.service';
+import { LogService } from '../src/core/services/LogService';
+import { findActiveRoomForUser } from '../src/core/services/firebase';
 
 const DEV_TEST_ACCOUNTS = [
     { label: 'Adil', email: 'adil@adil.com' },
@@ -41,8 +41,10 @@ export default function LoginScreen() {
     const [isForgotMode, setIsForgotMode] = useState(false);
 
 
-    const getErrorMessage = (error: any) => {
-        const code = error.code || '';
+    const getErrorMessage = (error: unknown) => {
+        const code = typeof error === 'object' && error !== null && 'code' in error
+            ? String(error.code)
+            : '';
         if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/invalid-email') {
             return "Email ou mot de passe incorrect.";
         }
@@ -58,7 +60,30 @@ export default function LoginScreen() {
         if (code === 'auth/too-many-requests') {
             return "Trop de tentatives. Réessayez dans quelques minutes.";
         }
+        if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+            return "Connexion Google annulée.";
+        }
+        if (code === 'auth/popup-blocked') {
+            return "Le navigateur a bloqué la fenêtre Google. Autorisez les popups puis réessayez.";
+        }
+        if (code === 'auth/account-exists-with-different-credential') {
+            return "Un compte existe déjà avec cet email. Connectez-vous d'abord avec votre mot de passe.";
+        }
+        if (code === 'auth/operation-not-allowed') {
+            return "La connexion Google n'est pas encore activée dans Firebase.";
+        }
+        if (code === 'auth/google-ios-not-configured') {
+            return "La connexion Google n'est pas encore configurée pour iOS.";
+        }
         return "Une erreur est survenue. Veuillez réessayer.";
+    };
+
+    const navigateAfterAuthentication = () => {
+        if (autoJoinRoomId) {
+            router.replace({ pathname: '/lobby', params: { autoJoinRoomId } });
+        } else {
+            router.replace('/home');
+        }
     };
 
 
@@ -73,7 +98,7 @@ export default function LoginScreen() {
         try {
             await authService.sendPasswordReset(email);
             setSuccessMessage('Un lien de réinitialisation a été envoyé à ' + email);
-        } catch (error: any) {
+        } catch (error: unknown) {
             setErrorMessage(getErrorMessage(error));
         } finally {
             setIsLoading(false);
@@ -95,35 +120,26 @@ export default function LoginScreen() {
                 const user = await authService.signIn(email, password);
                 if (user) {
                     try {
-                        const { findActiveRoomForUser } = require('../src/core/services/firebase');
                         const activeRoomId = await findActiveRoomForUser(user.uid);
                         if (activeRoomId) {
                             // La modale MultiResumeModal (_layout.tsx) s'occupera d'afficher l'invitation.
                         }
                     } catch (e) {
-                        console.error("❌ Rejoin check failed:", e);
+                        LogService.warn('LoginScreen', 'Rejoin check failed', e);
                     }
                 }
-                if (autoJoinRoomId) {
-                    router.replace({ pathname: '/lobby', params: { autoJoinRoomId } });
-                } else {
-                    router.replace('/home');
-                }
+                navigateAfterAuthentication();
             } else {
                 if (password.length < 6) {
                     setErrorMessage('Le mot de passe doit contenir au moins 6 caractères.');
                     setIsLoading(false);
                     return;
                 }
-                const newUser = await authService.signUp(email, password);
-                if (autoJoinRoomId) {
-                    router.replace({ pathname: '/lobby', params: { autoJoinRoomId } });
-                } else {
-                    router.replace('/home');
-                }
+                await authService.signUp(email, password);
+                navigateAfterAuthentication();
             }
-        } catch (error: any) {
-            console.error(error);
+        } catch (error: unknown) {
+            LogService.error('LoginScreen', 'Email authentication failed', error);
             setErrorMessage(getErrorMessage(error));
         } finally {
             setIsLoading(false);
@@ -143,23 +159,33 @@ export default function LoginScreen() {
             const user = await authService.signIn(testEmail, testEmail);
             if (user) {
                 try {
-                    const { findActiveRoomForUser } = require('../src/core/services/firebase');
                     const activeRoomId = await findActiveRoomForUser(user.uid);
                     if (activeRoomId) {
                         // La modale MultiResumeModal (_layout.tsx) s'occupera d'afficher l'invitation.
                     }
                 } catch (e) {
-                    console.error("❌ Rejoin check failed:", e);
+                    LogService.warn('LoginScreen', 'Rejoin check failed', e);
                 }
             }
 
-            if (autoJoinRoomId) {
-                router.replace({ pathname: '/lobby', params: { autoJoinRoomId } });
-            } else {
-                router.replace('/home');
-            }
-        } catch (error: any) {
-            console.error(error);
+            navigateAfterAuthentication();
+        } catch (error: unknown) {
+            LogService.error('LoginScreen', 'Development login failed', error);
+            setErrorMessage(getErrorMessage(error));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleGoogleAuth = async () => {
+        setErrorMessage('');
+        setSuccessMessage('');
+        setIsLoading(true);
+
+        try {
+            const user = await authService.signInWithGoogle();
+            if (user) navigateAfterAuthentication();
+        } catch (error: unknown) {
             setErrorMessage(getErrorMessage(error));
         } finally {
             setIsLoading(false);
@@ -267,6 +293,26 @@ export default function LoginScreen() {
                                         </Text>
                                     )}
                                 </TouchableOpacity>
+
+                                {!isForgotMode && (
+                                    <>
+                                        <View style={styles.separatorRow}>
+                                            <View style={styles.separatorLine} />
+                                            <Text style={styles.separatorText}>OU</Text>
+                                            <View style={styles.separatorLine} />
+                                        </View>
+                                        <TouchableOpacity
+                                            style={styles.googleAuthButton}
+                                            onPress={handleGoogleAuth}
+                                            disabled={isLoading}
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Continuer avec Google"
+                                        >
+                                            <Ionicons name="logo-google" size={18} color="#4285F4" />
+                                            <Text style={styles.googleAuthButtonText}>CONTINUER AVEC GOOGLE</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
 
                                 {__DEV__ && isLoginMode && !isForgotMode && (
                                     <View style={styles.devQuickLoginBlock}>
@@ -498,6 +544,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
+        marginVertical: 2,
     },
     separatorLine: {
         flex: 1,
@@ -508,5 +555,20 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.4)',
         fontSize: 11,
         fontWeight: '600',
+    },
+    googleAuthButton: {
+        minHeight: 42,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 21,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 10,
+        paddingHorizontal: 16,
+    },
+    googleAuthButtonText: {
+        color: '#202124',
+        fontSize: 13,
+        fontWeight: '800',
     },
 });

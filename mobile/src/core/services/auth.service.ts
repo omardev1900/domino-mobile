@@ -1,13 +1,21 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+    browserPopupRedirectResolver,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
+    getAdditionalUserInfo,
+    GoogleAuthProvider,
+    signInWithCredential,
+    signInWithPopup,
     signOut,
     sendPasswordResetEmail,
     updateProfile as updateFirebaseProfile,
-    User
+    User,
+    UserCredential
 } from 'firebase/auth';
+import { Platform } from 'react-native';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { auth } from './firebase';
 import { PlayerProfile } from '../types';
@@ -41,20 +49,7 @@ class AuthService {
     async signIn(email: string, pass: string): Promise<PlayerProfile> {
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-            const user = userCredential.user;
-
-            const profile = this.mapFirebaseUserToProfile(user);
-            await this.activateSession(profile);
-            await statsService.useStorageScope(profile.uid);
-            await economyService.useStorageScope(profile.uid);
-            await statsService.syncWithFirebase(profile.uid);
-            await economyService.syncFromFirebase(profile.uid);
-            await economyService.syncProfileMetadata(
-                profile.uid,
-                profile.displayName,
-                profile.avatarId || 'avatar_default'
-            );
-            return profile;
+            return this.completeAuthentication(userCredential, false);
         } catch (error) {
             LogService.error('AuthService', 'Sign In Error:', error);
             throw error;
@@ -67,39 +62,106 @@ class AuthService {
     async signUp(email: string, pass: string): Promise<PlayerProfile> {
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-            const user = userCredential.user;
-
-            const profile = this.mapFirebaseUserToProfile(user);
-            await this.activateSession(profile);
-            await statsService.useStorageScope(profile.uid);
-            await economyService.useStorageScope(profile.uid);
-            
-            // Pour un nouveau compte, on initialise explicitement la base de données avec des valeurs par défaut
-            const defaultStats = await statsService.getStats();
-            await statsService.pushStatsToFirebase(profile.uid, defaultStats);
-            
-            const defaultEconomy = await economyService.getEconomy();
-            await economyService.pushToFirebase(profile.uid, defaultEconomy);
-
-            // 🛡️ BUG-WELCOME-COINS : Protège les coins de bienvenue contre la race condition
-            // où syncFromFirebase (déclenché par home.tsx) lirait Firestore avant que
-            // la propagation soit complète, et écraserait les coins à 0 ou une valeur vide.
-            await AsyncStorage.setItem(
-                '@new_player_coins_protected',
-                String(defaultEconomy.coins)
-            );
-            LogService.info('AuthService', `[BUG-WELCOME-COINS] Flag de protection posé: ${defaultEconomy.coins} coins.`);
-            
-            await economyService.syncProfileMetadata(
-                profile.uid,
-                profile.displayName,
-                profile.avatarId || 'avatar_default'
-            );
-            return profile;
+            return this.completeAuthentication(userCredential, true);
         } catch (error) {
             LogService.error('AuthService', 'Sign Up Error:', error);
             throw error;
         }
+    }
+
+    /**
+     * Connexion ou création automatique d'un compte Firebase avec Google.
+     * Le web utilise le popup Firebase ; les applications natives utilisent
+     * le SDK Google puis échangent ses jetons contre un credential Firebase.
+     * Une annulation volontaire du sélecteur de compte retourne null.
+     */
+    async signInWithGoogle(): Promise<PlayerProfile | null> {
+        try {
+            let userCredential: UserCredential;
+
+            if (Platform.OS === 'web') {
+                const provider = new GoogleAuthProvider();
+                provider.setCustomParameters({ prompt: 'select_account' });
+                userCredential = await signInWithPopup(
+                    auth,
+                    provider,
+                    browserPopupRedirectResolver
+                );
+            } else {
+                const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+
+                if (Platform.OS === 'ios' && !iosClientId) {
+                    throw this.createAuthError(
+                        'auth/google-ios-not-configured',
+                        'La connexion Google iOS doit être configurée.'
+                    );
+                }
+
+                GoogleSignin.configure(iosClientId ? { iosClientId } : {});
+
+                if (Platform.OS === 'android') {
+                    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+                }
+
+                const googleResponse = await GoogleSignin.signIn();
+                if (googleResponse.type === 'cancelled') return null;
+
+                const googleTokens = await GoogleSignin.getTokens();
+                const googleCredential = GoogleAuthProvider.credential(
+                    googleResponse.data.idToken || googleTokens.idToken,
+                    googleTokens.accessToken
+                );
+                userCredential = await signInWithCredential(auth, googleCredential);
+            }
+
+            const isNewUser = getAdditionalUserInfo(userCredential)?.isNewUser === true;
+            return await this.completeAuthentication(userCredential, isNewUser);
+        } catch (error) {
+            LogService.error('AuthService', 'Google Sign In Error:', error);
+            throw error;
+        }
+    }
+
+    private async completeAuthentication(
+        userCredential: UserCredential,
+        isNewUser: boolean
+    ): Promise<PlayerProfile> {
+        const profile = this.mapFirebaseUserToProfile(userCredential.user);
+        await this.activateSession(profile);
+        await statsService.useStorageScope(profile.uid);
+        await economyService.useStorageScope(profile.uid);
+
+        if (isNewUser) {
+            const defaultStats = await statsService.getStats();
+            await statsService.pushStatsToFirebase(profile.uid, defaultStats);
+
+            const defaultEconomy = await economyService.getEconomy();
+            await economyService.pushToFirebase(profile.uid, defaultEconomy);
+
+            // Protège les coins de bienvenue contre une lecture Firestore trop rapide.
+            await AsyncStorage.setItem(
+                '@new_player_coins_protected',
+                String(defaultEconomy.coins)
+            );
+            LogService.info(
+                'AuthService',
+                `[BUG-WELCOME-COINS] Flag de protection posé: ${defaultEconomy.coins} coins.`
+            );
+        } else {
+            await statsService.syncWithFirebase(profile.uid);
+            await economyService.syncFromFirebase(profile.uid);
+        }
+
+        await economyService.syncProfileMetadata(
+            profile.uid,
+            profile.displayName,
+            profile.avatarId || 'avatar_default'
+        );
+        return profile;
+    }
+
+    private createAuthError(code: string, message: string): Error & { code: string } {
+        return Object.assign(new Error(message), { code });
     }
 
     private mapFirebaseUserToProfile(user: User): PlayerProfile {
@@ -182,7 +244,7 @@ class AuthService {
                 await AsyncStorage.removeItem(STORAGE_KEY_SESSION);
                 await statsService.useStorageScope(null);
                 await economyService.useStorageScope(null);
-                try { await signOut(auth); } catch (_) {}
+                try { await signOut(auth); } catch {}
             } else {
                 // Pas de user Firebase du tout → juste nettoyer le marqueur
                 await AsyncStorage.removeItem(STORAGE_KEY_SESSION);
@@ -235,8 +297,8 @@ class AuthService {
         await deleteUserAccount({});
         // Nettoyage local après suppression serveur réussie
         this.currentUser = null;
-        try { await AsyncStorage.removeItem(STORAGE_KEY_SESSION); } catch (_) {}
-        try { await signOut(auth); } catch (_) {}
+        try { await AsyncStorage.removeItem(STORAGE_KEY_SESSION); } catch {}
+        try { await signOut(auth); } catch {}
         await statsService.useStorageScope(null);
         await economyService.useStorageScope(null);
     }

@@ -80,7 +80,8 @@
           "iosAppId": "ca-app-pub-3940256099942544~1458002511",
           "userTrackingUsageDescription": "Cette application utilise vos données pour vous proposer des annonces publicitaires personnalisées."
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true,
