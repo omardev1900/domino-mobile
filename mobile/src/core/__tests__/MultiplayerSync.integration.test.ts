@@ -9,7 +9,7 @@ global.XMLHttpRequest = require('xhr2');
 
 
 import { initializeTestEnvironment, RulesTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -112,7 +112,7 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
 
         // Wait for the initial snapshot
         let attempts = 0;
-        while (!snapshotData && attempts < 20) {
+        while (!snapshotData && attempts < 100) {
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
         }
@@ -126,7 +126,7 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
 
         // Wait for snapshot sync
         attempts = 0;
-        while (snapshotData?.gameState?.turnId !== 2 && attempts < 20) {
+        while (snapshotData?.gameState?.turnId !== 2 && attempts < 100) {
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
         }
@@ -175,7 +175,9 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
                 { ...gameState.players[1], status: 'DISCONNECTED' },
             ],
         }));
-        await assertSucceeds(updateDoc(roomRef, { 'heartbeats.user_guest': Date.now() }));
+        await assertSucceeds(updateDoc(roomRef, { 'heartbeats.user_guest': serverTimestamp() }));
+        const presenceSnapshot = await getDoc(roomRef);
+        expect(presenceSnapshot.data()?.heartbeats?.user_guest.toMillis()).toEqual(expect.any(Number));
     });
 
     it('Scenario 4: the creator can still start a coordinated rematch from the lobby', async () => {

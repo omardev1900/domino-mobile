@@ -1,7 +1,5 @@
 # Backlog
 
-- [ ] `PRESENCE-03` Fonder le heartbeat et son expiration sur l'heure serveur,
-  avec une grace d'initialisation et des echecs d'ecriture observables.
 - [ ] `PRESENCE-04` Confier au serveur la decision finale de presence et
   interdire a un client de marquer un autre joueur deconnecte.
 - [ ] `PRESENCE-05` Rendre la reconnexion idempotente, appliquer une hysteresis

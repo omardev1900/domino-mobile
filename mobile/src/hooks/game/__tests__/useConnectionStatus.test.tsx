@@ -1,11 +1,13 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { useConnectionStatus } from '../useConnectionStatus';
 import { onDisconnect, onValue, ref, remove, set } from 'firebase/database';
+import { updateDoc } from 'firebase/firestore';
 
 jest.mock('../../../core/services/firebase', () => ({ db: {}, rtdb: {} }));
 jest.mock('firebase/firestore', () => ({
     doc: jest.fn(),
     runTransaction: jest.fn(),
+    serverTimestamp: jest.fn(() => ({ __serverTimestamp: true })),
     updateDoc: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../usePresenceDiagnosticSession', () => ({
@@ -71,5 +73,33 @@ describe('useConnectionStatus — présence RTDB par connexion', () => {
             'presence/room-1/player-1/connections/new-connection',
         ]);
         expect(ref).toHaveBeenCalledWith(expect.anything(), '.info/connected');
+    });
+
+    it('réessaie un heartbeat échoué avec un backoff borné', async () => {
+        jest.useFakeTimers();
+        (onValue as jest.Mock).mockReturnValue(jest.fn());
+        (updateDoc as jest.Mock)
+            .mockRejectedValueOnce({ code: 'unavailable' })
+            .mockResolvedValueOnce(undefined);
+
+        const { unmount } = renderHook(() => useConnectionStatus({
+            gameId: 'room-1',
+            localPlayerId: 'player-1',
+            isSoloMode: false,
+        }));
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(updateDoc).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            jest.advanceTimersByTime(1_000);
+            await Promise.resolve();
+        });
+        expect(updateDoc).toHaveBeenCalledTimes(2);
+
+        unmount();
+        jest.useRealTimers();
     });
 });

@@ -2,6 +2,9 @@
 
 ### 2026-10-10
 
+- Les joueurs ne sont plus declares deconnectes a cause d'une horloge de
+  telephone incorrecte ; la presence multijoueur s'appuie desormais sur les
+  horodatages serveur Firebase.
 - Les reconnexions multijoueur ne peuvent plus etre invalidees par la fermeture
   tardive d'une ancienne connexion ; un joueur reste en ligne tant qu'une de
   ses connexions est active.

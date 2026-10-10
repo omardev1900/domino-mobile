@@ -2,6 +2,10 @@
 
 ### 2026-10-10
 
+- [x] `PRESENCE-03` Heartbeats Firestore ecrits en `serverTimestamp()` et
+  expires sur l'heure serveur RTDB, avec grace initiale, revalidation
+  transactionnelle et retry borne journalise. Validation unitaire, emulateur
+  Firestore et export Android reussis.
 - [x] `PRESENCE-02` Presence RTDB rendue independante par connexion : chaque
   `onDisconnect` ne supprime que son propre noeud et une connexion restante
   garde le joueur en ligne. Lecture compatible avec le format historique,

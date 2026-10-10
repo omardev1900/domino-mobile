@@ -25,6 +25,8 @@ const player = (id: string, status: Player['status']): Player => ({
     totalCochonsSubis: 0,
 });
 
+const serverTimestamp = (value: number) => ({ toMillis: () => value });
+
 describe('withDisconnectedPlayers', () => {
     it('modifie uniquement la cible à partir de la liste la plus récente', () => {
         const latestPlayers = [
@@ -62,7 +64,7 @@ describe('markPlayersDisconnected', () => {
             get: jest.fn().mockResolvedValue({
                 exists: () => true,
                 data: () => ({
-                    heartbeats: { p2: 9_500 },
+                    heartbeats: { p2: serverTimestamp(9_500) },
                     gameState: { players: [player('p1', 'HUMAN'), player('p2', 'HUMAN')] },
                 }),
             }),
@@ -81,7 +83,7 @@ describe('markPlayersDisconnected', () => {
             get: jest.fn().mockResolvedValue({
                 exists: () => true,
                 data: () => ({
-                    heartbeats: { p2: 1_000 },
+                    heartbeats: { p2: serverTimestamp(1_000) },
                     gameState: {
                         players: [
                             player('p1', 'HUMAN'),

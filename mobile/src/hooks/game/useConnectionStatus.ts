@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db, rtdb } from '../../core/services/firebase';
-import { doc, runTransaction, updateDoc } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { ref, set, remove, onValue, onDisconnect as rtdbOnDisconnect } from 'firebase/database';
 import { GameRoom } from '../../core/types';
 import { isHeartbeatSuspendedPhase, shouldRestoreHumanStatus } from './presencePolicy';
 import {
     createPresenceConnectionId,
+    getEstimatedPresenceServerNow,
     presenceErrorCode,
 } from './presenceDiagnostics';
 import { usePresenceDiagnosticSession } from './usePresenceDiagnosticSession';
@@ -32,6 +33,8 @@ export interface UseConnectionStatusResult {
     forceImmediatePing: () => Promise<void>;
 }
 
+const HEARTBEAT_RETRY_DELAYS_MS = [1_000, 3_000, 8_000] as const;
+
 /** Phases durant lesquelles le heartbeat Firestore est suspendu pour éviter d'invalider les transactions NEXT_ROUND */
 export const useConnectionStatus = ({
     gameId,
@@ -45,6 +48,8 @@ export const useConnectionStatus = ({
     const signalPlayerOfflineRef = useRef<((surrendered?: boolean) => Promise<void>) | null>(null);
     // FIX-LEAK: timer du badge "rejoining" — nettoyé au démontage pour éviter setState après unmount
     const rejoinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const heartbeatRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const sendPingRef = useRef<(retryAttempt?: number) => Promise<void>>(async () => undefined);
     const { connectionId: diagnosticConnectionId, log: logPresence } = usePresenceDiagnosticSession({
         gameId,
         isSoloMode,
@@ -55,6 +60,7 @@ export const useConnectionStatus = ({
     const presenceConnectionIdRef = useRef<string | null>(null);
     useEffect(() => () => {
         if (rejoinTimerRef.current) clearTimeout(rejoinTimerRef.current);
+        if (heartbeatRetryTimerRef.current) clearTimeout(heartbeatRetryTimerRef.current);
     }, []);
 
     // ─── 1. HEARTBEAT FIRESTORE (fallback 25s) ───────────────────────────────
@@ -65,8 +71,12 @@ export const useConnectionStatus = ({
     // FIX-REGRESSION-#8: intervalle ramené à 10s (était passé à 20s dans #8).
     // 20s + pause 12s = 32s > seuil vigilance 25s → marquage DISCONNECTED intempestif.
     // 10s + pause 12s = 22s < 25s → sûr.
-    const sendPing = useCallback(async () => {
+    const sendPing = useCallback(async (retryAttempt = 0) => {
         if (!gameId || isSoloMode) return;
+        if (retryAttempt === 0 && heartbeatRetryTimerRef.current) {
+            clearTimeout(heartbeatRetryTimerRef.current);
+            heartbeatRetryTimerRef.current = null;
+        }
         // Suspendre pendant les transitions critiques pour ne pas invalider les transactions
         const phase = externalGamePhaseRef?.current;
         if (isHeartbeatSuspendedPhase(phase)) {
@@ -80,23 +90,37 @@ export const useConnectionStatus = ({
         }
         try {
             const roomRef = doc(db, 'rooms', gameId);
-            const heartbeatAtMs = Date.now();
-            await updateDoc(roomRef, { [`heartbeats.${localPlayerId}`]: heartbeatAtMs });
+            await updateDoc(roomRef, { [`heartbeats.${localPlayerId}`]: serverTimestamp() });
             logPresence({
                 event: 'heartbeat_write_succeeded',
                 source: 'firestore_heartbeat',
-                heartbeatAtMs,
+                heartbeatAtMs: getEstimatedPresenceServerNow(),
                 phase,
+                decision: retryAttempt > 0 ? `retry_succeeded_${retryAttempt}` : undefined,
             });
         } catch (error) {
+            const retryDelayMs = HEARTBEAT_RETRY_DELAYS_MS[retryAttempt];
             logPresence({
                 event: 'heartbeat_write_failed',
                 source: 'firestore_heartbeat',
                 errorCode: presenceErrorCode(error),
                 phase,
+                decision: retryDelayMs === undefined
+                    ? 'retry_exhausted'
+                    : `retry_scheduled_${retryAttempt + 1}`,
             });
+            if (retryDelayMs !== undefined) {
+                heartbeatRetryTimerRef.current = setTimeout(() => {
+                    heartbeatRetryTimerRef.current = null;
+                    void sendPingRef.current(retryAttempt + 1);
+                }, retryDelayMs);
+            }
         }
     }, [externalGamePhaseRef, gameId, isSoloMode, localPlayerId, logPresence]);
+
+    useEffect(() => {
+        sendPingRef.current = sendPing;
+    }, [sendPing]);
 
     useEffect(() => {
         if (!gameId || isSoloMode) return;
@@ -112,12 +136,11 @@ export const useConnectionStatus = ({
         if (!gameId || isSoloMode) return;
         try {
             const roomRef = doc(db, 'rooms', gameId);
-            const heartbeatAtMs = Date.now();
-            await updateDoc(roomRef, { [`heartbeats.${localPlayerId}`]: heartbeatAtMs });
+            await updateDoc(roomRef, { [`heartbeats.${localPlayerId}`]: serverTimestamp() });
             logPresence({
                 event: 'heartbeat_write_succeeded',
                 source: 'firestore_heartbeat',
-                heartbeatAtMs,
+                heartbeatAtMs: getEstimatedPresenceServerNow(),
                 decision: 'phase_catch_up',
                 phase: externalGamePhaseRef?.current,
             });

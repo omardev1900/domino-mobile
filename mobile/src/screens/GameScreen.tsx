@@ -46,7 +46,8 @@ import { FlyingDomino } from '../components/FlyingDomino';
 import { useConnectionStatus } from '../hooks/game/useConnectionStatus';
 import { isHeartbeatSuspendedPhase } from '../hooks/game/presencePolicy';
 import { markPlayersDisconnected } from '../hooks/game/playerPresence';
-import { logPresenceDiagnostic } from '../hooks/game/presenceDiagnostics';
+import { getEstimatedPresenceServerNow, logPresenceDiagnostic } from '../hooks/game/presenceDiagnostics';
+import { getHeartbeatExpiryDecision, HEARTBEAT_TIMEOUT_MS } from '../hooks/game/heartbeatPolicy';
 import { getEffectivePlayerPresence, RtdbPlayerPresence } from '../hooks/game/presenceConnections';
 import { useGameSync } from '../hooks/game/useGameSync';
 import { useGameTimers } from '../hooks/game/useGameTimers';
@@ -185,6 +186,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // Tous les clients peuvent signaler un pair dont la presence a expire.
     // FIX-VIGILANCE-REF: roomData lu via ref pour éviter le reset de l'intervalle à chaque snapshot.
     const roomDataRef = useRef(roomData);
+    const heartbeatFirstObservedAtRef = useRef<Record<string, number>>({});
     useEffect(() => { roomDataRef.current = roomData; }, [roomData]);
 
     useEffect(() => {
@@ -196,11 +198,21 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             const currentGameState = currentRoomData.gameState;
             if (isHeartbeatSuspendedPhase(currentGameState.phase)) return;
 
-            const now = Date.now();
+            const serverNowMs = getEstimatedPresenceServerNow();
+            if (serverNowMs === undefined) return;
             const timedOutPlayerIds = currentGameState.players.flatMap(p => {
                 if (p.id === localPlayerId || p.status !== 'HUMAN') return [];
-                const lastPing = currentRoomData.heartbeats?.[p.id] ?? 0;
-                if (now - lastPing > 25000) {
+                const decision = getHeartbeatExpiryDecision({
+                    heartbeat: currentRoomData.heartbeats?.[p.id],
+                    firstObservedAtMs: heartbeatFirstObservedAtRef.current[p.id],
+                    serverNowMs,
+                });
+                if (decision.firstObservedAtMs === undefined) {
+                    delete heartbeatFirstObservedAtRef.current[p.id];
+                } else {
+                    heartbeatFirstObservedAtRef.current[p.id] = decision.firstObservedAtMs;
+                }
+                if (decision.expires) {
                     logPresenceDiagnostic({
                         event: 'status_transition_started',
                         source: 'firestore_heartbeat',
@@ -208,8 +220,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                         playerId: p.id,
                         connectionId: diagnosticConnectionId,
                         appState: AppState.currentState,
-                        heartbeatAgeMs: now - lastPing,
-                        heartbeatAtMs: lastPing,
+                        heartbeatAgeMs: decision.heartbeatAgeMs,
+                        heartbeatAtMs: decision.heartbeatAtMs,
                         phase: currentGameState.phase,
                         statusFrom: 'HUMAN',
                         statusTo: 'DISCONNECTED',
@@ -221,7 +233,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
             if (timedOutPlayerIds.length > 0) {
                 try {
-                    const changedPlayerIds = await markPlayersDisconnected(gameId, timedOutPlayerIds, now - 25000);
+                    const heartbeatCutoff = serverNowMs - HEARTBEAT_TIMEOUT_MS;
+                    const changedPlayerIds = await markPlayersDisconnected(gameId, timedOutPlayerIds, heartbeatCutoff);
                     changedPlayerIds.forEach(playerId => logPresenceDiagnostic({
                         event: 'status_transition_applied',
                         source: 'firestore_heartbeat',
@@ -229,8 +242,16 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                         playerId,
                         connectionId: diagnosticConnectionId,
                         appState: AppState.currentState,
-                        heartbeatAgeMs: now - (currentRoomData.heartbeats?.[playerId] ?? 0),
-                        heartbeatAtMs: currentRoomData.heartbeats?.[playerId] ?? 0,
+                        heartbeatAgeMs: getHeartbeatExpiryDecision({
+                            heartbeat: currentRoomData.heartbeats?.[playerId],
+                            firstObservedAtMs: heartbeatFirstObservedAtRef.current[playerId],
+                            serverNowMs,
+                        }).heartbeatAgeMs,
+                        heartbeatAtMs: getHeartbeatExpiryDecision({
+                            heartbeat: currentRoomData.heartbeats?.[playerId],
+                            firstObservedAtMs: heartbeatFirstObservedAtRef.current[playerId],
+                            serverNowMs,
+                        }).heartbeatAtMs,
                         phase: currentGameState.phase,
                         statusFrom: 'HUMAN',
                         statusTo: 'DISCONNECTED',
@@ -241,7 +262,10 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             }
         }, 5000);
 
-        return () => clearInterval(checkInterval);
+        return () => {
+            clearInterval(checkInterval);
+            heartbeatFirstObservedAtRef.current = {};
+        };
         // roomData retiré des deps — lu via roomDataRef pour éviter le reset permanent
     }, [diagnosticConnectionId, gameId, isSoloMode, localPlayerId]);
 
@@ -264,6 +288,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         if (!gameId || isSoloMode) return;
 
         const presenceRef = rtdbRef(rtdb, `presence/${gameId}`);
+        const seenPresencePlayers = seenRtdbPresencePlayers.current;
         const GRACE_PERIOD_MS = 4000;       // 4s — absorbe le flapping TCP sur slow 4G
         const ACTIVE_TURN_GRACE_MS = 1000;  // 1s — joueur actif bloque le jeu, détection prioritaire
 
@@ -276,8 +301,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             const effectivePresence = Object.fromEntries(
                 [...knownPlayerIds]
                     .filter(uid => {
-                        if (presenceData?.[uid]) seenRtdbPresencePlayers.current.add(uid);
-                        return seenRtdbPresencePlayers.current.has(uid);
+                        if (presenceData?.[uid]) seenPresencePlayers.add(uid);
+                        return seenPresencePlayers.has(uid);
                     })
                     .map(uid => [uid, getEffectivePlayerPresence(presenceData?.[uid])])
             );
@@ -400,7 +425,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             Object.values(rtdbOfflineTimers.current).forEach(clearTimeout);
             rtdbOfflineTimers.current = {};
             latestRtdbPresence.current = {};
-            seenRtdbPresencePlayers.current.clear();
+            seenPresencePlayers.clear();
         };
     }, [diagnosticConnectionId, gameId, isSoloMode, localPlayerId]);
 

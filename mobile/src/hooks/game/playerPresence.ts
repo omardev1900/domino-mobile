@@ -2,6 +2,7 @@ import { doc, runTransaction } from 'firebase/firestore';
 
 import { GameRoom, Player } from '../../core/types';
 import { db } from '../../core/services/firebase';
+import { heartbeatToServerMillis } from './heartbeatPolicy';
 
 const pendingDisconnectWrites = new Map<string, Promise<string[]>>();
 
@@ -44,9 +45,10 @@ export const markPlayersDisconnected = async (
 
         const eligiblePlayerIds = heartbeatCutoff === undefined
             ? uniquePlayerIds
-            : uniquePlayerIds.filter(playerId =>
-                (room.heartbeats?.[playerId] ?? 0) < heartbeatCutoff
-            );
+            : uniquePlayerIds.filter(playerId => {
+                const heartbeatAtMs = heartbeatToServerMillis(room.heartbeats?.[playerId]);
+                return heartbeatAtMs === undefined || heartbeatAtMs < heartbeatCutoff;
+            });
         const result = withDisconnectedPlayers(currentPlayers, eligiblePlayerIds);
         if (result.changedPlayerIds.length === 0) return [];
 

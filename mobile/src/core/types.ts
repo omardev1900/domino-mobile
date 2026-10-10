@@ -136,7 +136,10 @@ export interface GameRoom {
     startingHandSize?: number;
     buyIn?: number; // 🪙 Quantité de coins nécessaires pour entrer
     quickChats?: { [playerId: string]: { content: string; timestamp: number; nonce?: string } | null }; // NEW: Decoupled chat
-    heartbeats?: { [playerId: string]: number }; // NEW: Web Disconnect tracking
+    // Timestamp Firestore serveur depuis PRESENCE-03. `unknown` conserve la
+    // compatibilité des snapshots historiques sans laisser leur heure locale
+    // participer à une décision de présence.
+    heartbeats?: { [playerId: string]: unknown };
     coordinatorVersion?: number;
     coordinator?: {
         version: number;

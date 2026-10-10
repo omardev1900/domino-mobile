@@ -136,7 +136,7 @@ export interface GameRoom {
     startingHandSize?: number;
     buyIn?: number; // 🪙 Quantité de coins nécessaires pour entrer
     quickChats?: { [playerId: string]: { content: string; timestamp: number; nonce?: string } | null }; // NEW: Decoupled chat
-    heartbeats?: { [playerId: string]: number }; // NEW: Web Disconnect tracking
+    heartbeats?: { [playerId: string]: unknown };
     coordinatorVersion?: number;
     coordinator?: {
         version: number;

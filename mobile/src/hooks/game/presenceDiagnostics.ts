@@ -59,6 +59,7 @@ export interface PresenceDiagnosticRecord extends Omit<PresenceDiagnosticInput, 
 }
 
 let serverTimeOffsetMs = 0;
+let hasServerTimeOffset = false;
 
 const hashIdentifier = (value: string): string => {
     let hash = 0x811c9dc5;
@@ -78,8 +79,18 @@ export const createPresenceConnectionId = (
 ): string => `connection_${nowMs.toString(36)}_${Math.floor(randomValue * 0x1000000).toString(36).padStart(5, '0')}`;
 
 export const setPresenceServerTimeOffset = (offsetMs: number): void => {
-    if (Number.isFinite(offsetMs)) serverTimeOffsetMs = offsetMs;
+    if (!Number.isFinite(offsetMs)) return;
+    serverTimeOffsetMs = offsetMs;
+    hasServerTimeOffset = true;
 };
+
+/**
+ * La RTDB fournit l'écart entre l'horloge Firebase et celle du périphérique.
+ * Sans cet écart, le client ne prend aucune décision d'expiration afin qu'une
+ * horloge locale fausse ne puisse jamais évincer un adversaire.
+ */
+export const getEstimatedPresenceServerNow = (clientNowMs = Date.now()): number | undefined =>
+    hasServerTimeOffset ? clientNowMs + serverTimeOffsetMs : undefined;
 
 export const presenceErrorCode = (error: unknown): string => {
     if (typeof error === 'object' && error !== null) {
