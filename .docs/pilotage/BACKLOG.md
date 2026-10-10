@@ -1,8 +1,5 @@
 # Backlog
 
-- [ ] `PRESENCE-02` Remplacer la presence RTDB unique par joueur par une
-  presence par connexion, afin qu'un ancien `onDisconnect` ne puisse plus
-  invalider une session recente.
 - [ ] `PRESENCE-03` Fonder le heartbeat et son expiration sur l'heure serveur,
   avec une grace d'initialisation et des echecs d'ecriture observables.
 - [ ] `PRESENCE-04` Confier au serveur la decision finale de presence et

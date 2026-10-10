@@ -2,6 +2,10 @@
 
 ### 2026-10-10
 
+- [x] `PRESENCE-02` Presence RTDB rendue independante par connexion : chaque
+  `onDisconnect` ne supprime que son propre noeud et une connexion restante
+  garde le joueur en ligne. Lecture compatible avec le format historique,
+  course ancienne/nouvelle connexion et reconnexion couvertes par tests.
 - [x] `ANDROID-LOCAL-DEV-01` Environnement Android local retabli : client de
   developpement Expo ajoute, `runtimeVersion` explicite, wrapper Gradle
   executable, signature debug independante de la cle de production et

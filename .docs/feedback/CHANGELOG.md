@@ -1,5 +1,11 @@
 # Changelog
 
+### 2026-10-10
+
+- Les reconnexions multijoueur ne peuvent plus etre invalidees par la fermeture
+  tardive d'une ancienne connexion ; un joueur reste en ligne tant qu'une de
+  ses connexions est active.
+
 ### 2026-07-23
 
 - La sortie d'une salle multijoueur nettoie desormais atomiquement la presence

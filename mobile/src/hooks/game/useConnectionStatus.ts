@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db, rtdb } from '../../core/services/firebase';
 import { doc, runTransaction, updateDoc } from 'firebase/firestore';
-import { ref, set, onValue, onDisconnect as rtdbOnDisconnect } from 'firebase/database';
+import { ref, set, remove, onValue, onDisconnect as rtdbOnDisconnect } from 'firebase/database';
 import { GameRoom } from '../../core/types';
 import { isHeartbeatSuspendedPhase, shouldRestoreHumanStatus } from './presencePolicy';
 import {
+    createPresenceConnectionId,
     presenceErrorCode,
 } from './presenceDiagnostics';
 import { usePresenceDiagnosticSession } from './usePresenceDiagnosticSession';
@@ -49,6 +50,9 @@ export const useConnectionStatus = ({
         isSoloMode,
         localPlayerId,
     });
+    // Change à chaque nouvelle connexion RTDB. Ainsi un onDisconnect retardé
+    // ne peut supprimer que le nœud qu'il a lui-même créé.
+    const presenceConnectionIdRef = useRef<string | null>(null);
     useEffect(() => () => {
         if (rejoinTimerRef.current) clearTimeout(rejoinTimerRef.current);
     }, []);
@@ -129,17 +133,17 @@ export const useConnectionStatus = ({
     }, [externalGamePhaseRef, gameId, isSoloMode, localPlayerId, logPresence]);
 
     // ─── 2. PRÉSENCE RTDB + onDisconnect (détection rapide ~3-5s) ────────────
-    // Structure RTDB : /presence/{gameId}/{uid} = { status: 'online'|'offline', t: timestamp }
+    // Structure RTDB : /presence/{gameId}/{uid}/connections/{connectionId}
+    //                 = { status: 'online', t: timestamp }
     //
     // Fonctionnement :
-    //   - Au mount : on s'enregistre comme 'online' et on programme un onDisconnect 'offline'
+    //   - À chaque connexion RTDB : on crée un nœud propre et on programme sa suppression
     //   - Firebase exécute le onDisconnect côté serveur dès que le TCP se ferme (~3s)
     //   - GameScreen écoute ces changements et marque le joueur DISCONNECTED dans Firestore
-    //   - Au démontage propre (rage-quit, quitter la partie) : on écrit 'offline' nous-même
+    //   - Au démontage propre (rage-quit, quitter la partie) : on supprime son propre nœud
     useEffect(() => {
         if (!gameId || isSoloMode || !localPlayerId) return;
 
-        const presenceRef = ref(rtdb, `presence/${gameId}/${localPlayerId}`);
         const connectedRef = ref(rtdb, '.info/connected');
 
         // Écouter l'état de connexion RTDB pour (re)configurer le onDisconnect
@@ -156,11 +160,14 @@ export const useConnectionStatus = ({
 
             try {
                 const presenceAtMs = Date.now();
+                const presenceConnectionId = createPresenceConnectionId(presenceAtMs);
+                presenceConnectionIdRef.current = presenceConnectionId;
+                const presenceRef = ref(
+                    rtdb,
+                    `presence/${gameId}/${localPlayerId}/connections/${presenceConnectionId}`
+                );
                 // Programmer l'écriture automatique côté serveur en cas de déconnexion
-                await rtdbOnDisconnect(presenceRef).set({
-                    status: 'offline',
-                    t: presenceAtMs,
-                });
+                await rtdbOnDisconnect(presenceRef).remove();
                 logPresence({
                     event: 'rtdb_on_disconnect_armed',
                     source: 'rtdb_presence',
@@ -191,8 +198,15 @@ export const useConnectionStatus = ({
             // FIX-CLEANUP: unsubConnected est la fonction Unsubscribe renvoyée par onValue,
             // pas le callback — il faut l'appeler directement, pas la passer à off().
             unsubConnected();
+            const presenceConnectionId = presenceConnectionIdRef.current;
+            presenceConnectionIdRef.current = null;
+            if (!presenceConnectionId) return;
+            const presenceRef = ref(
+                rtdb,
+                `presence/${gameId}/${localPlayerId}/connections/${presenceConnectionId}`
+            );
             const presenceAtMs = Date.now();
-            set(presenceRef, { status: 'offline', t: presenceAtMs })
+            remove(presenceRef)
                 .then(() => logPresence({
                     event: 'rtdb_presence_written',
                     source: 'rtdb_presence',
@@ -231,7 +245,13 @@ export const useConnectionStatus = ({
 
         // Publier le retour RTDB en premier annule immédiatement les timers de grâce adverses.
         // La transaction Firestore restaure ensuite le statut partagé si nécessaire.
-        const presenceRef = ref(rtdb, `presence/${gameId}/${localPlayerId}`);
+        const presenceConnectionId = presenceConnectionIdRef.current
+            ?? createPresenceConnectionId();
+        presenceConnectionIdRef.current = presenceConnectionId;
+        const presenceRef = ref(
+            rtdb,
+            `presence/${gameId}/${localPlayerId}/connections/${presenceConnectionId}`
+        );
         const roomRef = doc(db, 'rooms', gameId);
         try {
             logPresence({
@@ -241,7 +261,7 @@ export const useConnectionStatus = ({
                 statusTo: 'HUMAN',
             });
             const presenceAtMs = Date.now();
-            await rtdbOnDisconnect(presenceRef).set({ status: 'offline', t: presenceAtMs });
+            await rtdbOnDisconnect(presenceRef).remove();
             await set(presenceRef, { status: 'online', t: presenceAtMs });
 
             await runTransaction(db, async (transaction) => {

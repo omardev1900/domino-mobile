@@ -47,6 +47,7 @@ import { useConnectionStatus } from '../hooks/game/useConnectionStatus';
 import { isHeartbeatSuspendedPhase } from '../hooks/game/presencePolicy';
 import { markPlayersDisconnected } from '../hooks/game/playerPresence';
 import { logPresenceDiagnostic } from '../hooks/game/presenceDiagnostics';
+import { getEffectivePlayerPresence, RtdbPlayerPresence } from '../hooks/game/presenceConnections';
 import { useGameSync } from '../hooks/game/useGameSync';
 import { useGameTimers } from '../hooks/game/useGameTimers';
 import { useGameEngine } from '../hooks/game/useGameEngine';
@@ -63,7 +64,7 @@ import { TABLE_CONFIGS } from '../core/economy.constants';
 import { SkinConfig } from '../core/store.types';
 import { useInterstitialAd, TestIds, AdMobIds } from '../core/services/AdMobAdapter';
 import { rtdb } from '../core/services/firebase';
-import { ref as rtdbRef, onValue as rtdbOnValue, off as rtdbOff } from 'firebase/database';
+import { ref as rtdbRef, onValue as rtdbOnValue } from 'firebase/database';
 
 interface GameScreenProps {
     gameId?: string;
@@ -254,6 +255,10 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // et le coup du bot se déclenchent en ~3-4s au lieu de ~7s.
     const rtdbOfflineTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
     const latestRtdbPresence = useRef<Record<string, { status: string; t: number }>>({});
+    // Évite de déconnecter un joueur dont le client est encore en train de publier
+    // sa toute première connexion. Après une présence observée, l'absence du nœud
+    // signifie bien que sa dernière connexion a disparu.
+    const seenRtdbPresencePlayers = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         if (!gameId || isSoloMode) return;
@@ -263,11 +268,22 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         const ACTIVE_TURN_GRACE_MS = 1000;  // 1s — joueur actif bloque le jeu, détection prioritaire
 
         const unsubPresence = rtdbOnValue(presenceRef, (snapshot) => {
-            const presenceData = snapshot.val() as Record<string, { status: string; t: number }> | null;
-            latestRtdbPresence.current = presenceData ?? {};
-            if (!presenceData) return;
+            const presenceData = snapshot.val() as Record<string, RtdbPlayerPresence> | null;
+            const knownPlayerIds = new Set([
+                ...Object.keys(presenceData ?? {}),
+                ...(roomDataRef.current?.gameState?.players.map(player => player.id) ?? []),
+            ]);
+            const effectivePresence = Object.fromEntries(
+                [...knownPlayerIds]
+                    .filter(uid => {
+                        if (presenceData?.[uid]) seenRtdbPresencePlayers.current.add(uid);
+                        return seenRtdbPresencePlayers.current.has(uid);
+                    })
+                    .map(uid => [uid, getEffectivePlayerPresence(presenceData?.[uid])])
+            );
+            latestRtdbPresence.current = effectivePresence;
 
-            Object.entries(presenceData).forEach(([uid, data]) => {
+            Object.entries(effectivePresence).forEach(([uid, data]) => {
                 if (uid === localPlayerId) return;
 
                 if (data.status === 'offline') {
@@ -384,6 +400,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             Object.values(rtdbOfflineTimers.current).forEach(clearTimeout);
             rtdbOfflineTimers.current = {};
             latestRtdbPresence.current = {};
+            seenRtdbPresencePlayers.current.clear();
         };
     }, [diagnosticConnectionId, gameId, isSoloMode, localPlayerId]);
 
