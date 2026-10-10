@@ -2,6 +2,10 @@
 
 ### 2026-10-10
 
+- [x] `ANDROID-LOCAL-DEV-01` Environnement Android local retabli : client de
+  developpement Expo ajoute, `runtimeVersion` explicite, wrapper Gradle
+  executable, signature debug independante de la cle de production et
+  publicites Google neutralisees dans les builds de developpement.
 - [x] `TOOLING-FIREBASE-01` Firebase CLI installee sous Node.js 22 et
   configuration locale rendue compatible avec Metro : Firestore Emulator
   utilise le port 8082 et le test d'integration lit l'adresse fournie par la

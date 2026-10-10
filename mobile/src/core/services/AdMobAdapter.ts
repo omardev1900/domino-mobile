@@ -1,7 +1,17 @@
 import mobileAds, { useRewardedAd as _useRewardedAd, useInterstitialAd as _useInterstitialAd, useAppOpenAd as _useAppOpenAd, TestIds } from 'react-native-google-mobile-ads';
 import { Platform } from 'react-native';
 
-const isDev = __DEV__; // Utilisez false si vous testez en build dev signé
+const isDev = __DEV__;
+
+// Les publicités, même de test, ne doivent pas interrompre les parcours de
+// développement. Elles restent actives dans les builds de production natives.
+export const isAdMobEnabled = !isDev && Platform.OS !== 'web';
+
+const createDisabledAdState = () => ({
+    isLoaded: false, isOpened: false, isClosed: false, isClicked: false,
+    isShowing: false, isEarnedReward: false, error: undefined,
+    reward: undefined, revenue: undefined, load: () => {}, show: () => {},
+});
 
 export const AdMobIds = {
     INTERSTITIAL_LIGUE: isDev ? TestIds.INTERSTITIAL : (process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_LIGUE_ID || TestIds.INTERSTITIAL),
@@ -11,41 +21,23 @@ export const AdMobIds = {
 };
 
 export const initializeAdMob = async () => {
-    if (Platform.OS === 'web') return Promise.resolve();
+    if (!isAdMobEnabled) return Promise.resolve();
     return mobileAds().initialize();
 };
 
 export const useAppOpenAd = (adUnitId: string) => {
-    if (Platform.OS === 'web' || typeof _useAppOpenAd !== 'function') {
-        return {
-            isLoaded: false, isOpened: false, isClosed: false, isClicked: false,
-            isShowing: false, isEarnedReward: false, error: undefined,
-            reward: undefined, revenue: undefined, load: () => {}, show: () => {},
-        };
-    }
-    return _useAppOpenAd(adUnitId);
+    const ad = _useAppOpenAd(adUnitId);
+    return isAdMobEnabled ? ad : createDisabledAdState();
 };
 
 export const useInterstitialAd = (adUnitId: string) => {
-    if (Platform.OS === 'web' || typeof _useInterstitialAd !== 'function') {
-        return {
-            isLoaded: false, isOpened: false, isClosed: false, isClicked: false,
-            isShowing: false, isEarnedReward: false, error: undefined,
-            reward: undefined, revenue: undefined, load: () => {}, show: () => {},
-        };
-    }
-    return _useInterstitialAd(adUnitId);
+    const ad = _useInterstitialAd(adUnitId);
+    return isAdMobEnabled ? ad : createDisabledAdState();
 };
 
 export const useRewardedAd = (adUnitId: string) => {
-    if (Platform.OS === 'web' || typeof _useRewardedAd !== 'function') {
-        return {
-            isLoaded: false, isOpened: false, isClosed: false, isClicked: false,
-            isShowing: false, isEarnedReward: false, error: undefined,
-            reward: undefined, revenue: undefined, load: () => {}, show: () => {},
-        };
-    }
-    return _useRewardedAd(adUnitId);
+    const ad = _useRewardedAd(adUnitId);
+    return isAdMobEnabled ? ad : createDisabledAdState();
 };
 
 export { TestIds };

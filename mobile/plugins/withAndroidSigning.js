@@ -56,13 +56,18 @@ const RELEASE_SIGNING_BLOCK = `
             def keyPass       = System.getenv("UPLOAD_KEY_PASSWORD")
                              ?: (project.hasProperty("UPLOAD_KEY_PASSWORD") ? UPLOAD_KEY_PASSWORD : null)
 
+            def releaseBuildRequested = gradle.startParameter.taskNames.any {
+                it.toLowerCase().contains("release")
+            }
+
             if (!keystorePath || !storePass || !keyAlias_ || !keyPass) {
                 def missing = []
                 if (!keystorePath) missing << "UPLOAD_KEYSTORE_PATH"
                 if (!storePass)    missing << "UPLOAD_STORE_PASSWORD"
                 if (!keyAlias_)    missing << "UPLOAD_KEY_ALIAS"
                 if (!keyPass)      missing << "UPLOAD_KEY_PASSWORD"
-                throw new GradleException("""
+                if (releaseBuildRequested) {
+                    throw new GradleException("""
 
 ════════════════════════════════════════════════════════════
 ❌  BUILD INTERROMPU — Credentials de signature absents
@@ -77,6 +82,16 @@ const RELEASE_SIGNING_BLOCK = `
     → EAS Build / CI : définissez ces variables d'environnement.
     → Documentation : mobile/docs/signing.md
 ════════════════════════════════════════════════════════════""")
+                }
+
+                // A debug build for a local emulator does not require the
+                // production upload key. Gradle still evaluates this block
+                // while configuring the app, so use the standard debug key.
+                storeFile file('debug.keystore')
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+                return
             }
 
             storeFile     file(keystorePath)

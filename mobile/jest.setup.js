@@ -155,7 +155,39 @@ jest.mock('react-native/Libraries/Utilities/NativePlatformConstantsIOS', () => {
         getConstants: () => constants,
     };
 });
-jest.mock('react-native-google-mobile-ads', () => ({ MobileAds: () => ({ initialize: jest.fn().mockResolvedValue(null), setRequestConfiguration: jest.fn(), }), BannerAd: 'BannerAd', BannerAdSize: { BANNER: 'BANNER', LARGE_BANNER: 'LARGE_BANNER', MEDIUM_RECTANGLE: 'MEDIUM_RECTANGLE', FULL_BANNER: 'FULL_BANNER', LEADERBOARD: 'LEADERBOARD', }, TestIds: { BANNER: 'ca-app-pub-3940256099942544/6300978111', INTERSTITIAL: 'ca-app-pub-3940256099942544/1033173712', REWARDED: 'ca-app-pub-3940256099942544/5224354917', }, InterstitialAd: { createForAdRequest: jest.fn(() => ({ load: jest.fn(), show: jest.fn(), addAdEventListener: jest.fn(() => jest.fn()), })), }, RewardedAd: { createForAdRequest: jest.fn(() => ({ load: jest.fn(), show: jest.fn(), addAdEventListener: jest.fn(() => jest.fn()), })), }, AdEventType: { LOADED: 'loaded', ERROR: 'error', OPENED: 'opened', CLICKED: 'clicked', CLOSED: 'closed', }, RewardedAdEventType: { LOADED: 'loaded', EARNED_REWARD: 'earned_reward', }, useInterstitialAd: jest.fn(() => ({ isLoaded: false, isClosed: false, load: jest.fn(), show: jest.fn() })), useRewardedAd: jest.fn(() => ({ isLoaded: false, isClosed: false, load: jest.fn(), show: jest.fn() })), }));
+jest.mock('react-native-google-mobile-ads', () => {
+    const mobileAds = jest.fn(() => ({
+        initialize: jest.fn().mockResolvedValue(null),
+        setRequestConfiguration: jest.fn(),
+    }));
+    const disabledAd = () => ({
+        isLoaded: false,
+        isClosed: false,
+        load: jest.fn(),
+        show: jest.fn(),
+    });
+
+    return {
+        __esModule: true,
+        default: mobileAds,
+        MobileAds: mobileAds,
+        BannerAd: 'BannerAd',
+        BannerAdSize: { BANNER: 'BANNER', LARGE_BANNER: 'LARGE_BANNER', MEDIUM_RECTANGLE: 'MEDIUM_RECTANGLE', FULL_BANNER: 'FULL_BANNER', LEADERBOARD: 'LEADERBOARD' },
+        TestIds: {
+            APP_OPEN: 'ca-app-pub-3940256099942544/9257395921',
+            BANNER: 'ca-app-pub-3940256099942544/6300978111',
+            INTERSTITIAL: 'ca-app-pub-3940256099942544/1033173712',
+            REWARDED: 'ca-app-pub-3940256099942544/5224354917',
+        },
+        InterstitialAd: { createForAdRequest: jest.fn(() => ({ load: jest.fn(), show: jest.fn(), addAdEventListener: jest.fn(() => jest.fn()) })) },
+        RewardedAd: { createForAdRequest: jest.fn(() => ({ load: jest.fn(), show: jest.fn(), addAdEventListener: jest.fn(() => jest.fn()) })) },
+        AdEventType: { LOADED: 'loaded', ERROR: 'error', OPENED: 'opened', CLICKED: 'clicked', CLOSED: 'closed' },
+        RewardedAdEventType: { LOADED: 'loaded', EARNED_REWARD: 'earned_reward' },
+        useAppOpenAd: jest.fn(disabledAd),
+        useInterstitialAd: jest.fn(disabledAd),
+        useRewardedAd: jest.fn(disabledAd),
+    };
+});
 
 jest.mock('react-native-safe-area-context', () => {
   const React = require('react');

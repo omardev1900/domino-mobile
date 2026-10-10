@@ -95,9 +95,7 @@
       }
     },
     "owner": "aboumalak",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "2.0.2",
     "updates": {
       "url": "https://u.expo.dev"
     }
