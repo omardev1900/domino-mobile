@@ -46,6 +46,7 @@ import { FlyingDomino } from '../components/FlyingDomino';
 import { useConnectionStatus } from '../hooks/game/useConnectionStatus';
 import { isHeartbeatSuspendedPhase } from '../hooks/game/presencePolicy';
 import { markPlayersDisconnected } from '../hooks/game/playerPresence';
+import { logPresenceDiagnostic } from '../hooks/game/presenceDiagnostics';
 import { useGameSync } from '../hooks/game/useGameSync';
 import { useGameTimers } from '../hooks/game/useGameTimers';
 import { useGameEngine } from '../hooks/game/useGameEngine';
@@ -100,7 +101,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const gamePhaseForHBRef = useRef<string | undefined>(undefined);
 
     // -- 2. Connection Status --
-    const { isRejoining, signalPlayerOnline, signalPlayerOffline, forceImmediatePing } = useConnectionStatus({
+    const { isRejoining, diagnosticConnectionId, signalPlayerOnline, signalPlayerOffline, forceImmediatePing } = useConnectionStatus({
         gameId,
         localPlayerId,
         isSoloMode,
@@ -161,6 +162,24 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const legacyHostUid = roomData?.players.find(player => player.isHost)?.uid ?? roomData?.createdBy;
     const hasLegacyHostAuthority = isSoloMode || (!usesSystemCoordinator && legacyHostUid === localPlayerId);
 
+    const coordinatorActionId = roomData?.coordinator?.lastTurnActionId
+        ?? roomData?.coordinator?.lastHumanActionId
+        ?? roomData?.coordinator?.lastTransitionId;
+    useEffect(() => {
+        if (!gameId || isSoloMode || !coordinatorActionId) return;
+        logPresenceDiagnostic({
+            event: 'coordinator_action_observed',
+            source: 'coordinator',
+            roomId: gameId,
+            playerId: localPlayerId,
+            connectionId: diagnosticConnectionId,
+            actionId: coordinatorActionId,
+            appState: AppState.currentState,
+            decision: roomData?.coordinator?.lastTurnActionKind ?? 'state_transition',
+            phase: roomData?.gameState?.phase,
+        });
+    }, [coordinatorActionId, diagnosticConnectionId, gameId, isSoloMode, localPlayerId, roomData?.coordinator?.lastTurnActionKind, roomData?.gameState?.phase]);
+
     // -- VIGILANCE FIRESTORE: fallback heartbeat (tous les joueurs, seuil 25s) --
     // Tous les clients peuvent signaler un pair dont la presence a expire.
     // FIX-VIGILANCE-REF: roomData lu via ref pour éviter le reset de l'intervalle à chaque snapshot.
@@ -173,14 +192,27 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         const checkInterval = setInterval(async () => {
             const currentRoomData = roomDataRef.current;
             if (!currentRoomData?.gameState?.players) return;
-            if (isHeartbeatSuspendedPhase(currentRoomData.gameState.phase)) return;
+            const currentGameState = currentRoomData.gameState;
+            if (isHeartbeatSuspendedPhase(currentGameState.phase)) return;
 
             const now = Date.now();
-            const timedOutPlayerIds = currentRoomData.gameState.players.flatMap(p => {
+            const timedOutPlayerIds = currentGameState.players.flatMap(p => {
                 if (p.id === localPlayerId || p.status !== 'HUMAN') return [];
                 const lastPing = currentRoomData.heartbeats?.[p.id] ?? 0;
                 if (now - lastPing > 25000) {
-                    LogService.info('GameScreen', `[VIGILANCE] Player ${p.id} timed out (${Math.round((now - lastPing) / 1000)}s). Marking DISCONNECTED.`);
+                    logPresenceDiagnostic({
+                        event: 'status_transition_started',
+                        source: 'firestore_heartbeat',
+                        roomId: gameId,
+                        playerId: p.id,
+                        connectionId: diagnosticConnectionId,
+                        appState: AppState.currentState,
+                        heartbeatAgeMs: now - lastPing,
+                        heartbeatAtMs: lastPing,
+                        phase: currentGameState.phase,
+                        statusFrom: 'HUMAN',
+                        statusTo: 'DISCONNECTED',
+                    });
                     return [p.id];
                 }
                 return [];
@@ -188,7 +220,20 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
             if (timedOutPlayerIds.length > 0) {
                 try {
-                    await markPlayersDisconnected(gameId, timedOutPlayerIds, now - 25000);
+                    const changedPlayerIds = await markPlayersDisconnected(gameId, timedOutPlayerIds, now - 25000);
+                    changedPlayerIds.forEach(playerId => logPresenceDiagnostic({
+                        event: 'status_transition_applied',
+                        source: 'firestore_heartbeat',
+                        roomId: gameId,
+                        playerId,
+                        connectionId: diagnosticConnectionId,
+                        appState: AppState.currentState,
+                        heartbeatAgeMs: now - (currentRoomData.heartbeats?.[playerId] ?? 0),
+                        heartbeatAtMs: currentRoomData.heartbeats?.[playerId] ?? 0,
+                        phase: currentGameState.phase,
+                        statusFrom: 'HUMAN',
+                        statusTo: 'DISCONNECTED',
+                    }));
                 } catch (error) {
                     LogService.error('GameScreen', '[VIGILANCE] Error marking player disconnected:', error);
                 }
@@ -197,7 +242,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
         return () => clearInterval(checkInterval);
         // roomData retiré des deps — lu via roomDataRef pour éviter le reset permanent
-    }, [gameId, isSoloMode, localPlayerId]);
+    }, [diagnosticConnectionId, gameId, isSoloMode, localPlayerId]);
 
     // -- VIGILANCE RTDB: détection rapide via présence Firebase (~3-5s) --
     // Dès qu'un joueur passe offline dans RTDB (onDisconnect côté serveur), on attend
@@ -236,12 +281,38 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                         && uid === currentGS?.currentPlayerId;
                     const effectiveGraceMs = isActiveTurnPlayer ? ACTIVE_TURN_GRACE_MS : GRACE_PERIOD_MS;
 
-                    LogService.info('GameScreen', `[RTDB-PRESENCE] Player ${uid} offline — grace period ${effectiveGraceMs}ms${isActiveTurnPlayer ? ' (ACTIVE TURN — faster detection)' : ''}`);
+                    logPresenceDiagnostic({
+                        event: 'rtdb_grace_started',
+                        source: 'rtdb_presence',
+                        roomId: gameId,
+                        playerId: uid,
+                        connectionId: diagnosticConnectionId,
+                        appState: AppState.currentState,
+                        decision: isActiveTurnPlayer ? 'active_turn' : 'standard',
+                        graceMs: effectiveGraceMs,
+                        phase: currentGS?.phase,
+                        presenceAtMs: data.t,
+                        statusFrom: 'HUMAN',
+                        statusTo: 'DISCONNECTED',
+                    });
                     rtdbOfflineTimers.current[uid] = setTimeout(async () => {
                         delete rtdbOfflineTimers.current[uid];
 
                         // Le snapshot RTDB peut être devenu online pendant l'attente du timer.
-                        if (latestRtdbPresence.current[uid]?.status !== 'offline') return;
+                        if (latestRtdbPresence.current[uid]?.status !== 'offline') {
+                            logPresenceDiagnostic({
+                                event: 'status_transition_skipped',
+                                source: 'rtdb_presence',
+                                roomId: gameId,
+                                playerId: uid,
+                                connectionId: diagnosticConnectionId,
+                                appState: AppState.currentState,
+                                decision: 'presence_returned_online',
+                                phase: roomDataRef.current?.gameState?.phase,
+                                statusTo: 'DISCONNECTED',
+                            });
+                            return;
+                        }
 
                         // Vérifier l'état actuel avant d'écrire (le joueur a peut-être déjà reconnecté)
                         const currentRoomData = roomDataRef.current;
@@ -250,10 +321,37 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                         const player = currentRoomData.gameState.players.find(p => p.id === uid);
                         if (!player || player.status !== 'HUMAN') return; // Déjà DISCONNECTED ou BOT
 
-                        LogService.info('GameScreen', `[RTDB-PRESENCE] Grace period expired — marking ${uid} DISCONNECTED`);
+                        logPresenceDiagnostic({
+                            event: 'rtdb_grace_expired',
+                            source: 'rtdb_presence',
+                            roomId: gameId,
+                            playerId: uid,
+                            connectionId: diagnosticConnectionId,
+                            appState: AppState.currentState,
+                            graceMs: effectiveGraceMs,
+                            phase: currentRoomData.gameState.phase,
+                            presenceAtMs: latestRtdbPresence.current[uid]?.t,
+                            statusFrom: 'HUMAN',
+                            statusTo: 'DISCONNECTED',
+                        });
 
                         try {
-                            await markPlayersDisconnected(gameId, [uid]);
+                            const changedPlayerIds = await markPlayersDisconnected(gameId, [uid]);
+                            if (changedPlayerIds.includes(uid)) {
+                                logPresenceDiagnostic({
+                                    event: 'status_transition_applied',
+                                    source: 'rtdb_presence',
+                                    roomId: gameId,
+                                    playerId: uid,
+                                    connectionId: diagnosticConnectionId,
+                                    appState: AppState.currentState,
+                                    graceMs: effectiveGraceMs,
+                                    phase: currentRoomData.gameState.phase,
+                                    presenceAtMs: latestRtdbPresence.current[uid]?.t,
+                                    statusFrom: 'HUMAN',
+                                    statusTo: 'DISCONNECTED',
+                                });
+                            }
                         } catch (error) {
                             LogService.error('GameScreen', '[RTDB-PRESENCE] Error marking player disconnected:', error);
                         }
@@ -262,7 +360,17 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 } else if (data.status === 'online') {
                     // Joueur de retour pendant la grace period → annuler le timer
                     if (rtdbOfflineTimers.current[uid]) {
-                        LogService.info('GameScreen', `[RTDB-PRESENCE] Player ${uid} back online — grace period cancelled`);
+                        logPresenceDiagnostic({
+                            event: 'rtdb_grace_cancelled',
+                            source: 'rtdb_presence',
+                            roomId: gameId,
+                            playerId: uid,
+                            connectionId: diagnosticConnectionId,
+                            appState: AppState.currentState,
+                            decision: 'presence_returned_online',
+                            phase: roomDataRef.current?.gameState?.phase,
+                            presenceAtMs: data.t,
+                        });
                         clearTimeout(rtdbOfflineTimers.current[uid]);
                         delete rtdbOfflineTimers.current[uid];
                     }
@@ -277,7 +385,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             rtdbOfflineTimers.current = {};
             latestRtdbPresence.current = {};
         };
-    }, [gameId, isSoloMode, localPlayerId]);
+    }, [diagnosticConnectionId, gameId, isSoloMode, localPlayerId]);
 
     const [isPaused, setIsPaused] = useState(false);
     const [showOptions, setShowOptions] = useState(false);

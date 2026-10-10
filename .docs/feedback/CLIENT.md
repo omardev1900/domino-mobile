@@ -1,5 +1,11 @@
 # Retours client
 
+### 2026-10-10
+
+> Certains joueurs declarent avoir un bug majeur en mode multijoueur : souvent
+> le message "Reprise de connexion" apparait en permanence alors qu'ils sont
+> bien connectes et ils ne peuvent pas jouer ; le bot joue a leur place.
+
 ### 2026-07-23
 
 > En mode multi, on ne peut pas jouer : le joueur ne peut pas jouer son premier

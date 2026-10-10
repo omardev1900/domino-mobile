@@ -3,8 +3,11 @@ import { db, rtdb } from '../../core/services/firebase';
 import { doc, runTransaction, updateDoc } from 'firebase/firestore';
 import { ref, set, onValue, onDisconnect as rtdbOnDisconnect } from 'firebase/database';
 import { GameRoom } from '../../core/types';
-import { LogService } from '../../core/services/LogService';
 import { isHeartbeatSuspendedPhase, shouldRestoreHumanStatus } from './presencePolicy';
+import {
+    presenceErrorCode,
+} from './presenceDiagnostics';
+import { usePresenceDiagnosticSession } from './usePresenceDiagnosticSession';
 
 export interface UseConnectionStatusProps {
     gameId: string | undefined;
@@ -20,6 +23,7 @@ export interface UseConnectionStatusProps {
 
 export interface UseConnectionStatusResult {
     isRejoining: boolean;
+    diagnosticConnectionId: string;
     signalPlayerOnline: () => Promise<void>;
     signalPlayerOffline: (surrendered?: boolean) => Promise<void>;
     /** Ping immédiat à appeler dès la sortie d'une phase critique (ex: PARTIE_END → PLAYING) pour
@@ -40,6 +44,11 @@ export const useConnectionStatus = ({
     const signalPlayerOfflineRef = useRef<((surrendered?: boolean) => Promise<void>) | null>(null);
     // FIX-LEAK: timer du badge "rejoining" — nettoyé au démontage pour éviter setState après unmount
     const rejoinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const { connectionId: diagnosticConnectionId, log: logPresence } = usePresenceDiagnosticSession({
+        gameId,
+        isSoloMode,
+        localPlayerId,
+    });
     useEffect(() => () => {
         if (rejoinTimerRef.current) clearTimeout(rejoinTimerRef.current);
     }, []);
@@ -57,16 +66,33 @@ export const useConnectionStatus = ({
         // Suspendre pendant les transitions critiques pour ne pas invalider les transactions
         const phase = externalGamePhaseRef?.current;
         if (isHeartbeatSuspendedPhase(phase)) {
-            LogService.debug('ConnectionStatus', `[HEARTBEAT] Skipped during ${phase}`);
+            logPresence({
+                event: 'heartbeat_skipped',
+                source: 'firestore_heartbeat',
+                phase,
+                decision: 'suspended_phase',
+            });
             return;
         }
         try {
             const roomRef = doc(db, 'rooms', gameId);
-            await updateDoc(roomRef, { [`heartbeats.${localPlayerId}`]: Date.now() });
-        } catch {
-            // Ignore silent network errors on ping
+            const heartbeatAtMs = Date.now();
+            await updateDoc(roomRef, { [`heartbeats.${localPlayerId}`]: heartbeatAtMs });
+            logPresence({
+                event: 'heartbeat_write_succeeded',
+                source: 'firestore_heartbeat',
+                heartbeatAtMs,
+                phase,
+            });
+        } catch (error) {
+            logPresence({
+                event: 'heartbeat_write_failed',
+                source: 'firestore_heartbeat',
+                errorCode: presenceErrorCode(error),
+                phase,
+            });
         }
-    }, [externalGamePhaseRef, gameId, isSoloMode, localPlayerId]);
+    }, [externalGamePhaseRef, gameId, isSoloMode, localPlayerId, logPresence]);
 
     useEffect(() => {
         if (!gameId || isSoloMode) return;
@@ -82,12 +108,25 @@ export const useConnectionStatus = ({
         if (!gameId || isSoloMode) return;
         try {
             const roomRef = doc(db, 'rooms', gameId);
-            await updateDoc(roomRef, { [`heartbeats.${localPlayerId}`]: Date.now() });
-            LogService.debug('ConnectionStatus', '[HEARTBEAT] Ping de rattrapage envoyé (sortie de phase critique)');
-        } catch {
-            // Ignore silent network errors
+            const heartbeatAtMs = Date.now();
+            await updateDoc(roomRef, { [`heartbeats.${localPlayerId}`]: heartbeatAtMs });
+            logPresence({
+                event: 'heartbeat_write_succeeded',
+                source: 'firestore_heartbeat',
+                heartbeatAtMs,
+                decision: 'phase_catch_up',
+                phase: externalGamePhaseRef?.current,
+            });
+        } catch (error) {
+            logPresence({
+                event: 'heartbeat_write_failed',
+                source: 'firestore_heartbeat',
+                decision: 'phase_catch_up',
+                errorCode: presenceErrorCode(error),
+                phase: externalGamePhaseRef?.current,
+            });
         }
-    }, [gameId, isSoloMode, localPlayerId]);
+    }, [externalGamePhaseRef, gameId, isSoloMode, localPlayerId, logPresence]);
 
     // ─── 2. PRÉSENCE RTDB + onDisconnect (détection rapide ~3-5s) ────────────
     // Structure RTDB : /presence/{gameId}/{uid} = { status: 'online'|'offline', t: timestamp }
@@ -107,19 +146,44 @@ export const useConnectionStatus = ({
         // à chaque reconnexion réseau.
         // onValue retourne une fonction Unsubscribe (Firebase v9 modular API)
         const unsubConnected = onValue(connectedRef, async (snap) => {
-            if (!snap.val()) return; // Pas encore connecté au RTDB
+            const rtdbConnected = snap.val() === true;
+            logPresence({
+                event: 'rtdb_connection_changed',
+                source: 'rtdb_connection',
+                rtdbConnected,
+            });
+            if (!rtdbConnected) return; // Pas encore connecté au RTDB
 
             try {
+                const presenceAtMs = Date.now();
                 // Programmer l'écriture automatique côté serveur en cas de déconnexion
                 await rtdbOnDisconnect(presenceRef).set({
                     status: 'offline',
-                    t: Date.now(),
+                    t: presenceAtMs,
+                });
+                logPresence({
+                    event: 'rtdb_on_disconnect_armed',
+                    source: 'rtdb_presence',
+                    presenceAtMs,
+                    rtdbConnected,
+                    statusTo: 'offline',
                 });
                 // Se déclarer en ligne
-                await set(presenceRef, { status: 'online', t: Date.now() });
-                LogService.info('ConnectionStatus', '[RTDB] Presence set to online, onDisconnect armed.');
+                await set(presenceRef, { status: 'online', t: presenceAtMs });
+                logPresence({
+                    event: 'rtdb_presence_written',
+                    source: 'rtdb_presence',
+                    presenceAtMs,
+                    rtdbConnected,
+                    statusTo: 'online',
+                });
             } catch (err) {
-                LogService.warn('ConnectionStatus', '[RTDB] Failed to set presence:', err);
+                logPresence({
+                    event: 'rtdb_presence_write_failed',
+                    source: 'rtdb_presence',
+                    errorCode: presenceErrorCode(err),
+                    rtdbConnected,
+                });
             }
         });
 
@@ -127,9 +191,23 @@ export const useConnectionStatus = ({
             // FIX-CLEANUP: unsubConnected est la fonction Unsubscribe renvoyée par onValue,
             // pas le callback — il faut l'appeler directement, pas la passer à off().
             unsubConnected();
-            set(presenceRef, { status: 'offline', t: Date.now() }).catch(() => {});
+            const presenceAtMs = Date.now();
+            set(presenceRef, { status: 'offline', t: presenceAtMs })
+                .then(() => logPresence({
+                    event: 'rtdb_presence_written',
+                    source: 'rtdb_presence',
+                    decision: 'hook_cleanup',
+                    presenceAtMs,
+                    statusTo: 'offline',
+                }))
+                .catch(error => logPresence({
+                    event: 'rtdb_presence_write_failed',
+                    source: 'rtdb_presence',
+                    decision: 'hook_cleanup',
+                    errorCode: presenceErrorCode(error),
+                }));
         };
-    }, [gameId, isSoloMode, localPlayerId]);
+    }, [gameId, isSoloMode, localPlayerId, logPresence]);
 
     // ─── 3. SIGNAL ONLINE (reconnexion) ──────────────────────────────────────
     const signalPlayerOnline = useCallback(async () => {
@@ -141,7 +219,13 @@ export const useConnectionStatus = ({
         // round suivant bloqué et badge "Reprise de connexion" en boucle.
         const phase = externalGamePhaseRef?.current;
         if (isHeartbeatSuspendedPhase(phase)) {
-            LogService.debug('ConnectionStatus', `[ONLINE] signalPlayerOnline skipped during ${phase}`);
+            logPresence({
+                event: 'status_transition_skipped',
+                source: 'reconnect',
+                decision: 'suspended_phase',
+                phase,
+                statusTo: 'HUMAN',
+            });
             return;
         }
 
@@ -150,8 +234,15 @@ export const useConnectionStatus = ({
         const presenceRef = ref(rtdb, `presence/${gameId}/${localPlayerId}`);
         const roomRef = doc(db, 'rooms', gameId);
         try {
-            await rtdbOnDisconnect(presenceRef).set({ status: 'offline', t: Date.now() });
-            await set(presenceRef, { status: 'online', t: Date.now() });
+            logPresence({
+                event: 'status_transition_started',
+                source: 'reconnect',
+                phase,
+                statusTo: 'HUMAN',
+            });
+            const presenceAtMs = Date.now();
+            await rtdbOnDisconnect(presenceRef).set({ status: 'offline', t: presenceAtMs });
+            await set(presenceRef, { status: 'online', t: presenceAtMs });
 
             await runTransaction(db, async (transaction) => {
                 const roomDoc = await transaction.get(roomRef);
@@ -172,15 +263,28 @@ export const useConnectionStatus = ({
 
                 if (stateUpdated) {
                     transaction.update(roomRef, { 'gameState.players': updatedPlayers });
+                    logPresence({
+                        event: 'status_transition_applied',
+                        source: 'reconnect',
+                        phase,
+                        statusFrom: 'DISCONNECTED',
+                        statusTo: 'HUMAN',
+                    });
                     setIsRejoining(true);
                     if (rejoinTimerRef.current) clearTimeout(rejoinTimerRef.current);
                     rejoinTimerRef.current = setTimeout(() => setIsRejoining(false), 3000);
                 }
             });
         } catch (error) {
-            LogService.error('ConnectionStatus', 'Error signalPlayerOnline:', error);
+            logPresence({
+                event: 'status_transition_failed',
+                source: 'reconnect',
+                errorCode: presenceErrorCode(error),
+                phase,
+                statusTo: 'HUMAN',
+            });
         }
-    }, [externalGamePhaseRef, gameId, isSoloMode, localPlayerId]);
+    }, [externalGamePhaseRef, gameId, isSoloMode, localPlayerId, logPresence]);
 
     // ─── 4. SIGNAL OFFLINE (quitter volontaire ou crash) ─────────────────────
     // surrendered = true  → joueur a cliqué "Quitter" volontairement → SURRENDERED
@@ -194,6 +298,13 @@ export const useConnectionStatus = ({
         const newStatus = surrendered ? 'SURRENDERED' as const : 'DISCONNECTED' as const;
         const roomRef = doc(db, 'rooms', gameId);
         try {
+            logPresence({
+                event: 'status_transition_started',
+                source: surrendered ? 'manual_leave' : 'rtdb_presence',
+                phase: externalGamePhaseRef?.current,
+                statusFrom: 'HUMAN',
+                statusTo: newStatus,
+            });
             await runTransaction(db, async (transaction) => {
                 const roomDoc = await transaction.get(roomRef);
                 if (!roomDoc.exists()) return;
@@ -211,11 +322,23 @@ export const useConnectionStatus = ({
 
                 transaction.update(roomRef, { 'gameState.players': updatedPlayers });
             });
-            LogService.info('ConnectionStatus', `[OFFLINE] Player ${localPlayerId} → ${newStatus}`);
+            logPresence({
+                event: 'status_transition_applied',
+                source: surrendered ? 'manual_leave' : 'rtdb_presence',
+                phase: externalGamePhaseRef?.current,
+                statusFrom: 'HUMAN',
+                statusTo: newStatus,
+            });
         } catch (error) {
-            LogService.error('ConnectionStatus', 'Error signalPlayerOffline:', error);
+            logPresence({
+                event: 'status_transition_failed',
+                source: surrendered ? 'manual_leave' : 'rtdb_presence',
+                errorCode: presenceErrorCode(error),
+                phase: externalGamePhaseRef?.current,
+                statusTo: newStatus,
+            });
         }
-    }, [gameId, isSoloMode, localPlayerId]);
+    }, [externalGamePhaseRef, gameId, isSoloMode, localPlayerId, logPresence]);
 
     useEffect(() => {
         signalPlayerOfflineRef.current = signalPlayerOffline;
@@ -223,6 +346,7 @@ export const useConnectionStatus = ({
 
     return {
         isRejoining,
+        diagnosticConnectionId,
         signalPlayerOnline,
         signalPlayerOffline,
         forceImmediatePing,

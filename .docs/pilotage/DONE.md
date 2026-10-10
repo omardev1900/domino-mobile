@@ -1,5 +1,12 @@
 # Taches terminees
 
+### 2026-10-10
+
+- [x] `PRESENCE-01` Transitions de presence multijoueur instrumentees avec des
+  traces correlees et pseudonymisees, horloge serveur estimee, AppState,
+  heartbeat, RTDB et decisions du coordinateur. La course d'un ancien
+  `onDisconnect` ecrasant une session recente est reproduite et documentee.
+
 ### 2026-07-24
 
 - [x] `RELEASE-2.0.2` Version applicative alignee sur `2.0.2` et
