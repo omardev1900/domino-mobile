@@ -18,12 +18,13 @@ jest.setTimeout(30000); // 30 seconds for all tests in this file
 let testEnv: RulesTestEnvironment;
 
 beforeAll(async () => {
-    // Note: This requires the Firestore emulator to be running on port 8081
+    const emulatorAddress = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8082';
+    const emulatorUrl = new URL(`http://${emulatorAddress}`);
     testEnv = await initializeTestEnvironment({
         projectId: 'domino-martinique-v1',
         firestore: {
-            host: '127.0.0.1',
-            port: 8081,
+            host: emulatorUrl.hostname,
+            port: Number(emulatorUrl.port),
             rules: fs.readFileSync(path.resolve(__dirname, '../../../../firestore.rules'), 'utf8'),
         },
     });

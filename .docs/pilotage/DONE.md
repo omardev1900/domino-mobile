@@ -2,6 +2,10 @@
 
 ### 2026-10-10
 
+- [x] `TOOLING-FIREBASE-01` Firebase CLI installee sous Node.js 22 et
+  configuration locale rendue compatible avec Metro : Firestore Emulator
+  utilise le port 8082 et le test d'integration lit l'adresse fournie par la
+  CLI. Une `.nvmrc` fixe Node.js 22 pour le depot.
 - [x] `PRESENCE-01` Transitions de presence multijoueur instrumentees avec des
   traces correlees et pseudonymisees, horloge serveur estimee, AppState,
   heartbeat, RTDB et decisions du coordinateur. La course d'un ancien
