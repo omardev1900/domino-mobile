@@ -264,6 +264,7 @@ export default function RootLayout() {
       style={{ flex: 1, minHeight: Platform.OS === 'web' ? ('100vh' as any) : '100%', backgroundColor: '#1A0E2E' }}
       onLayout={onLayoutRootView}
       onTouchStart={() => SoundManager.unlockAudio()}
+      onPointerDown={() => SoundManager.unlockAudio()}
     >
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <LinearGradient

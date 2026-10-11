@@ -147,6 +147,13 @@ class SoundManager {
         if (this.userInteracted) return;
         this.userInteracted = true;
         LogService.info('SoundManager', 'Audio unlocked.');
+
+        // Safari, particularly in private browsing, rejects audio initialised before a
+        // trusted user gesture. Do the deferred initialisation only after that gesture.
+        void this.preloadSounds().catch((error) =>
+            LogService.warn('SoundManager', 'Deferred audio preload failed', error),
+        );
+
         if (this.pendingMusicName) {
             this.playMusic(this.pendingMusicName).catch(e => LogService.warn('SoundManager', String(e)));
             this.pendingMusicName = null;
@@ -156,6 +163,14 @@ class SoundManager {
     async preloadSounds() {
         if (this.isPreloaded) return;
         if (this.preloadPromise) return this.preloadPromise;
+
+        // Do not create expo-audio players while a web page is loading. Safari private
+        // mode may route that through a recording-capability check and throw an uncaught
+        // NotAllowedError before the lobby can render.
+        if (Platform.OS === 'web' && !this.userInteracted) {
+            LogService.info('SoundManager', 'Deferring web audio preload until user interaction.');
+            return;
+        }
 
         this.preloadPromise = this.doPreloadSounds();
         try {
@@ -168,13 +183,15 @@ class SoundManager {
 
     private async doPreloadSounds() {
         try {
-            try {
-                await setAudioModeAsync({
-                    allowsRecording: false,
-                    playsInSilentMode: true
-                });
-            } catch (e) {
-                LogService.warn('SoundManager', 'setAudioModeAsync issue', e);
+            if (Platform.OS !== 'web') {
+                try {
+                    await setAudioModeAsync({
+                        allowsRecording: false,
+                        playsInSilentMode: true
+                    });
+                } catch (e) {
+                    LogService.warn('SoundManager', 'setAudioModeAsync issue', e);
+                }
             }
 
             const soundMap: Record<SoundName, AudioSource> = {
@@ -400,15 +417,15 @@ class SoundManager {
     // ─── Sound Effects ───────────────────────────────────────────────────────
 
     async playSound(name: SoundName) {
+        // This call is deliberately before the autoplay check: on web it marks the
+        // current button/touch event as the gesture authorising deferred audio setup.
+        this.unlockAudio();
         if (!this.isAudioAllowed) return;
 
         try {
             await this.ensurePreloaded();
             const settings = SettingsManager.getSettings();
             if (!settings.isSfxEnabled || settings.sfxVolume <= 0) return;
-
-            // Débridage Safari/Web : s'assurer qu'on a bien l'autorisation
-            this.unlockAudio();
 
             const now = Date.now();
             const policy = this.getSoundPolicy(name);

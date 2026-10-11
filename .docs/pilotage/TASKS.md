@@ -1,5 +1,9 @@
 # Taches actives
 
+- [ ] `WEB-MULTI-JOIN-01` En cours - Safari en navigation privee : reporter
+  l'initialisation audio apres un geste utilisateur afin que l'erreur
+  `expo-audio` ne casse pas le lobby, puis refaire la recette de jointure a
+  quatre comptes et rendre toute erreur Firebase restante exploitable.
 - [ ] `MULTI-SPECTATE-01` En cours - Etudier puis implementer un mode spectateur
   explicite pour les tables publiques : flux en lecture seule, aucun siege de
   joueur, et projection serveur ne divulguant jamais les mains des participants.
