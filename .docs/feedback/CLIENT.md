@@ -1,5 +1,21 @@
 # Retours client
 
+### 2026-10-11
+
+> Je remarque aussi que certains joueurs ne voient pas une table publique en cours ou en attente de joueurs, pourquoi ? et quand il la rejoins via son code cela marche
+>
+> egalement un petit bug avait ete signaler par un joueur dans les anciennes version, il a rejoint un table alors qu'lle est deja complete et a assiste en tant que spectateur et bien sur la partie qui continet generalement ses dominos et son avatar comme joueur nn'apparait pas et est vide [ce qui est plutot normal] : je me demande si je peux corriger cela ou peut etre meme porposer de pouvoir assister a des tables comme spectateur
+
+> Quand un joueur abondonne une table, le message A Abondeonne apparait et c'est ok. Question : est ce qu'on peut verififer quel type ou niveau de bot prend sa place ?
+>
+> sinon, un petits bugs
+> le joueur avait abondonner une table dans la version precedente, et dans cette version de l'apk, il ne peut ni creer ni joindre une autre table meme si il declarent et cliauer sur le bouton du popup d'abondon qui reapparait, et a cahque fois il clique sur abondonner et confirme la perte de ces 100 coins, il retourne a la ho;e puis qund il veut kouer le meme message repparait> solution que j'ai trouver ; accepter de retourner a la table puis de la abondonner depuis le plateau de jeu et cette fois cela a foicntionner (je ne sais pas si c'est du a la nouvelle upgrade de version )
+
+> tests ok
+> par contre un bug decouvert ; suer lemulateur de ce mac, j'ai couper le wifi puis je lai reactiver mais le joueur est rester longtemps deconnecter et n'a pas rejoint la table> j'ai du passer l'app en arriere plan puis la remettre en avnt plan pour quil retourne, et une fois retounrer il a pu jouer ;ais les do;inos sont devenus trop petit et les espacemenet entre le plateau d ejeu et le sbord du telephone s'est nettement agrandi
+>
+> un autre point que j'ai tester ; un joueur qui abondonne la partie volontairement reste afficher en tant que joueur disponible ; si un joueur a abondonne lui meme la partie via le bouton abondonner on doit le signaler lors de son depart puis mettre en dessous de son avatar le mot a abondonne
+
 ### 2026-10-10
 
 > Certains joueurs declarent avoir un bug majeur en mode multijoueur : souvent
