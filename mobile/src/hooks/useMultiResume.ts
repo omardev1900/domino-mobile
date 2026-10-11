@@ -5,6 +5,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db, findActiveRoomForUser, setUserActiveRoom, leaveRoom } from '../core/services/firebase';
 import { authService } from '../core/services/auth.service';
 import { LogService } from '../core/services/LogService';
+import { GameRoom } from '../core/types';
+import { submitGameAction } from '../core/services/gameAction.service';
 
 export type MultiResumeInfo = {
     roomId: string;
@@ -92,30 +94,54 @@ export function useMultiResume(currentPath: string) {
 
     const dismiss = useCallback(() => setResumeInfo(null), []);
 
-    const abandon = useCallback(async () => {
+    const abandon = useCallback(async (): Promise<boolean> => {
         try {
             const user = await authService.getCurrentUser();
-            if (!user?.uid) return;
+            if (!user?.uid) return false;
 
             const activeRoomId = await AsyncStorage.getItem('active_roomId');
-            if (activeRoomId) {
-                // FIX-GHOST-ROOM: Toujours appeler leaveRoom quel que soit le statut (WAITING ou PLAYING).
-                // L'ancienne logique ne retirait le joueur de Firestore que pour WAITING.
-                // Pour PLAYING, playerIds restait inchangé → findActiveRoomForUser retrouvait la salle
-                // indéfiniment via la requête "playerIds array-contains uid" → modal infini.
-                // leaveRoom retire le joueur de players ET playerIds (fix simultané dans firebase.ts).
-                try {
-                    await leaveRoom(activeRoomId, user.uid);
-                } catch (e) {
-                    // Non-bloquant : on nettoie quand même localement
-                    LogService.warn('useMultiResume', 'leaveRoom failed during abandon, cleaning local state anyway', e);
-                }
+            if (!activeRoomId) {
+                setResumeInfo(null);
+                return true;
+            }
 
+            const roomRef = doc(db, 'rooms', activeRoomId);
+            const roomSnapshot = await getDoc(roomRef);
+            if (!roomSnapshot.exists()) {
                 await AsyncStorage.removeItem('active_roomId');
                 await setUserActiveRoom(user.uid, null);
+                setResumeInfo(null);
+                return true;
             }
-        } catch { /* non-critique */ }
-        setResumeInfo(null);
+
+            const room = roomSnapshot.data() as GameRoom;
+            const state = room.gameState;
+            const isCoordinatedPlayingRoom = room.status === 'PLAYING'
+                && room.coordinatorVersion === 1
+                && state !== null;
+
+            if (isCoordinatedPlayingRoom) {
+                // La Function applique SURRENDER, retire playerIds et nettoie
+                // activeRoomId dans la meme transaction. Un abandon local est
+                // interdit pour une salle coordonnee et ne doit jamais etre masque.
+                await submitGameAction({
+                    roomId: activeRoomId,
+                    expectedStateVersion: state.stateVersion ?? 0,
+                    expectedTurnId: state.turnId ?? 0,
+                    action: { type: 'SURRENDER' },
+                });
+            } else {
+                await leaveRoom(activeRoomId, user.uid);
+                await setUserActiveRoom(user.uid, null);
+            }
+
+            await AsyncStorage.removeItem('active_roomId');
+            setResumeInfo(null);
+            return true;
+        } catch (error) {
+            LogService.error('useMultiResume', 'Unable to abandon resumed multiplayer room', error);
+            return false;
+        }
     }, []);
 
     return { resumeInfo, dismiss, abandon };

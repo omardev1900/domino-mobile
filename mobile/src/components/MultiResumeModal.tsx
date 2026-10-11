@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 interface MultiResumeModalProps {
     resumeInfo: MultiResumeInfo;
     onResume: () => void;
-    onAbandon: () => void;
+    onAbandon: () => Promise<boolean>;
 }
 
 export function MultiResumeModal({ resumeInfo, onResume, onAbandon }: MultiResumeModalProps) {
@@ -24,7 +24,8 @@ export function MultiResumeModal({ resumeInfo, onResume, onAbandon }: MultiResum
     const handleAbandon = async () => {
         SoundManager.playSound('notify');
         setIsAbandoning(true);
-        await onAbandon();
+        const abandoned = await onAbandon();
+        if (!abandoned) setIsAbandoning(false);
     };
 
     return (
