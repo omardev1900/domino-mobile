@@ -86,6 +86,9 @@
 
 ### 2026-10-11
 
+- [x] `PRESENCE-06` Recette multijoueur terminee sur trois clients (telephone
+  Android et deux emulateurs), avec connexion, coupure puis reprise reseau et
+  validation de la sortie de table.
 - [x] `PRESENCE-07` Reprise automatique de la presence multijoueur apres un
   retour reseau confirme et stabilisation du recalcul du plateau Android.
 - [x] `MULTI-SURRENDER-01` Abandon atomique depuis la table et la popup de

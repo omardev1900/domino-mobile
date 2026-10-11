@@ -1,7 +1,5 @@
 # Backlog
 
-- [ ] `PRESENCE-06` Executer la recette multijoueur a trois clients, la campagne
-  de non-regression et la validation Android locale finale.
 - [ ] `SEC-APP-CHECK` Configurer les fournisseurs App Check web, Android et
   debug local, puis activer son enforcement sur les callables multijoueur.
 - [ ] `WEB-FIREBASE-CI-01` Automatiser l'export Expo web et le deploiement
