@@ -94,6 +94,11 @@ service cloud.firestore {
           isCoordinatorLobbyStart() ||
           isOwnHeartbeatRenewal();
       }
+
+      function hasValidPlayerCapacity() {
+        return request.resource.data.players.size() <= 3 &&
+          request.resource.data.get('playerIds', []).size() <= 3;
+      }
       // Admin : accès complet
       allow read, write: if isAdmin();
 
@@ -101,7 +106,7 @@ service cloud.firestore {
       allow read, create: if request.auth != null;
 
       // Un joueur ne peut mettre à jour que s'il est dans la room (ou s'y ajoute)
-      allow update: if isRoomMember() && respectsCoordinatorAuthority();
+      allow update: if isRoomMember() && respectsCoordinatorAuthority() && hasValidPlayerCapacity();
 
       // Seul le créateur (host) peut supprimer la room, OU la room est vide (plus de joueurs)
       allow delete: if request.auth != null && (request.auth.uid == resource.data.createdBy || resource.data.playerIds.size() == 0);

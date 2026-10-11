@@ -221,55 +221,34 @@ export const joinRoom = async (roomId: string, playerProfile: PlayerProfile): Pr
     const roomRef = doc(db, ROOMS_COLLECTION, roomId);
 
     try {
-        const roomSnap = await getDoc(roomRef);
+        await runTransaction(db, async (transaction) => {
+            const roomSnap = await transaction.get(roomRef);
+            if (!roomSnap.exists()) throw new Error('La table n’existe plus.');
 
-        if (!roomSnap.exists()) {
-            throw new Error("Room does not exist");
-        }
+            const roomData = roomSnap.data() as GameRoom;
+            if (roomData.players.some(player => player.uid === playerProfile.uid)) {
+                transaction.update(roomRef, { lastActivity: Date.now() });
+                return;
+            }
+            if (roomData.gameState?.players.some(player => player.id === playerProfile.uid)) {
+                throw new Error('Cette partie est deja en cours. Rejoignez-la depuis votre reprise de partie.');
+            }
+            if (roomData.status !== RoomStatus.WAITING) {
+                throw new Error('Impossible de rejoindre : la partie a deja commence.');
+            }
+            if (roomData.players.length >= 3) {
+                throw new Error('Impossible de rejoindre : la table est complete.');
+            }
 
-        const roomData = roomSnap.data() as GameRoom;
-
-        // PRIORITY 1: Check if player is already in room (reconnection)
-        const isAlreadyIn = roomData.players.some(p => p.uid === playerProfile.uid);
-        if (isAlreadyIn) {
-            LogService.info('Firebase', "✅ Player already in room - reconnecting");
-            // Update lastActivity to keep room alive
-            await updateDoc(roomRef, {
-                lastActivity: Date.now()
+            const joinedProfile: PlayerProfile = {
+                ...structuredClone(playerProfile),
+                isHost: false,
+            };
+            transaction.update(roomRef, {
+                players: [...roomData.players, joinedProfile],
+                playerIds: [...new Set([...(roomData.playerIds ?? []), playerProfile.uid])],
+                lastActivity: Date.now(),
             });
-            return;
-        }
-
-        // PRIORITY 2: Check if player was in the game but disconnected (reconnection scenario)
-        const wasInGame = roomData.gameState?.players.some(p => p.id === playerProfile.uid);
-        if (wasInGame) {
-            LogService.info('Firebase', "✅ Player reconnecting to ongoing game (was disconnected)");
-            // Re-add player to the room's player list
-            const cleanPlayerProfile = JSON.parse(JSON.stringify(playerProfile));
-            await updateDoc(roomRef, {
-                players: arrayUnion(cleanPlayerProfile),
-                lastActivity: Date.now()
-            });
-            return;
-        }
-
-        // PRIORITY 3: New player joining - check status
-        if (roomData.status !== RoomStatus.WAITING) {
-            throw new Error("Impossible de rejoindre : La partie a déjà commencé.");
-        }
-
-        // PRIORITY 4: New player joining - check capacity
-        if (roomData.players.length >= 3) {
-            throw new Error("Impossible de rejoindre : La table est complète.");
-        }
-
-        // PRIORITY 5: Add new player
-        const cleanPlayerProfile = JSON.parse(JSON.stringify({ ...playerProfile, isHost: false }));
-
-        await updateDoc(roomRef, {
-            players: arrayUnion(cleanPlayerProfile),
-            playerIds: arrayUnion(playerProfile.uid),
-            lastActivity: Date.now() // Update activity timestamp
         });
         LogService.info('Firebase', `Player ${playerProfile.uid} joined room ${roomId}`);
 
@@ -866,46 +845,25 @@ export const listenToPublicRooms = (
     onUpdate: (rooms: GameRoom[]) => void,
     onError?: (error: FirestoreError) => void
 ) => {
-    // Requires an index on 'status' and 'isPrivate' (and potentially createdAt for sorting)
-    // Query: status == 'WAITING' && isPrivate == false
-    // Note: If you want to sort by createdAt, you need a composite index in Firestore.
-    // For now, we will just filter. Client-side sorting is fine for small numbers of rooms.
-
-    // We can't use simple 'where' clauses with real-time listeners easily without indices if we sort too.
-    // Let's stick to the requirements: status == waiting, isPublic == true.
-
-    // NOTE: In Firestore, `isPrivate` might be undefined for old rooms. 
-    // If we only query `isPrivate == false`, we might miss old rooms if they don't have the field.
-    // Ensure all rooms have isPrivate set or handle legacy data if needed. 
-    // We'll assume new rooms created with this version have the flag.
-
-    // To allow sorting by createdAt, we would ideally do:
-    // query(collection(db, ROOMS_COLLECTION), where("status", "==", RoomStatus.WAITING), where("isPrivate", "==", false), orderBy("createdAt", "desc"))
-    // This WILL require a composite index creation link from the console.
-
-    // For MVP/Prototype without forcing index creation immediately, we can fetch list and filter/sort client side if the list isn't huge.
-    // HOWEVER, `onSnapshot` with `where` clauses is efficient. 
-
-    // Let's try the query. If it fails due to missing index, we will see it in logs (and usually get a link to create it).
-
     const q = query(
         collection(db, ROOMS_COLLECTION),
-        where("status", "==", RoomStatus.WAITING),
-        where("isPrivate", "==", false)
-        // orderBy("createdAt", "desc") // Commented out to avoid index requirement for now
+        where('status', '==', RoomStatus.WAITING),
     );
 
     return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
         const rooms: GameRoom[] = [];
         const now = Date.now();
-        const FIVE_MINUTES = 5 * 60 * 1000; // 5 minutes in milliseconds
+        const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
         snapshot.forEach((doc: any) => {
             const roomData = { ...doc.data() } as GameRoom;
+            // Les anciennes salles publiques ne portent pas toujours isPrivate.
+            // Seul un true explicite doit les retirer de l'annuaire.
+            if (roomData.isPrivate === true) return;
 
-            // Filter out abandoned rooms (inactive for more than 5 minutes)
+            // Aligne l'annuaire sur le nettoyage serveur des salles inactives.
             const timeSinceActivity = now - (roomData.lastActivity || roomData.createdAt);
-            if (timeSinceActivity < FIVE_MINUTES) {
+            if (timeSinceActivity < FIFTEEN_MINUTES) {
                 rooms.push(roomData);
             } else {
                 LogService.debug('Firebase', `Filtering out abandoned room: ${roomData.roomId} (inactive for ${Math.round(timeSinceActivity / 60000)} minutes)`);
