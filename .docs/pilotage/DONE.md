@@ -2,6 +2,10 @@
 
 ### 2026-10-11
 
+- [x] `UI-ROUND-WINNER-VFX-01` Animation de victoire de round enrichie avec
+  etincelle de depart, halo pendant le trajet, avatar agrandi et eclat a
+  l'arrivee. Recette visuelle validee sans impact sur le moteur de jeu.
+
 - [x] `UI-ROUND-END-01` Fin de round et de match rendue lisible : dernier
   domino conserve une seconde avant l'annonce, vainqueur de round anime depuis
   sa position vers le centre, resultats prolonges et publicite differee. APK

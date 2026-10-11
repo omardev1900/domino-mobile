@@ -2,6 +2,9 @@
 
 ### 2026-10-11
 
+- Le vainqueur d'un round est maintenant accompagne d'effets lumineux legers
+  pendant son animation vers le centre du plateau.
+
 - En fin de round, le dernier domino reste visible un instant avant l'annonce.
   Le vainqueur est ensuite mis en avant dans une animation vers le centre, sans
   masquer le plateau ni precipiter la lecture des resultats.
