@@ -5,6 +5,7 @@ import { RewardCalculationInput } from './core/economy.types';
 import { logSystemEvent } from './systemLog';
 import { createTerminalGameCoordinator } from './terminalGameCoordinator';
 import { createActiveTurnCoordinator } from './activeTurnCoordinator';
+import { createPresenceCoordinator } from './presenceCoordinator';
 import { createSubmitGameAction } from './submitGameAction';
 import { createRequestRematch } from './roomLifecycle';
 
@@ -473,5 +474,6 @@ export * from './cleanupRooms';
 
 export const coordinateTerminalGamePhasesV2 = createTerminalGameCoordinator(db);
 export const coordinateActiveGameTurnsV2 = createActiveTurnCoordinator(db);
+export const coordinatePresenceLeasesV2 = createPresenceCoordinator(db);
 export const submitGameAction = createSubmitGameAction(db);
 export const requestRematch = createRequestRematch(db);

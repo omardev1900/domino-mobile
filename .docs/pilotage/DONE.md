@@ -1,5 +1,14 @@
 # Taches terminees
 
+### 2026-10-11
+
+- [x] `PRESENCE-04` Autorite serveur de presence livree : les Functions
+  decident atomiquement les transitions `HUMAN`/`DISCONNECTED`, les regles
+  Firestore des salles coordonnees refusent les mutations client du jeu et les
+  regles RTDB limitent chaque presence a son proprietaire. Deploiement Firebase
+  effectue, Google Sign-In release valide et recette Android reelle validee sur
+  telephone + emulateur + bot, avec coupure puis retour reseau.
+
 ### 2026-10-10
 
 - [x] `PRESENCE-03` Heartbeats Firestore ecrits en `serverTimestamp()` et

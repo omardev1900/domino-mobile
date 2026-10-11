@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "916243245615",
+    "firebase_url": "https://domino-martinique-v1-default-rtdb.firebaseio.com",
     "project_id": "domino-martinique-v1",
     "storage_bucket": "domino-martinique-v1.firebasestorage.app"
   },
@@ -19,6 +20,14 @@
           "android_info": {
             "package_name": "com.dominomartinique.mobile",
             "certificate_hash": "c25ac855026c8ae09417c489b4debcdf6bbb236c"
+          }
+        },
+        {
+          "client_id": "916243245615-shedt3tv1rsah8b6ni2t98kk3ua3ol0l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dominomartinique.mobile",
+            "certificate_hash": "46830afa0b80e231f4295908d0896904c99313d6"
           }
         },
         {

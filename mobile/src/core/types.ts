@@ -150,6 +150,8 @@ export interface GameRoom {
         lastTurnActionAt?: unknown;
         lastHumanActionId?: string;
         lastHumanActionAt?: unknown;
+        lastPresenceAction?: 'RESTORED' | 'EXPIRED';
+        lastPresenceActionAt?: unknown;
     };
     finalization?: {
         id: string;

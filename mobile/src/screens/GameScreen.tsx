@@ -182,15 +182,15 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         });
     }, [coordinatorActionId, diagnosticConnectionId, gameId, isSoloMode, localPlayerId, roomData?.coordinator?.lastTurnActionKind, roomData?.gameState?.phase]);
 
-    // -- VIGILANCE FIRESTORE: fallback heartbeat (tous les joueurs, seuil 25s) --
-    // Tous les clients peuvent signaler un pair dont la presence a expire.
+    // -- VIGILANCE FIRESTORE legacy uniquement (tous les joueurs, seuil 25s) --
+    // Les salles coordonnees deleguent cette decision au presence coordinator.
     // FIX-VIGILANCE-REF: roomData lu via ref pour éviter le reset de l'intervalle à chaque snapshot.
     const roomDataRef = useRef(roomData);
     const heartbeatFirstObservedAtRef = useRef<Record<string, number>>({});
     useEffect(() => { roomDataRef.current = roomData; }, [roomData]);
 
     useEffect(() => {
-        if (!gameId || isSoloMode) return;
+        if (!gameId || isSoloMode || usesSystemCoordinator) return;
 
         const checkInterval = setInterval(async () => {
             const currentRoomData = roomDataRef.current;
@@ -267,9 +267,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             heartbeatFirstObservedAtRef.current = {};
         };
         // roomData retiré des deps — lu via roomDataRef pour éviter le reset permanent
-    }, [diagnosticConnectionId, gameId, isSoloMode, localPlayerId]);
+    }, [diagnosticConnectionId, gameId, isSoloMode, localPlayerId, usesSystemCoordinator]);
 
-    // -- VIGILANCE RTDB: détection rapide via présence Firebase (~3-5s) --
+    // -- VIGILANCE RTDB legacy uniquement : détection rapide via présence Firebase (~3-5s) --
     // Dès qu'un joueur passe offline dans RTDB (onDisconnect côté serveur), on attend
     // une GRACE PERIOD avant de le marquer DISCONNECTED dans Firestore.
     // Ce délai évite le "flapping" sur connexion instable (slow 4G) : si le joueur
@@ -285,7 +285,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const seenRtdbPresencePlayers = useRef<Set<string>>(new Set());
 
     useEffect(() => {
-        if (!gameId || isSoloMode) return;
+        if (!gameId || isSoloMode || usesSystemCoordinator) return;
 
         const presenceRef = rtdbRef(rtdb, `presence/${gameId}`);
         const seenPresencePlayers = seenRtdbPresencePlayers.current;
@@ -427,7 +427,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             latestRtdbPresence.current = {};
             seenPresencePlayers.clear();
         };
-    }, [diagnosticConnectionId, gameId, isSoloMode, localPlayerId]);
+    }, [diagnosticConnectionId, gameId, isSoloMode, localPlayerId, usesSystemCoordinator]);
 
     const [isPaused, setIsPaused] = useState(false);
     const [showOptions, setShowOptions] = useState(false);

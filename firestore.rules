@@ -71,6 +71,16 @@ service cloud.firestore {
           (before.players.size() < 3 || onlyPlayerStatusChanged(before.players[2], after.players[2]));
       }
 
+      // In coordinated rooms, presence is a server decision. A client may only
+      // renew its own lease; serverTimestamp resolves to request.time in rules.
+      function isOwnHeartbeatRenewal() {
+        let beforeHeartbeats = resource.data.get('heartbeats', {});
+        let afterHeartbeats = request.resource.data.get('heartbeats', {});
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['heartbeats']) &&
+          afterHeartbeats.diff(beforeHeartbeats).affectedKeys().hasOnly([request.auth.uid]) &&
+          afterHeartbeats[request.auth.uid] == request.time;
+      }
+
       function isCoordinatorLobbyStart() {
         return resource.data.status == 'WAITING' &&
           resource.data.gameState == null &&
@@ -81,9 +91,8 @@ service cloud.firestore {
 
       function respectsCoordinatorAuthority() {
         return resource.data.get('coordinatorVersion', 0) != 1 ||
-          request.resource.data.gameState == resource.data.gameState ||
           isCoordinatorLobbyStart() ||
-          (resource.data.status != 'WAITING' && isPresenceOnlyGameStateUpdate());
+          isOwnHeartbeatRenewal();
       }
       // Admin : accès complet
       allow read, write: if isAdmin();

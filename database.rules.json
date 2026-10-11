@@ -1,0 +1,38 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "presence": {
+      "$gameId": {
+        ".read": "auth != null",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['status', 't']) || newData.hasChildren(['connections'])",
+          "status": {
+            ".validate": "newData.isString() && (newData.val() === 'online' || newData.val() === 'offline')"
+          },
+          "t": {
+            ".validate": "newData.isNumber()"
+          },
+          "connections": {
+            "$connectionId": {
+              ".validate": "newData.hasChildren(['status', 't'])",
+              "status": {
+                ".validate": "newData.isString() && newData.val() === 'online'"
+              },
+              "t": {
+                ".validate": "newData.isNumber()"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    }
+  }
+}

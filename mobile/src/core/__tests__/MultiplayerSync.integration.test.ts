@@ -135,7 +135,7 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
         unsubscribe();
     });
 
-    it('Scenario 3: coordinated rooms reject client state replacement but allow presence', async () => {
+    it('Scenario 3: coordinated rooms accept only a member own heartbeat lease', async () => {
         const memberDb = testEnv.authenticatedContext('user_guest').firestore();
         const roomRef = doc(memberDb, 'rooms', 'ROOM_COORDINATED');
         const gameState = {
@@ -169,12 +169,19 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
                 gameState.players[1],
             ],
         }));
-        await assertSucceeds(updateDoc(roomRef, {
+        await assertFails(updateDoc(roomRef, {
             'gameState.players': [
                 gameState.players[0],
                 { ...gameState.players[1], status: 'DISCONNECTED' },
             ],
         }));
+        await assertFails(updateDoc(roomRef, {
+            'gameState.players': [
+                { ...gameState.players[0], status: 'DISCONNECTED' },
+                gameState.players[1],
+            ],
+        }));
+        await assertFails(updateDoc(roomRef, { 'heartbeats.user_host': serverTimestamp() }));
         await assertSucceeds(updateDoc(roomRef, { 'heartbeats.user_guest': serverTimestamp() }));
         const presenceSnapshot = await getDoc(roomRef);
         expect(presenceSnapshot.data()?.heartbeats?.user_guest.toMillis()).toEqual(expect.any(Number));

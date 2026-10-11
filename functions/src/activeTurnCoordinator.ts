@@ -10,6 +10,7 @@ import {
     serializeTurnFingerprint,
     TurnFingerprint,
 } from './turnCoordinator';
+import { isFreshPresenceLease } from './presenceCoordinator';
 
 const wait = (delayMs: number): Promise<void> =>
     new Promise(resolve => setTimeout(resolve, delayMs));
@@ -42,6 +43,25 @@ export const applyCoordinatedTurn = async (
             || !room.gameState
             || !hasTurnFingerprint(room.gameState, expected)
         ) return false;
+
+        // A reconnect can reach this transaction before the presence trigger has
+        // restored HUMAN. Never let a delayed bot action consume a fresh lease.
+        if (
+            expected.playerStatus === 'DISCONNECTED'
+            && isFreshPresenceLease(room, expected.currentPlayerId, Date.now())
+        ) {
+            const players = room.gameState.players.map(player =>
+                player.id === expected.currentPlayerId && player.status === 'DISCONNECTED'
+                    ? { ...player, status: 'HUMAN' as const }
+                    : player
+            );
+            transaction.update(roomRef, {
+                'gameState.players': players,
+                'coordinator.lastPresenceAction': 'RESTORED',
+                'coordinator.lastPresenceActionAt': admin.firestore.FieldValue.serverTimestamp(),
+            });
+            return false;
+        }
 
         const decision = computeTurnDecision(room.gameState);
         if (!decision) return false;

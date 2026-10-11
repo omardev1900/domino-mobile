@@ -1,5 +1,11 @@
 # Changelog
 
+### 2026-10-11
+
+- En multijoueur, la deconnexion et le retour en ligne sont maintenant decides
+  par Firebase cote serveur. Aucun autre joueur ne peut declarer un participant
+  deconnecte depuis son telephone.
+
 ### 2026-10-10
 
 - Les joueurs ne sont plus declares deconnectes a cause d'une horloge de

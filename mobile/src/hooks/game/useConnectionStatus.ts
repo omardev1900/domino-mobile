@@ -292,6 +292,15 @@ export const useConnectionStatus = ({
                 if (!roomDoc.exists()) return;
 
                 const currentRoomData = roomDoc.data() as GameRoom;
+                // For coordinated rooms, Functions owns HUMAN/DISCONNECTED.
+                // Renew immediately so a valid reconnect can cancel a pending bot
+                // action without waiting for the regular ten-second interval.
+                if (currentRoomData.coordinatorVersion === 1) {
+                    transaction.update(roomRef, {
+                        [`heartbeats.${localPlayerId}`]: serverTimestamp(),
+                    });
+                    return;
+                }
                 const state = currentRoomData.gameState;
                 if (!state || !state.players) return;
 
@@ -353,6 +362,9 @@ export const useConnectionStatus = ({
                 if (!roomDoc.exists()) return;
 
                 const currentRoomData = roomDoc.data() as GameRoom;
+                // A disconnect is inferred by the server-side lease for coordinated
+                // rooms. Surrender is handled by submitGameAction instead.
+                if (currentRoomData.coordinatorVersion === 1) return;
                 const state = currentRoomData.gameState;
                 if (!state || !state.players) return;
 

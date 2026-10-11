@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "domino-martinique-v1"
+  },
   "targets": {},
   "etags": {}
 }

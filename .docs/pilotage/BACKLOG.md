@@ -1,7 +1,5 @@
 # Backlog
 
-- [ ] `PRESENCE-04` Confier au serveur la decision finale de presence et
-  interdire a un client de marquer un autre joueur deconnecte.
 - [ ] `PRESENCE-05` Rendre la reconnexion idempotente, appliquer une hysteresis
   reseau realiste et remplacer la boucle d'interface bloquante par un etat
   confirme et non bloquant.

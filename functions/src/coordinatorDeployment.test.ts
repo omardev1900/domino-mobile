@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import * as admin from 'firebase-admin';
 
 import { createActiveTurnCoordinator } from './activeTurnCoordinator';
+import { createPresenceCoordinator } from './presenceCoordinator';
 import {
     createTerminalGameCoordinator,
     TERMINAL_TRANSITION_DELAY_MS,
@@ -11,11 +12,12 @@ import {
 const fakeDb = {} as admin.firestore.Firestore;
 
 describe('coordinator deployment', () => {
-    it('deploie les deux coordinateurs en Gen2 dans la region attendue', () => {
+    it('deploie les coordinateurs Gen2 dans la region attendue', () => {
         const activeTurn = createActiveTurnCoordinator(fakeDb);
         const terminal = createTerminalGameCoordinator(fakeDb);
+        const presence = createPresenceCoordinator(fakeDb);
 
-        for (const coordinator of [activeTurn, terminal]) {
+        for (const coordinator of [activeTurn, terminal, presence]) {
             assert.equal(coordinator.__endpoint.platform, 'gcfv2');
             assert.deepEqual(coordinator.__endpoint.region, ['europe-west1']);
             assert.equal(
@@ -26,6 +28,7 @@ describe('coordinator deployment', () => {
         }
         assert.equal(activeTurn.__endpoint.timeoutSeconds, 120);
         assert.equal(terminal.__endpoint.timeoutSeconds, 60);
+        assert.equal(presence.__endpoint.timeoutSeconds, 60);
         assert.equal(TERMINAL_TRANSITION_DELAY_MS, 3000);
     });
 });
