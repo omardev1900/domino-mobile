@@ -361,6 +361,10 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({
                                 <Text style={styles.disconnectedIcon}>/</Text>
                                 <Text style={styles.disconnectedText}>DÉCONNECTÉ</Text>
                             </View>
+                        ) : player.status === 'SURRENDERED' ? (
+                            <View style={styles.surrenderedOverlay}>
+                                <Ionicons name="exit-outline" size={22} color="#FFF" />
+                            </View>
                         ) : isBotPlaying && (
                             <View style={styles.botOverlay}>
                                 <Text style={styles.botText}>BOT...</Text>
@@ -419,6 +423,11 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({
                 {isHorizontal && namePlacement === 'below' && (
                     <>
                         <Text style={styles.nameUnderAvatar} numberOfLines={1}>{player.name}</Text>
+                        {player.status === 'SURRENDERED' && (
+                            <Animated.View entering={ZoomIn.duration(250)} style={styles.surrenderedBadge}>
+                                <Text style={styles.surrenderedBadgeText}>A ABANDONNÉ</Text>
+                            </Animated.View>
+                        )}
                         {/* Stats sous le nom (adversaires uniquement) */}
                         {position?.startsWith('top') && (
                             <View style={styles.opponentStatsUnderName}>
@@ -687,6 +696,26 @@ const styles = StyleSheet.create({
         textShadowColor: 'rgba(0,0,0,0.8)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 3,
+    },
+    surrenderedOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(86, 33, 33, 0.72)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 6,
+    },
+    surrenderedBadge: {
+        backgroundColor: '#7B241C',
+        borderRadius: 4,
+        marginTop: 3,
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+    },
+    surrenderedBadgeText: {
+        color: '#FFF',
+        fontSize: 7,
+        fontWeight: '900',
+        letterSpacing: 0.3,
     },
     handBadgeOverlaid: {
         position: 'absolute',
