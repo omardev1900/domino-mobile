@@ -82,3 +82,13 @@
 - [x] Campagne generale executee : 449 tests mobile, 29 tests Functions,
   emulation Firebase, regles Firestore, lint et export web.
 - [x] Snapshot `MANCHE_END` corrige dans un commit independant (`be08bbe`).
+# Taches terminees
+
+### 2026-10-11
+
+- [x] `PRESENCE-07` Reprise automatique de la presence multijoueur apres un
+  retour reseau confirme et stabilisation du recalcul du plateau Android.
+- [x] `MULTI-SURRENDER-01` Abandon atomique depuis la table et la popup de
+  reprise, avec statut visible « A abandonné ».
+- [x] `MULTI-LOBBY-02` Annuaire public fiable et jointure atomique bloquant les
+  tables deja completes avant la distribution.

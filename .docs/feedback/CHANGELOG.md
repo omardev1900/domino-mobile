@@ -2,6 +2,13 @@
 
 ### 2026-10-11
 
+- Quitter une partie multijoueur depuis la proposition de reprise fonctionne
+  maintenant comme depuis la table : la partie est abandonnee correctement et
+  il est possible d'en creer ou rejoindre une autre immediatement.
+- Les tables publiques en attente sont affichees de facon plus fiable et une
+  table pleine ne peut plus etre rejointe pendant une course entre joueurs.
+- Le plateau conserve ses bonnes proportions apres le retour de la connexion
+  reseau sur Android.
 - En multijoueur, la deconnexion et le retour en ligne sont maintenant decides
   par Firebase cote serveur. Aucun autre joueur ne peut declarer un participant
   deconnecte depuis son telephone.

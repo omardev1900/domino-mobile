@@ -1,8 +1,5 @@
 # Backlog
 
-- [ ] `MULTI-SPECTATE-01` Etudier un mode spectateur explicite pour les tables
-  publiques : flux en lecture seule, aucun siege de joueur, et projection
-  serveur ne divulguant jamais les mains des participants.
 - [ ] `PRESENCE-06` Executer la recette multijoueur a trois clients, la campagne
   de non-regression et la validation Android locale finale.
 - [ ] `SEC-APP-CHECK` Configurer les fournisseurs App Check web, Android et
