@@ -2,6 +2,8 @@
 
 ### 2026-10-11
 
+> Je n'entends plus le son dans le jeu, web et APK.
+
 > oui ce sont 4 joueurs differents avec des comptes et email differents chcun est lancer dans un tab safri en navigation privee
 >
 > cependant, comme deja signaler les autres joueurs ne peuvent pas acceder a une table

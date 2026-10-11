@@ -125,6 +125,19 @@ describe('SoundManager priority policy', () => {
         await expect(SoundManager.playMusic('appActive')).resolves.toBeUndefined();
     });
 
+    test('does not treat a timer-driven sound as a web user gesture', async () => {
+        const originalPlatform = Platform.OS;
+        Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+
+        const internals = SoundManager as unknown as { userInteracted: boolean };
+        internals.userInteracted = false;
+        await SoundManager.playSound('clack1');
+
+        expect(internals.userInteracted).toBe(false);
+
+        Object.defineProperty(Platform, 'OS', { configurable: true, value: originalPlatform });
+    });
+
     test('uses one bundled app-active variant per session and a dedicated in-game track', async () => {
         const appActiveSource = SoundManager.sounds.appActive.source;
         const inGameSource = SoundManager.sounds.inGame.source;
@@ -137,3 +150,5 @@ describe('SoundManager priority policy', () => {
         expect(inGameSource).toBe(require('../../../assets/sounds/bgm/bgm-in-game.mp3'));
     });
 });
+import { Platform } from 'react-native';
+

@@ -23,6 +23,12 @@ function normalizeBgmTheme(value: string | null): BgmTheme | null {
     return null;
 }
 
+function parseVolume(value: string | null, fallback: number): number {
+    if (value === null) return fallback;
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : fallback;
+}
+
 class SettingsManager {
     private static instance: SettingsManager;
     private isAudioEnabled: boolean = true;
@@ -80,8 +86,8 @@ class SettingsManager {
                     await AsyncStorage.setItem(GAME_BGM_THEME_KEY, normalizedBgmTheme);
                 }
             }
-            if (savedBgmVol !== null) this.bgmVolume = parseFloat(savedBgmVol);
-            if (savedSfxVol !== null) this.sfxVolume = parseFloat(savedSfxVol);
+            this.bgmVolume = parseVolume(savedBgmVol, this.bgmVolume);
+            this.sfxVolume = parseVolume(savedSfxVol, this.sfxVolume);
 
         } catch (e) {
             console.error('Failed to load settings', e);

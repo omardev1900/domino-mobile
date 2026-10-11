@@ -121,20 +121,17 @@ class SoundManager {
 
     private get isAudioAllowed(): boolean {
         if (Platform.OS !== 'web') return true;
-        // Safari iOS : l'API HTMLMediaElement.play() jette NotSupportedError dans plusieurs
-        // contextes (mode privé, Low Power Mode, iOS < 14.5). On désactive l'audio plutôt
-        // que de generer des erreurs repetitives. A retirer si on ajoute un fallback WebAudio.
-        if (typeof navigator !== 'undefined') {
-            const ua = navigator.userAgent || '';
-            const isIOSSafari = /iPad|iPhone|iPod/.test(ua) && /WebKit/.test(ua) && !/CriOS|FxiOS/.test(ua);
-            // Chrome iOS (CriOS) déclenche aussi NotAllowedError sur autoplay — même traitement que Safari iOS
-            const isIOSChrome = /iPad|iPhone|iPod/.test(ua) && /CriOS/.test(ua);
-            if (isIOSSafari || isIOSChrome) return false;
-        }
+        // Certains navigateurs rapportent userActivation à false malgré le
+        // onPointerDown déjà reçu par React Native Web. Notre signal interne
+        // est donc également une source d'autorisation valide.
+        if (this.userInteracted) return true;
         if (typeof navigator !== 'undefined' && 'userActivation' in navigator) {
-            return (navigator as any).userActivation.hasBeenActive;
+            const browserActivation = (navigator as Navigator & {
+                userActivation?: { hasBeenActive: boolean };
+            }).userActivation;
+            return browserActivation?.hasBeenActive === true;
         }
-        return this.userInteracted;
+        return false;
     }
 
     private getTargetMusicVolume(): number {
@@ -417,9 +414,10 @@ class SoundManager {
     // ─── Sound Effects ───────────────────────────────────────────────────────
 
     async playSound(name: SoundName) {
-        // This call is deliberately before the autoplay check: on web it marks the
-        // current button/touch event as the gesture authorising deferred audio setup.
-        this.unlockAudio();
+        // L'autorisation audio web est acquise exclusivement depuis un vrai geste
+        // utilisateur au niveau de l'application. Un timer de jeu ne doit jamais
+        // pouvoir la simuler : sinon Safari initialise les lecteurs hors geste et
+        // les bloque ensuite définitivement pour la session.
         if (!this.isAudioAllowed) return;
 
         try {
