@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { db, rtdb } from '../../core/services/firebase';
 import { doc, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { ref, set, remove, onValue, onDisconnect as rtdbOnDisconnect } from 'firebase/database';
@@ -35,6 +36,10 @@ export interface UseConnectionStatusResult {
 }
 
 const HEARTBEAT_RETRY_DELAYS_MS = [1_000, 3_000, 8_000] as const;
+const NETWORK_RECONNECT_CONFIRMATION_MS = 750;
+
+const isReachable = (state: NetInfoState): boolean =>
+    state.isConnected === true && state.isInternetReachable !== false;
 
 /** Phases durant lesquelles le heartbeat Firestore est suspendu pour éviter d'invalider les transactions NEXT_ROUND */
 export const useConnectionStatus = ({
@@ -50,6 +55,8 @@ export const useConnectionStatus = ({
     // FIX-LEAK: timer du badge "rejoining" — nettoyé au démontage pour éviter setState après unmount
     const rejoinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const heartbeatRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const networkReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const wasNetworkReachableRef = useRef<boolean | null>(null);
     const sendPingRef = useRef<(retryAttempt?: number) => Promise<void>>(async () => undefined);
     const signalOnlinePromiseRef = useRef<Promise<void> | null>(null);
     const signalOnlineRef = useRef<() => Promise<void>>(async () => undefined);
@@ -64,6 +71,7 @@ export const useConnectionStatus = ({
     useEffect(() => () => {
         if (rejoinTimerRef.current) clearTimeout(rejoinTimerRef.current);
         if (heartbeatRetryTimerRef.current) clearTimeout(heartbeatRetryTimerRef.current);
+        if (networkReconnectTimerRef.current) clearTimeout(networkReconnectTimerRef.current);
     }, []);
 
     // ─── 1. HEARTBEAT FIRESTORE (fallback 25s) ───────────────────────────────
@@ -360,6 +368,51 @@ export const useConnectionStatus = ({
         });
         return () => subscription.remove();
     }, []);
+
+    // Le retour Wi-Fi / données mobiles ne change pas forcément AppState. Après une
+    // coupure confirmée, relancer la présence rend immédiatement le lease serveur
+    // valide sans demander à l'utilisateur de mettre l'application en arrière-plan.
+    useEffect(() => {
+        if (!gameId || isSoloMode) return;
+
+        const unsubscribe = NetInfo.addEventListener((networkState) => {
+            const reachable = isReachable(networkState);
+            const wasReachable = wasNetworkReachableRef.current;
+            wasNetworkReachableRef.current = reachable;
+
+            if (!reachable) {
+                if (networkReconnectTimerRef.current) {
+                    clearTimeout(networkReconnectTimerRef.current);
+                    networkReconnectTimerRef.current = null;
+                }
+                return;
+            }
+
+            // Le signal initial est deja couvert par useGameSync. Seul le passage
+            // hors-ligne -> en ligne doit revalider la presence en cours de partie.
+            if (wasReachable !== false) return;
+
+            if (networkReconnectTimerRef.current) clearTimeout(networkReconnectTimerRef.current);
+            networkReconnectTimerRef.current = setTimeout(() => {
+                networkReconnectTimerRef.current = null;
+                logPresence({
+                    event: 'status_transition_started',
+                    source: 'reconnect',
+                    decision: 'network_reconnect_confirmed',
+                    statusTo: 'HUMAN',
+                });
+                void signalOnlineRef.current();
+            }, NETWORK_RECONNECT_CONFIRMATION_MS);
+        });
+
+        return () => {
+            if (networkReconnectTimerRef.current) {
+                clearTimeout(networkReconnectTimerRef.current);
+                networkReconnectTimerRef.current = null;
+            }
+            unsubscribe();
+        };
+    }, [gameId, isSoloMode, logPresence]);
 
     // ─── 4. SIGNAL OFFLINE (quitter volontaire ou crash) ─────────────────────
     // surrendered = true  → joueur a cliqué "Quitter" volontairement → SURRENDERED

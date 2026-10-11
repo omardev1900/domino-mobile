@@ -3,6 +3,8 @@ import { useConnectionStatus } from '../useConnectionStatus';
 import { onDisconnect, onValue, ref, remove, set } from 'firebase/database';
 import { runTransaction, updateDoc } from 'firebase/firestore';
 
+let networkListener: ((state: { isConnected: boolean; isInternetReachable: boolean | null }) => void) | undefined;
+
 jest.mock('../../../core/services/firebase', () => ({ db: {}, rtdb: {} }));
 jest.mock('firebase/firestore', () => ({
     doc: jest.fn(),
@@ -30,10 +32,20 @@ jest.mock('firebase/database', () => ({
     onValue: jest.fn(),
     onDisconnect: jest.fn(() => ({ remove: jest.fn().mockResolvedValue(undefined) })),
 }));
+jest.mock('@react-native-community/netinfo', () => ({
+    __esModule: true,
+    default: {
+        addEventListener: jest.fn((listener) => {
+            networkListener = listener;
+            return jest.fn();
+        }),
+    },
+}));
 
 describe('useConnectionStatus — présence RTDB par connexion', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        networkListener = undefined;
         (runTransaction as jest.Mock).mockImplementation(async (_db, callback) => callback({
             get: jest.fn().mockResolvedValue({
                 exists: () => true,
@@ -126,5 +138,26 @@ describe('useConnectionStatus — présence RTDB par connexion', () => {
 
         await act(async () => { await first; });
         expect(runTransaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('reannonce le joueur apres un retour reseau confirme sans AppState', async () => {
+        jest.useFakeTimers();
+        (onValue as jest.Mock).mockReturnValue(jest.fn());
+        renderHook(() => useConnectionStatus({
+            gameId: 'room-1',
+            localPlayerId: 'player-1',
+            isSoloMode: false,
+        }));
+
+        act(() => networkListener?.({ isConnected: true, isInternetReachable: true }));
+        act(() => networkListener?.({ isConnected: false, isInternetReachable: false }));
+        act(() => networkListener?.({ isConnected: true, isInternetReachable: true }));
+        await act(async () => {
+            jest.advanceTimersByTime(750);
+            await Promise.resolve();
+        });
+
+        expect(runTransaction).toHaveBeenCalledTimes(1);
+        jest.useRealTimers();
     });
 });
