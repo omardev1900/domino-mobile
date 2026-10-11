@@ -15,20 +15,20 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import SoundManager from '@/core/audio/SoundManager';
 import SettingsManager from '@/core/SettingsManager';
-import NetInfo from '@react-native-community/netinfo';
 import * as Notifications from 'expo-notifications';
 import { updateDoc, doc, getDoc } from 'firebase/firestore';
 import { initializeAdMob } from '@/core/services/AdMobAdapter';
 
 import { ForceUpdateModal } from '@/components/ForceUpdateModal';
 import { useForceUpdate } from '@/hooks/useForceUpdate';
-import { NetworkRequiredScreen } from '@/components/NetworkRequiredScreen';
+import { NetworkStatusBanner } from '@/components/NetworkStatusBanner';
+import { useStableNetworkStatus } from '@/hooks/useStableNetworkStatus';
 import { SoloResumeModal } from '@/components/SoloResumeModal';
 import { useSoloResume } from '@/hooks/useSoloResume';
 import { MultiResumeModal } from '@/components/MultiResumeModal';
 import { useMultiResume } from '@/hooks/useMultiResume';
 import { authService } from '@/core/services/auth.service';
-import { db, auth, findActiveRoomForUser, signalPlayerOnline, setUserActiveRoom } from '@/core/services/firebase';
+import { db, auth, setUserActiveRoom } from '@/core/services/firebase';
 import { Sidebar } from '@/components/Sidebar';
 import { WebFullscreenButton } from '@/components/WebFullscreenButton';
 import { USE_NEW_SIDEBAR, SIDEBAR_HIDDEN_ROUTES, SIDEBAR_HIDDEN_PREFIXES } from '@/core/config/navigation.config';
@@ -102,8 +102,7 @@ export default function RootLayout() {
   const router = useRouter();
   const previousPathname = useRef<string | undefined>(undefined);
 
-  const [isConnected, setIsConnected] = useState<boolean | null>(true);
-  const [isCheckingNetwork, setIsCheckingNetwork] = useState(false);
+  const { status: networkStatus, retry: retryNetwork } = useStableNetworkStatus();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -115,26 +114,6 @@ export default function RootLayout() {
 
   // ── Reprise de partie multi ──
   const { resumeInfo: multiResumeInfo, dismiss: dismissMulti, abandon: abandonMulti } = useMultiResume(pathname);
-
-  // Network check (NetInfo) listener
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(state => {
-      setIsConnected(state.isConnected !== false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleRetryNetwork = async () => {
-    setIsCheckingNetwork(true);
-    try {
-      const state = await NetInfo.fetch();
-      setIsConnected(state.isConnected !== false);
-    } catch (_) {
-      // Ignore errors
-    } finally {
-      setIsCheckingNetwork(false);
-    }
-  };
 
   // Auth observer subscription
   useEffect(() => {
@@ -210,19 +189,6 @@ export default function RootLayout() {
       if (state === 'active') {
         if (Platform.OS === 'android') applyImmersiveMode();
         
-        // Anti "Ecran blanc / Bloqué" : Si on sort de veille (alarme, etc.), on signale qu'on est de retour
-        try {
-          const user = await authService.getCurrentUser();
-          if (user && !user.uid.startsWith('guest_')) {
-            let activeRoomId = await AsyncStorage.getItem('active_roomId');
-            if (!activeRoomId) activeRoomId = await findActiveRoomForUser(user.uid);
-            if (activeRoomId) {
-              await signalPlayerOnline(activeRoomId, user.uid);
-            }
-          }
-        } catch (e) {
-          LogService.warn('RootLayout', "Erreur resync AppState", e);
-        }
       }
     });
     return () => subscription.remove();
@@ -411,15 +377,7 @@ export default function RootLayout() {
             />
           )}
 
-          {/* ── Overlay Réseau (ne démonte pas l'app) ── */}
-          {isConnected === false && (
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999, elevation: 99999 }}>
-              <NetworkRequiredScreen
-                onRetry={handleRetryNetwork}
-                isChecking={isCheckingNetwork}
-              />
-            </View>
-          )}
+          <NetworkStatusBanner status={networkStatus} onRetry={() => void retryNetwork()} />
 
           <StatusBar hidden={true} />
         </LinearGradient>

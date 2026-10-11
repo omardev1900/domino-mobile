@@ -5,6 +5,8 @@
 - En multijoueur, la deconnexion et le retour en ligne sont maintenant decides
   par Firebase cote serveur. Aucun autre joueur ne peut declarer un participant
   deconnecte depuis son telephone.
+- Une coupure reseau n'affiche plus un ecran bloquant : la table reste visible
+  et l'application reprend automatiquement des que la connexion est stable.
 
 ### 2026-10-10
 

@@ -1,8 +1,5 @@
 # Backlog
 
-- [ ] `PRESENCE-05` Rendre la reconnexion idempotente, appliquer une hysteresis
-  reseau realiste et remplacer la boucle d'interface bloquante par un etat
-  confirme et non bloquant.
 - [ ] `PRESENCE-06` Executer la recette multijoueur a trois clients, la campagne
   de non-regression et la validation Android locale finale.
 - [ ] `SEC-APP-CHECK` Configurer les fournisseurs App Check web, Android et

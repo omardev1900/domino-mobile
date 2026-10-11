@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { db, rtdb } from '../../core/services/firebase';
 import { doc, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { ref, set, remove, onValue, onDisconnect as rtdbOnDisconnect } from 'firebase/database';
@@ -50,6 +51,8 @@ export const useConnectionStatus = ({
     const rejoinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const heartbeatRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const sendPingRef = useRef<(retryAttempt?: number) => Promise<void>>(async () => undefined);
+    const signalOnlinePromiseRef = useRef<Promise<void> | null>(null);
+    const signalOnlineRef = useRef<() => Promise<void>>(async () => undefined);
     const { connectionId: diagnosticConnectionId, log: logPresence } = usePresenceDiagnosticSession({
         gameId,
         isSoloMode,
@@ -247,8 +250,11 @@ export const useConnectionStatus = ({
     }, [gameId, isSoloMode, localPlayerId, logPresence]);
 
     // ─── 3. SIGNAL ONLINE (reconnexion) ──────────────────────────────────────
-    const signalPlayerOnline = useCallback(async () => {
-        if (!gameId || isSoloMode) return;
+    const signalPlayerOnline = useCallback((): Promise<void> => {
+        if (!gameId || isSoloMode) return Promise.resolve();
+        if (signalOnlinePromiseRef.current) return signalOnlinePromiseRef.current;
+
+        const operation = (async () => {
 
         // FIX-BOUCLE-400: comme sendPing, ne jamais lancer de transaction pendant les
         // phases critiques (MANCHE_END/PARTIE_END/MATCH_END). Les runTransaction entrent
@@ -336,7 +342,24 @@ export const useConnectionStatus = ({
                 statusTo: 'HUMAN',
             });
         }
+        })();
+        signalOnlinePromiseRef.current = operation;
+        void operation.finally(() => {
+            if (signalOnlinePromiseRef.current === operation) signalOnlinePromiseRef.current = null;
+        });
+        return operation;
     }, [externalGamePhaseRef, gameId, isSoloMode, localPlayerId, logPresence]);
+
+    useEffect(() => {
+        signalOnlineRef.current = signalPlayerOnline;
+    }, [signalPlayerOnline]);
+
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', (state: AppStateStatus) => {
+            if (state === 'active') void signalOnlineRef.current();
+        });
+        return () => subscription.remove();
+    }, []);
 
     // ─── 4. SIGNAL OFFLINE (quitter volontaire ou crash) ─────────────────────
     // surrendered = true  → joueur a cliqué "Quitter" volontairement → SURRENDERED

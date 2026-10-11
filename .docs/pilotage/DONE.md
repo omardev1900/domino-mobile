@@ -2,6 +2,14 @@
 
 ### 2026-10-11
 
+- [x] `PRESENCE-05` Reconnexion client stabilisee : les signaux concurrents
+  sont dedoublonnes, les changements reseau brefs sont absorbes par hysteresis
+  et le voile reseau bloquant est remplace par une banniere non bloquante.
+  Tests de hooks, build APK release et recette Android telephone + emulateur
+  valides.
+
+### 2026-10-11
+
 - [x] `PRESENCE-04` Autorite serveur de presence livree : les Functions
   decident atomiquement les transitions `HUMAN`/`DISCONNECTED`, les regles
   Firestore des salles coordonnees refusent les mutations client du jeu et les

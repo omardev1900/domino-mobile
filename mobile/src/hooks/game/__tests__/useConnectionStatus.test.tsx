@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { useConnectionStatus } from '../useConnectionStatus';
 import { onDisconnect, onValue, ref, remove, set } from 'firebase/database';
-import { updateDoc } from 'firebase/firestore';
+import { runTransaction, updateDoc } from 'firebase/firestore';
 
 jest.mock('../../../core/services/firebase', () => ({ db: {}, rtdb: {} }));
 jest.mock('firebase/firestore', () => ({
@@ -32,7 +32,16 @@ jest.mock('firebase/database', () => ({
 }));
 
 describe('useConnectionStatus — présence RTDB par connexion', () => {
-    beforeEach(() => jest.clearAllMocks());
+    beforeEach(() => {
+        jest.clearAllMocks();
+        (runTransaction as jest.Mock).mockImplementation(async (_db, callback) => callback({
+            get: jest.fn().mockResolvedValue({
+                exists: () => true,
+                data: () => ({ coordinatorVersion: 1 }),
+            }),
+            update: jest.fn(),
+        }));
+    });
 
     it('crée un nœud par reconnexion et arme une suppression limitée à ce nœud', async () => {
         let onConnected: ((snapshot: { val: () => unknown }) => void) | undefined;
@@ -101,5 +110,21 @@ describe('useConnectionStatus — présence RTDB par connexion', () => {
 
         unmount();
         jest.useRealTimers();
+    });
+
+    it('dedoublonne les signaux de reconnexion concurrents', async () => {
+        (onValue as jest.Mock).mockReturnValue(jest.fn());
+        const { result } = renderHook(() => useConnectionStatus({
+            gameId: 'room-1',
+            localPlayerId: 'player-1',
+            isSoloMode: false,
+        }));
+
+        const first = result.current.signalPlayerOnline();
+        const second = result.current.signalPlayerOnline();
+        expect(second).toBe(first);
+
+        await act(async () => { await first; });
+        expect(runTransaction).toHaveBeenCalledTimes(1);
     });
 });
