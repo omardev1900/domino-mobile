@@ -7,6 +7,7 @@ import {
     TextInput,
     ActivityIndicator,
     Alert,
+    Modal,
     ScrollView,
     useWindowDimensions,
     Platform,
@@ -469,7 +470,6 @@ export default function LobbyScreen() {
         } catch (error: unknown) {
             const message = describeMultiplayerJoinError(error);
             setJoinFeedback(message);
-            Alert.alert("Impossible de rejoindre", message);
         } finally {
             setLoading(false);
         }
@@ -494,7 +494,6 @@ export default function LobbyScreen() {
         } catch (error: unknown) {
             const message = describeMultiplayerJoinError(error);
             setJoinFeedback(message);
-            Alert.alert("Impossible de rejoindre", message);
         } finally {
             setLoading(false);
         }
@@ -1094,12 +1093,6 @@ export default function LobbyScreen() {
                     showsVerticalScrollIndicator={false}
                     scrollEnabled={true}
                 >
-                    {joinFeedback ? (
-                        <View style={styles.joinFeedback} accessibilityRole="alert">
-                            <Ionicons name="information-circle" size={20} color="#FFE082" />
-                            <Text style={styles.joinFeedbackText}>{joinFeedback}</Text>
-                        </View>
-                    ) : null}
                     <Animated.View
                         entering={FadeInUp.delay(200)}
                         style={[
@@ -1113,6 +1106,41 @@ export default function LobbyScreen() {
                     </Animated.View>
                 </ScrollView>
             </LinearGradient>
+            <Modal
+                visible={joinFeedback !== null}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setJoinFeedback(null)}
+            >
+                <View style={styles.joinFeedbackBackdrop}>
+                    <View
+                        style={styles.joinFeedbackModal}
+                        accessibilityRole="alert"
+                    >
+                        <Ionicons
+                            name="information-circle"
+                            size={38}
+                            color="#FFD700"
+                        />
+                        <Text style={styles.joinFeedbackTitle}>
+                            Impossible de rejoindre
+                        </Text>
+                        <Text style={styles.joinFeedbackText}>
+                            {joinFeedback}
+                        </Text>
+                        <TouchableOpacity
+                            style={styles.joinFeedbackCloseButton}
+                            onPress={() => setJoinFeedback(null)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Fermer le message"
+                        >
+                            <Text style={styles.joinFeedbackCloseText}>
+                                Fermer
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -1759,24 +1787,56 @@ const styles = StyleSheet.create({
         fontSize: 12,
         textAlign: "center",
     },
-    joinFeedback: {
-        flexDirection: "row",
+    joinFeedbackBackdrop: {
+        flex: 1,
         alignItems: "center",
-        gap: 8,
-        marginHorizontal: 20,
-        marginTop: 8,
-        padding: 12,
-        borderRadius: 12,
-        backgroundColor: "rgba(255, 152, 0, 0.18)",
+        justifyContent: "center",
+        padding: 24,
+        backgroundColor: "rgba(0, 0, 0, 0.65)",
+    },
+    joinFeedbackModal: {
+        width: "100%",
+        maxWidth: 420,
+        alignItems: "center",
+        borderRadius: 22,
+        padding: 26,
+        backgroundColor: "#2D1B4E",
         borderWidth: 1,
-        borderColor: "rgba(255, 193, 7, 0.65)",
+        borderColor: "rgba(255, 215, 0, 0.7)",
+        elevation: 14,
+        shadowColor: "#000",
+        shadowOpacity: 0.45,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 8 },
+    },
+    joinFeedbackTitle: {
+        marginTop: 10,
+        color: "#FFD700",
+        fontSize: 21,
+        fontWeight: "900",
+        textAlign: "center",
     },
     joinFeedbackText: {
-        flex: 1,
-        color: "#FFF3CD",
-        fontSize: 13,
+        marginTop: 12,
+        color: "rgba(255,255,255,0.9)",
+        fontSize: 15,
         fontWeight: "700",
-        lineHeight: 18,
+        lineHeight: 21,
+        textAlign: "center",
+    },
+    joinFeedbackCloseButton: {
+        minWidth: 150,
+        marginTop: 22,
+        borderRadius: 14,
+        paddingHorizontal: 22,
+        paddingVertical: 12,
+        backgroundColor: "#FFD700",
+        alignItems: "center",
+    },
+    joinFeedbackCloseText: {
+        color: "#1A0E2E",
+        fontSize: 15,
+        fontWeight: "900",
     },
     hostedRoomCard: {
         backgroundColor: "rgba(255,215,0,0.08)",
