@@ -9,13 +9,20 @@ global.XMLHttpRequest = require('xhr2');
 
 
 import { initializeTestEnvironment, RulesTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, runTransaction, serverTimestamp, type Firestore } from 'firebase/firestore';
 import * as fs from 'fs';
 import * as path from 'path';
 
 jest.setTimeout(30000); // 30 seconds for all tests in this file
 
 let testEnv: RulesTestEnvironment;
+
+const playerProfile = (uid: string) => ({
+    uid,
+    displayName: uid,
+    gamesPlayed: 0,
+    gamesWon: 0,
+});
 
 beforeAll(async () => {
     const emulatorAddress = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8082';
@@ -57,12 +64,14 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
             status: 'WAITING',
             hostId: 'user_host',
             playerIds: ['user_host'],
+            players: [playerProfile('user_host')],
             gameState: null
         }));
 
         // 2. Guest joins the room
         await assertSucceeds(updateDoc(doc(guestDb, 'rooms', 'ROOM_TEST'), {
-            playerIds: ['user_host', 'user_guest']
+            playerIds: ['user_host', 'user_guest'],
+            players: [playerProfile('user_host'), playerProfile('user_guest')],
         }));
 
         // 3. Host starts the game (Transitions to PLAYING and sets gameState)
@@ -79,10 +88,13 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
             gameState: initialGameState
         }));
 
-        const snap = await getDoc(doc(guestDb, 'rooms', 'ROOM_TEST'));
-        const data = snap.data();
+        let data: Record<string, unknown> | undefined;
+        await testEnv.withSecurityRulesDisabled(async context => {
+            const snap = await getDoc(doc(context.firestore(), 'rooms', 'ROOM_TEST'));
+            data = snap.data();
+        });
         expect(data?.status).toBe('PLAYING');
-        expect(data?.gameState.phase).toBe('PLAYING');
+        expect((data?.gameState as { phase?: string } | undefined)?.phase).toBe('PLAYING');
     });
 
     it('Scenario 2: State changes sync properly via onSnapshot', async () => {
@@ -98,6 +110,7 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
             status: 'PLAYING',
             hostId: 'user_host',
             playerIds: ['user_host', 'user_guest'],
+            players: [playerProfile('user_host'), playerProfile('user_guest')],
             gameState: {
                 phase: 'PLAYING',
                 turnId: 1
@@ -155,6 +168,7 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
                 coordinatorVersion: 1,
                 createdBy: 'user_host',
                 playerIds: ['user_host', 'user_guest'],
+                players: [playerProfile('user_host'), playerProfile('user_guest')],
                 gameState,
             });
         });
@@ -199,6 +213,7 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
                 coordinatorVersion: 1,
                 createdBy: 'user_host',
                 playerIds: ['user_host', 'user_guest'],
+                players: [playerProfile('user_host'), playerProfile('user_guest')],
                 gameState: null,
             });
         });
@@ -211,5 +226,58 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
             status: 'PLAYING',
             gameState: { phase: 'PLAYING', turnId: 1, players: [] },
         }));
+    });
+
+    it('Scenario 5: rejects a fourth player atomically and never creates an accidental spectator', async () => {
+        const fourthDb = testEnv.authenticatedContext('user_fourth').firestore();
+        const fifthDb = testEnv.authenticatedContext('user_fifth').firestore();
+        const roomId = 'ROOM_FULL';
+        const players = ['user_host', 'user_guest', 'user_third'].map((uid, index) => ({
+            uid,
+            displayName: `Joueur ${index + 1}`,
+            gamesPlayed: 0,
+            gamesWon: 0,
+        }));
+
+        await testEnv.withSecurityRulesDisabled(async context => {
+            await setDoc(doc(context.firestore(), 'rooms', roomId), {
+                roomId,
+                status: 'WAITING',
+                createdBy: 'user_host',
+                isPrivate: false,
+                players,
+                playerIds: players.map(player => player.uid),
+                gameState: null,
+            });
+        });
+
+        const tryJoin = async (clientDb: Firestore, uid: string) =>
+            runTransaction(clientDb, async transaction => {
+                const roomRef = doc(clientDb, 'rooms', roomId);
+                const snapshot = await transaction.get(roomRef);
+                const room = snapshot.data()!;
+                const profile = { uid, displayName: uid, gamesPlayed: 0, gamesWon: 0 };
+                transaction.update(roomRef, {
+                    players: [...room.players, profile],
+                    playerIds: [...room.playerIds, uid],
+                    lastActivity: Date.now(),
+                });
+            });
+
+        await Promise.all([
+            assertFails(tryJoin(fourthDb, 'user_fourth')),
+            assertFails(tryJoin(fifthDb, 'user_fifth')),
+        ]);
+
+        await testEnv.withSecurityRulesDisabled(async context => {
+            const finalRoom = await getDoc(doc(context.firestore(), 'rooms', roomId));
+            expect(finalRoom.data()?.players).toHaveLength(3);
+            expect(finalRoom.data()?.playerIds).toEqual([
+                'user_host',
+                'user_guest',
+                'user_third',
+            ]);
+            expect(finalRoom.data()?.players.some((player: { uid: string }) => player.uid === 'user_fourth')).toBe(false);
+        });
     });
 });
