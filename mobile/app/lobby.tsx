@@ -108,6 +108,21 @@ export default function LobbyScreen() {
     const [economyRefresh, setEconomyRefresh] = useState(0);
     const [uiStep, setUiStep] = useState<"MODE" | "CONFIG">("MODE");
 
+    const getEnrichedProfile = async (): Promise<PlayerProfile | null> => {
+        if (!currentUser) return null;
+
+        const economy = await economyService.getEconomy();
+        return {
+            ...currentUser,
+            ...(economy.leagueGrade != null
+                ? { leagueGrade: economy.leagueGrade }
+                : {}),
+            ...(economy.activeFrame != null
+                ? { activeFrame: economy.activeFrame }
+                : {}),
+        };
+    };
+
     // --- Calculs de Scaling Dynamique (4 colonnes) ---
     const HORIZONTAL_PADDING = 48;
     const GAP = 10;
@@ -393,12 +408,8 @@ export default function LobbyScreen() {
             setLoading(true);
             // [R3-M2] Garantir leagueGrade + activeFrame dans le profil écrit en Firestore
             // (ne pas dépendre du state React qui peut être en retard)
-            const eco = await economyService.getEconomy();
-            const enrichedProfile = {
-                ...currentUser,
-                leagueGrade: eco.leagueGrade ?? undefined,
-                activeFrame: eco.activeFrame ?? undefined,
-            };
+            const enrichedProfile = await getEnrichedProfile();
+            if (!enrichedProfile) return;
             const options: RoomOptions = {
                 gameMode,
                 winningCondition,
@@ -445,12 +456,8 @@ export default function LobbyScreen() {
         try {
             setLoading(true);
             // [R3-M2] Enrichissement garanti avant joinRoom
-            const eco = await economyService.getEconomy();
-            const enrichedProfile = {
-                ...currentUser,
-                leagueGrade: eco.leagueGrade ?? undefined,
-                activeFrame: eco.activeFrame ?? undefined,
-            };
+            const enrichedProfile = await getEnrichedProfile();
+            if (!enrichedProfile) return;
             await joinRoom(cleanRoomId, enrichedProfile);
             router.push({
                 pathname: "/game/[id]",
@@ -471,12 +478,8 @@ export default function LobbyScreen() {
         try {
             setLoading(true);
             // [R3-M2] Enrichissement garanti avant joinRoom
-            const eco = await economyService.getEconomy();
-            const enrichedProfile = {
-                ...currentUser,
-                leagueGrade: eco.leagueGrade ?? undefined,
-                activeFrame: eco.activeFrame ?? undefined,
-            };
+            const enrichedProfile = await getEnrichedProfile();
+            if (!enrichedProfile) return;
             await joinRoom(roomId, enrichedProfile);
             router.push({
                 pathname: "/game/[id]",

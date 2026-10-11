@@ -40,6 +40,7 @@ import { GameRoom, GameState, PlayerProfile, RoomStatus, GameMode } from '../typ
 import { LogService } from './LogService';
 import { resolveStartingHandSize } from '../startingHandSize';
 import { roomNameSchema } from '../validation/schemas';
+import { withoutUndefined } from '../utils/withoutUndefined';
 
 // FIX-MULTI-P1: File séquentielle (FIFO) pour garantir l'ordre des écritures sans perte de données rapides
 const updateGameStateQueues = new Map<string, Promise<void>>();
@@ -161,8 +162,9 @@ export const createRoom = async (
             buyIn: options?.buyIn || 50, // Default to 50 Coins MVP
         };
 
-        // SAFETY: Remove undefined fields which crash Firestore
-        const cleanRoomData = JSON.parse(JSON.stringify(roomData));
+        // Firestore rejects a whole write if a profile contains even one
+        // optional property set to undefined.
+        const cleanRoomData = withoutUndefined(roomData);
 
         const generateShortCode = () => {
             const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -241,7 +243,7 @@ export const joinRoom = async (roomId: string, playerProfile: PlayerProfile): Pr
             }
 
             const joinedProfile: PlayerProfile = {
-                ...structuredClone(playerProfile),
+                ...withoutUndefined(structuredClone(playerProfile)),
                 isHost: false,
             };
             transaction.update(roomRef, {
