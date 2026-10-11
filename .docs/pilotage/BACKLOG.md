@@ -1,9 +1,5 @@
 # Backlog
 
-- [ ] `MULTI-LOBBY-02` Rendre l'annuaire public coherent : distinguer les
-  tables rejoignables des tables en cours, tracer les exclusions (privee ou
-  inactive) et rendre la jointure atomique pour refuser strictement une table
-  pleine avant la distribution.
 - [ ] `MULTI-SPECTATE-01` Etudier un mode spectateur explicite pour les tables
   publiques : flux en lecture seule, aucun siege de joueur, et projection
   serveur ne divulguant jamais les mains des participants.
