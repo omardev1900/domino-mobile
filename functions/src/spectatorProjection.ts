@@ -164,8 +164,12 @@ export const syncPublicRoomProjection = async (
 ): Promise<void> => {
     const directoryRef = db.collection('publicRooms').doc(roomId);
     const spectatorRef = db.collection('roomSpectatorViews').doc(roomId);
-    const directory = room ? makePublicRoomDirectory(room, now) : null;
-    const spectator = room ? makeSpectatorView(room, now) : null;
+    // Creation historique en deux ecritures : le premier snapshot peut ne pas
+    // encore contenir `roomId`. L'identifiant du document reste la source de
+    // verite pour la projection publique.
+    const roomWithId = room ? { ...room, roomId } : undefined;
+    const directory = roomWithId ? makePublicRoomDirectory(roomWithId, now) : null;
+    const spectator = roomWithId ? makeSpectatorView(roomWithId, now) : null;
     const batch = db.batch();
     if (directory) batch.set(directoryRef, directory);
     else batch.delete(directoryRef);
