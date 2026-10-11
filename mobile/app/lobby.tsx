@@ -72,6 +72,7 @@ export default function LobbyScreen() {
     const insets = useSafeAreaInsets();
     const { width, height } = useWindowDimensions();
     const isLandscape = width > height;
+    const isWideJoinLayout = width >= 700;
 
     // — Shared state —
     const [loading, setLoading] = useState(false);
@@ -915,37 +916,47 @@ export default function LobbyScreen() {
                     Entre le code partagé par l&apos;hôte
                 </Text>
             </View>
-            <TextInput
-                style={styles.joinCodeInput}
-                placeholder="Code de la table"
-                placeholderTextColor="rgba(255,255,255,0.4)"
-                value={roomIdToJoin}
-                onChangeText={setRoomIdToJoin}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                maxLength={20}
-            />
-            <TouchableOpacity
-                style={styles.joinButton}
-                onPress={handleJoinRoom}
-                activeOpacity={0.8}
+            <View
+                style={[
+                    styles.joinActionRow,
+                    !isWideJoinLayout && styles.joinActionColumn,
+                ]}
             >
-                <LinearGradient
-                    colors={["#FFD700", "#FFA500"]}
-                    style={styles.joinButtonGradient}
+                <TextInput
+                    style={styles.joinCodeInput}
+                    placeholder="Code de la table"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    value={roomIdToJoin}
+                    onChangeText={setRoomIdToJoin}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    maxLength={20}
+                />
+                <TouchableOpacity
+                    style={[
+                        styles.joinButton,
+                        !isWideJoinLayout && styles.joinButtonCompact,
+                    ]}
+                    onPress={handleJoinRoom}
+                    activeOpacity={0.8}
                 >
-                    <View style={styles.playContent}>
-                        <View style={styles.costContainer}>
-                            <Text style={{ fontSize: 18 }}>🪙</Text>
-                            <Text style={styles.costText}>
-                                -{TABLE_CONFIGS[tableTier].buyIn}
-                            </Text>
+                    <LinearGradient
+                        colors={["#FFD700", "#FFA500"]}
+                        style={styles.joinButtonGradient}
+                    >
+                        <View style={styles.playContent}>
+                            <View style={styles.costContainer}>
+                                <Text style={{ fontSize: 18 }}>🪙</Text>
+                                <Text style={styles.costText}>
+                                    -{TABLE_CONFIGS[tableTier].buyIn}
+                                </Text>
+                            </View>
+                            <View style={styles.playDivider} />
+                            <Text style={styles.playText}>REJOINDRE</Text>
                         </View>
-                        <View style={styles.playDivider} />
-                        <Text style={styles.playText}>REJOINDRE</Text>
-                    </View>
-                </LinearGradient>
-            </TouchableOpacity>
+                    </LinearGradient>
+                </TouchableOpacity>
+            </View>
 
             {debitFeedback && (
                 <Animated.Text
@@ -1483,8 +1494,17 @@ const styles = StyleSheet.create({
         color: "rgba(255,255,255,0.5)",
         textAlign: "center",
     },
-    joinCodeInput: {
+    joinActionRow: {
         width: "100%",
+        flexDirection: "row",
+        alignItems: "stretch",
+        gap: 14,
+    },
+    joinActionColumn: {
+        flexDirection: "column",
+    },
+    joinCodeInput: {
+        flex: 1,
         minHeight: 64,
         paddingHorizontal: 20,
         borderRadius: 16,
@@ -1497,12 +1517,14 @@ const styles = StyleSheet.create({
         letterSpacing: 1.2,
     },
     joinButton: {
-        width: "100%",
-        height: 58,
-        marginTop: 14,
+        width: 250,
+        minHeight: 64,
         borderRadius: 16,
         overflow: "hidden",
         elevation: 8,
+    },
+    joinButtonCompact: {
+        width: "100%",
     },
     joinButtonGradient: {
         flex: 1,
