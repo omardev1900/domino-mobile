@@ -47,6 +47,7 @@ import { TableTier } from "../src/core/economy.types";
 import { EconomyHeader } from "../src/components/EconomyHeader";
 import { GameModeCard } from "../src/components/GameModeCard";
 import { SelectedModeHeader } from "../src/components/SelectedModeHeader";
+import { describeMultiplayerJoinError } from "../src/core/utils/describeMultiplayerJoinError";
 
 type LobbyTab = "CREATE" | "JOIN" | "PUBLIC";
 
@@ -73,6 +74,7 @@ export default function LobbyScreen() {
 
     // — Shared state —
     const [loading, setLoading] = useState(false);
+    const [joinFeedback, setJoinFeedback] = useState<string | null>(null);
     const [currentUser, setCurrentUser] = useState<PlayerProfile | null>(null);
     const [activeTab, setActiveTab] = useState<LobbyTab>("CREATE");
     const [hostedWaitingRoomId, setHostedWaitingRoomId] = useState<
@@ -439,6 +441,7 @@ export default function LobbyScreen() {
     const handleJoinRoom = async () => {
         if (!requireAccountForMultiplayer()) return;
         if (!roomIdToJoin.trim() || !currentUser) return;
+        setJoinFeedback(null);
         const cleanRoomId = roomIdToJoin.trim().toUpperCase();
         if (
             cleanRoomId.length < 5 ||
@@ -463,8 +466,10 @@ export default function LobbyScreen() {
                 pathname: "/game/[id]",
                 params: { id: cleanRoomId, userId: currentUser.uid, tableTier },
             });
-        } catch (error: any) {
-            Alert.alert("Erreur", error.message || "Impossible de rejoindre.");
+        } catch (error: unknown) {
+            const message = describeMultiplayerJoinError(error);
+            setJoinFeedback(message);
+            Alert.alert("Impossible de rejoindre", message);
         } finally {
             setLoading(false);
         }
@@ -473,6 +478,7 @@ export default function LobbyScreen() {
     const handleJoinPublicRoom = async (roomId: string) => {
         if (!requireAccountForMultiplayer()) return;
         if (!currentUser) return;
+        setJoinFeedback(null);
         if (await ensureNoConflictingActiveRoom(roomId)) return;
         if (!(await checkBalanceOnly())) return; // ❌ Solde insuffisant
         try {
@@ -485,8 +491,10 @@ export default function LobbyScreen() {
                 pathname: "/game/[id]",
                 params: { id: roomId, userId: currentUser.uid, tableTier },
             });
-        } catch (error: any) {
-            Alert.alert("Erreur", error.message || "Impossible de rejoindre.");
+        } catch (error: unknown) {
+            const message = describeMultiplayerJoinError(error);
+            setJoinFeedback(message);
+            Alert.alert("Impossible de rejoindre", message);
         } finally {
             setLoading(false);
         }
@@ -1086,6 +1094,12 @@ export default function LobbyScreen() {
                     showsVerticalScrollIndicator={false}
                     scrollEnabled={true}
                 >
+                    {joinFeedback ? (
+                        <View style={styles.joinFeedback} accessibilityRole="alert">
+                            <Ionicons name="information-circle" size={20} color="#FFE082" />
+                            <Text style={styles.joinFeedbackText}>{joinFeedback}</Text>
+                        </View>
+                    ) : null}
                     <Animated.View
                         entering={FadeInUp.delay(200)}
                         style={[
@@ -1744,6 +1758,25 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         fontSize: 12,
         textAlign: "center",
+    },
+    joinFeedback: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginHorizontal: 20,
+        marginTop: 8,
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: "rgba(255, 152, 0, 0.18)",
+        borderWidth: 1,
+        borderColor: "rgba(255, 193, 7, 0.65)",
+    },
+    joinFeedbackText: {
+        flex: 1,
+        color: "#FFF3CD",
+        fontSize: 13,
+        fontWeight: "700",
+        lineHeight: 18,
     },
     hostedRoomCard: {
         backgroundColor: "rgba(255,215,0,0.08)",
