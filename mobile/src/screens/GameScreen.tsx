@@ -83,7 +83,7 @@ interface GameScreenProps {
 const ROUND_RESULT_AUTO_ADVANCE_MS = 3000;
 const MATCH_RESULT_AUTO_ADVANCE_MS = 5500;
 const RESULT_TRANSITION_FALLBACK_MS = 3000;
-const MATCH_REWARD_DELAY_MS = 2500;
+const MATCH_REWARD_DELAY_MS = 6000;
 const MATCH_EXIT_AD_FALLBACK_MS = 15000;
 
 export default function GameScreen({ gameId, userId, authUid, mode, difficulty, gameMode, winningCondition, turnDuration, startingHandSize: propStartingHandSize, tableTier: propTableTier }: GameScreenProps) {
@@ -1462,7 +1462,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         }
     }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, hasLegacyHostAuthority, usesSystemCoordinator, resolveBoudeOnce, isMoveAnimationActive]);
 
-    // Afficher la popup récompensée dans les 3 secondes suivant les scores.
+    // Laisser les scores lisibles avant d'afficher le cadeau de fin de match.
     // Uniquement en mode SOLO — en multi la pub interstitielle AdMob est déjà gérée ailleurs.
     useEffect(() => {
         if (shouldOfferMatchAdReward(Platform.OS, isSoloMode, scoreOverlayPhase)) {
