@@ -18,11 +18,13 @@ interface RoundEndFlowProps {
     autoAdvanceDelay?: number;
     /** Index 0-based du joueur local dans players[] pour échelonner les fallbacks non-hôte */
     localPlayerIndex?: number;
+    /** La fin définitive du match conserve le plateau visible avant les scores. */
+    isFinalMatch?: boolean;
 }
 
 type FlowPhase = 'idle' | 'dimming' | 'reveal' | 'counting' | 'result';
 
-export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, onDismiss, localPlayerId, opponents, skipAnimation, isHost, autoAdvanceDelay, localPlayerIndex = 0 }) => {
+export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, onDismiss, localPlayerId, opponents, skipAnimation, isHost, autoAdvanceDelay, localPlayerIndex = 0, isFinalMatch = false }) => {
     const [phase, setPhase] = useState<FlowPhase>('idle');
     const [countsCompleted, setCountsCompleted] = useState(0);
     const [skipCountingNow, setSkipCountingNow] = useState(false);
@@ -164,11 +166,12 @@ export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, 
                 isTie={isTie} 
                 isBoude={isBoude}
                 localPlayerId={localPlayerId}
-                visible={phase !== 'idle' && phase !== 'dimming'} 
+                visible={phase !== 'dimming'}
                 onContinue={handleContinuePress}
                 isHost={isHost}
                 autoAdvanceDelay={autoAdvanceDelay}
                 localPlayerIndex={localPlayerIndex}
+                compact={isFinalMatch}
             />
         </View>
     );

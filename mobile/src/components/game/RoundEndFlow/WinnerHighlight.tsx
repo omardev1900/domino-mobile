@@ -30,9 +30,11 @@ interface WinnerHighlightProps {
      * Le fallback est plafonné à 3s pour respecter la limite UX entre deux rounds.
      */
     localPlayerIndex?: number;
+    /** Une annonce compacte en haut laisse le dernier domino lisible à la fin du match. */
+    compact?: boolean;
 }
 
-export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie, isBoude, localPlayerId, visible, onContinue, isHost = true, autoAdvanceDelay = 4000, localPlayerIndex = 0 }) => {
+export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie, isBoude, localPlayerId, visible, onContinue, isHost = true, autoAdvanceDelay = 4000, localPlayerIndex = 0, compact = false }) => {
     const reducedMotion = useReducedMotion();
     const { height } = useWindowDimensions();
     const isSmallScreen = height < 700;
@@ -75,15 +77,18 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
     // safeUpdateGameState rejette silencieusement le doublon si l'hôte a déjà écrit.
     // FIX-400: délais échelonnés par index pour éviter que tous les non-hôtes écrivent
     // simultanément et provoquent des FAILED_PRECONDITION en cascade.
-    // Tous les clients restent sous la limite UX de 3 secondes.
+    // Pour la fin définitive, cette transition ne modifie pas l'état partagé :
+    // tous les clients peuvent donc conserver le même délai de lecture étendu.
     useEffect(() => {
         if (!visible || isHost || !autoAdvanceDelay || autoAdvanceDelay <= 0) return;
-        const fallbackDelay = Math.min(autoAdvanceDelay * 2 + localPlayerIndex * 2000, 3000);
+        const fallbackDelay = compact
+            ? autoAdvanceDelay
+            : Math.min(autoAdvanceDelay * 2 + localPlayerIndex * 2000, 3000);
         const timer = setTimeout(() => {
             onContinue();
         }, fallbackDelay);
         return () => clearTimeout(timer);
-    }, [visible, isHost, autoAdvanceDelay, localPlayerIndex]);
+    }, [visible, isHost, autoAdvanceDelay, localPlayerIndex, compact]);
 
     const pulseStyle = useAnimatedStyle(() => ({
         transform: [{ scale: pulseScale.value }]
@@ -94,7 +99,7 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
     return (
         <Animated.View 
             entering={FadeIn.duration(400)}
-            style={styles.container}
+            style={[styles.container, compact && styles.compactContainer]}
             pointerEvents="box-none"
         >
             {isTie ? (
@@ -114,7 +119,18 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
 
                 </View>
             ) : winner ? (
-                <View style={styles.centerBox}>
+                <View style={[styles.centerBox, compact && styles.compactCenterBox]}>
+                    {compact && <Text style={styles.matchCompleteText}>MATCH TERMINÉ</Text>}
+                    {compact ? (
+                        <Text style={styles.compactWinnerName}>
+                            {isBoude
+                                ? `${winner.name || 'Joueur'} remporte le match`
+                                : (winner.id === localPlayerId
+                                    ? 'Vous remportez le match'
+                                    : `${winner.name || 'Joueur'} remporte le match`)}
+                        </Text>
+                    ) : (
+                        <>
                     <Animated.View style={[
                         styles.avatarWrapper, 
                         pulseStyle,
@@ -141,7 +157,8 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
                                     : `${winner.name || 'Joueur'} a posé tous ses dominos`)}
                         </Text>
                     </Animated.View>
-
+                        </>
+                    )}
                 </View>
             ) : null}
         </Animated.View>
@@ -158,6 +175,37 @@ const styles = StyleSheet.create({
     centerBox: {
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    compactContainer: {
+        justifyContent: 'flex-start',
+        paddingTop: 24,
+    },
+    compactCenterBox: {
+        backgroundColor: 'rgba(18, 12, 35, 0.9)',
+        borderColor: '#FFD700',
+        borderRadius: 16,
+        borderWidth: 1,
+        elevation: 12,
+        maxWidth: '88%',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        shadowColor: '#000000',
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+    },
+    matchCompleteText: {
+        color: '#FFD700',
+        fontSize: 13,
+        fontWeight: '900',
+        letterSpacing: 1.5,
+        textAlign: 'center',
+    },
+    compactWinnerName: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '800',
+        marginTop: 4,
+        textAlign: 'center',
     },
     avatarWrapper: {
         position: 'relative',

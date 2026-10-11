@@ -81,8 +81,10 @@ interface GameScreenProps {
 }
 
 const ROUND_RESULT_AUTO_ADVANCE_MS = 3000;
+const MATCH_RESULT_AUTO_ADVANCE_MS = 5500;
 const RESULT_TRANSITION_FALLBACK_MS = 3000;
 const MATCH_REWARD_DELAY_MS = 2500;
+const MATCH_EXIT_AD_FALLBACK_MS = 15000;
 
 export default function GameScreen({ gameId, userId, authUid, mode, difficulty, gameMode, winningCondition, turnDuration, startingHandSize: propStartingHandSize, tableTier: propTableTier }: GameScreenProps) {
     const { width, height } = useWindowDimensions();
@@ -780,6 +782,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
     // Google AdMob
     const { isLoaded: isAdMobLoaded, isClosed: isAdMobClosed, load: loadAdMob, show: showAdMob } = useInterstitialAd(AdMobIds.INTERSTITIAL_FIN_PARTIE);
+    const interstitialOnCloseRef = useRef<(() => void) | null>(null);
+    const interstitialFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         if (Platform.OS !== 'web') {
@@ -789,13 +793,26 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
     useEffect(() => {
         if (isAdMobClosed) {
+            if (interstitialFallbackRef.current) {
+                clearTimeout(interstitialFallbackRef.current);
+                interstitialFallbackRef.current = null;
+            }
+            const onClose = interstitialOnCloseRef.current;
+            interstitialOnCloseRef.current = null;
             isAdVisibleRef.current = false;
             setIsAdVisible(false);
             if (Platform.OS !== 'web') {
                 loadAdMob();
             }
+            onClose?.();
         }
     }, [isAdMobClosed, loadAdMob]);
+
+    useEffect(() => () => {
+        if (interstitialFallbackRef.current) {
+            clearTimeout(interstitialFallbackRef.current);
+        }
+    }, []);
 
     useEffect(() => {
         gameStateRef.current = gameState;
@@ -1424,29 +1441,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         if (gameState.phase === 'MATCH_END') {
             const triggerMatchEnd = () => {
                 setScoreOverlayPhase('MATCH_END');
-                if (isSoloMode || Platform.OS === 'web' || !isAdMobLoaded) return;
-
-                isAdVisibleRef.current = true;
-                setIsAdVisible(true);
-                setTimeout(() => {
-                    try {
-                        showAdMob();
-                        setTimeout(() => {
-                            if (isAdVisibleRef.current) {
-                                LogService.warn('GameScreen', 'AdMob fallback timeout (MATCH_END)');
-                                isAdVisibleRef.current = false;
-                                setIsAdVisible(false);
-                            }
-                        }, RESULT_TRANSITION_FALLBACK_MS);
-                    } catch (e) {
-                        LogService.error('GameScreen', 'Failed to show AdMob (MATCH_END)', e);
-                        isAdVisibleRef.current = false;
-                        setIsAdVisible(false);
-                    }
-                }, 50);
             };
 
-            // Fin de match : rÃ©sultat bref, puis scores en moins de 3 secondes.
+            // Fin de match : le plateau reste lisible plus longtemps, puis les scores.
             setScoreOverlayPhase(null);
             setRoundResultSnapshot(gameState);
             setShowRoundResult(true);
@@ -1454,7 +1451,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 triggerMatchEnd();
             };
             if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
-            roundResultTimerRef.current = setTimeout(handleDismissRoundResult, RESULT_TRANSITION_FALLBACK_MS);
+            roundResultTimerRef.current = setTimeout(handleDismissRoundResult, MATCH_RESULT_AUTO_ADVANCE_MS);
             return () => {
                 // FIX-TIMER: null obligatoire pour permettre le re-arm après rerun de l'effet
                 if (roundResultTimerRef.current) {
@@ -1937,7 +1934,38 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         // La navigation définitive quand l'overlay (qui gère déjà Scores / Historique / Gains) est fermé.
         setScoreOverlayPhase(null);
         if (gameState?.phase === 'MATCH_END') {
-             handleLeaveRoom(); // Quitte la salle définitivement après la fin du match complet
+            // La publicité ne doit jamais recouvrir le dernier domino ni les scores.
+            // Elle est différée au geste explicite de sortie du joueur.
+            if (isSoloMode || Platform.OS === 'web' || !isAdMobLoaded) {
+                handleLeaveRoom();
+                return;
+            }
+
+            const finishExit = () => {
+                if (interstitialFallbackRef.current) {
+                    clearTimeout(interstitialFallbackRef.current);
+                    interstitialFallbackRef.current = null;
+                }
+                interstitialOnCloseRef.current = null;
+                isAdVisibleRef.current = false;
+                setIsAdVisible(false);
+                handleLeaveRoom();
+            };
+
+            interstitialOnCloseRef.current = finishExit;
+            isAdVisibleRef.current = true;
+            setIsAdVisible(true);
+            interstitialFallbackRef.current = setTimeout(() => {
+                LogService.warn('GameScreen', 'AdMob fallback timeout before match exit');
+                finishExit();
+            }, MATCH_EXIT_AD_FALLBACK_MS);
+
+            try {
+                showAdMob();
+            } catch (error) {
+                LogService.error('GameScreen', 'Failed to show AdMob before match exit', error);
+                finishExit();
+            }
         } else if (usesSystemCoordinator) {
             // Les overlays se ferment localement ; seule la Function fait
             // progresser l'etat partage des salles coordonnees.
@@ -1954,7 +1982,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             }
             handleOverlayContinue(); // Continue vers la prochaine manche
         }
-    }, [gameState?.phase, gameState?.mancheNumber, gameState?.roundNumber, isSoloMode, usesSystemCoordinator, handleLeaveRoom, handleOverlayContinue]);
+    }, [gameState?.phase, gameState?.mancheNumber, gameState?.roundNumber, isSoloMode, usesSystemCoordinator, handleLeaveRoom, handleOverlayContinue, isAdMobLoaded, showAdMob]);
 
 
 
@@ -2087,17 +2115,15 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
 
 
-                {gameState?.phase !== 'MATCH_END' && (
-                    <GameTable
-                        ref={tableRef}
-                        gameState={gameState}
-                        theme={tableTheme}
-                        pendingDomino={pendingDomino}
-                        onSideSelect={wrappedConfirmSidePlay}
-                        skinConfig={playerSkinConfig}
-                        hiddenDominoId={effectiveHiddenDominoId}
-                    />
-                )}
+                <GameTable
+                    ref={tableRef}
+                    gameState={gameState}
+                    theme={tableTheme}
+                    pendingDomino={pendingDomino}
+                    onSideSelect={wrappedConfirmSidePlay}
+                    skinConfig={playerSkinConfig}
+                    hiddenDominoId={effectiveHiddenDominoId}
+                />
 
 
                 {/* QUICK CHAT UI */}
@@ -2209,8 +2235,11 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     localPlayerId={localPlayerId}
                     opponents={opponents}
                     isHost={hasLegacyHostAuthority}
-                    autoAdvanceDelay={ROUND_RESULT_AUTO_ADVANCE_MS}
+                    autoAdvanceDelay={(roundResultSnapshot ?? gameState)?.phase === 'MATCH_END'
+                        ? MATCH_RESULT_AUTO_ADVANCE_MS
+                        : ROUND_RESULT_AUTO_ADVANCE_MS}
                     localPlayerIndex={(roundResultSnapshot ?? gameState)?.players.findIndex(p => p.id === localPlayerId) ?? 0}
+                    isFinalMatch={(roundResultSnapshot ?? gameState)?.phase === 'MATCH_END'}
                 />
             )}
 

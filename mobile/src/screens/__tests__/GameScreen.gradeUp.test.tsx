@@ -11,6 +11,7 @@ const mockRoundResultCard = jest.fn((props: any) => null as any);
 const mockMancheEndFlow = jest.fn((props: any) => null as any);
 const mockPlayerArea = jest.fn((props: any) => null as any);
 const mockActionFooter = jest.fn((props: any) => null as any);
+const mockGameTable = jest.fn((props: any) => null as any);
 const mockHandleOverlayContinue = jest.fn();
 
 const getLastOverlayProps = () => mockGameOverlays.mock.calls[mockGameOverlays.mock.calls.length - 1][0];
@@ -64,7 +65,7 @@ jest.mock('react-native-safe-area-context', () => {
 });
 
 jest.mock('../../components/GameTable', () => ({
-    GameTable: () => null,
+    GameTable: (props: any) => mockGameTable(props),
 }));
 jest.mock('../../components/PlayerHand', () => ({
     PlayerHand: () => null,
@@ -752,11 +753,12 @@ describe('GameScreen grade-up flow', () => {
         expect(getLastRoundResultProps().gameState.phase).toBe('MATCH_END');
 
         await act(async () => {
-            jest.advanceTimersByTime(3100);
+            jest.advanceTimersByTime(5600);
             await Promise.resolve();
         });
 
         expect(getLastOverlayProps().showScoreOverlay).toBe(true);
+        expect(mockGameTable.mock.calls[mockGameTable.mock.calls.length - 1][0].gameState.phase).toBe('MATCH_END');
 
         view.unmount();
         jest.runOnlyPendingTimers();

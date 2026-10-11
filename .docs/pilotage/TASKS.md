@@ -1,5 +1,8 @@
 # Taches actives
 
+- [ ] `UI-ROUND-END-01` En cours - Fin de match : conserver le dernier domino
+  visible, déplacer l'annonce du vainqueur hors du plateau, allonger la
+  consultation des resultats et ne plus laisser la publicite les recouvrir.
 - [ ] `WEB-MULTI-JOIN-01` En cours - Safari en navigation privee : reporter
   l'initialisation audio apres un geste utilisateur afin que l'erreur
   `expo-audio` ne casse pas le lobby, puis refaire la recette de jointure a
