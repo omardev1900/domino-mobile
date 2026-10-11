@@ -2,6 +2,15 @@
 
 ### 2026-10-11
 
+- [x] `AUDIO-REGRESSION-01` Lecture BGM et SFX restauree sur web et Android
+  apres le report d'initialisation Safari, sans reintroduire l'erreur
+  `expo-audio` en navigation privee. Recette validee.
+- [x] `WEB-MULTI-JOIN-01` Jointure web multijoueur validee avec les erreurs
+  Firebase rendues exploitables ; la recette utilisateur est validee.
+- [x] `ADS-REWARD-01` Recompense de fin de match solo securisee : aucune
+  publicite ni recompense sur le web, bypass mobile borne au `no-fill` AdMob,
+  credit Firestore idempotent par match et recette Android validee.
+
 - [x] `PRESENCE-05` Reconnexion client stabilisee : les signaux concurrents
   sont dedoublonnes, les changements reseau brefs sont absorbes par hysteresis
   et le voile reseau bloquant est remplace par une banniere non bloquante.

@@ -2,6 +2,12 @@
 
 ### 2026-10-11
 
+- Les musiques et effets sonores fonctionnent de nouveau sur le web et Android,
+  y compris sans provoquer d'erreur au chargement en navigation privee.
+- La recompense de fin de partie solo est desormais attribuee une seule fois et
+  uniquement apres le traitement mobile approprie ; elle n'apparait pas sur le
+  web.
+
 - Quitter une partie multijoueur depuis la proposition de reprise fonctionne
   maintenant comme depuis la table : la partie est abandonnee correctement et
   il est possible d'en creer ou rejoindre une autre immediatement.
