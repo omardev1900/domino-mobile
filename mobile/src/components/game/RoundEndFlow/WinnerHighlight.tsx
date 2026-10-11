@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, { 
     ZoomIn, 
@@ -8,6 +8,7 @@ import Animated, {
     withRepeat, 
     withSequence, 
     withTiming, 
+    withDelay,
     useReducedMotion 
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
@@ -32,16 +33,30 @@ interface WinnerHighlightProps {
     localPlayerIndex?: number;
     /** Une annonce compacte en haut laisse le dernier domino lisible à la fin du match. */
     compact?: boolean;
+    /** Position visuelle de l'avatar avant son animation vers le centre. */
+    origin?: 'top-left' | 'top-right' | 'bottom';
 }
 
-export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie, isBoude, localPlayerId, visible, onContinue, isHost = true, autoAdvanceDelay = 4000, localPlayerIndex = 0, compact = false }) => {
+export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie, isBoude, localPlayerId, visible, onContinue, isHost = true, autoAdvanceDelay = 4000, localPlayerIndex = 0, compact = false, origin = 'bottom' }) => {
     const reducedMotion = useReducedMotion();
-    const { height } = useWindowDimensions();
+    const { height, width } = useWindowDimensions();
     const isSmallScreen = height < 700;
     const pulseScale = useSharedValue(1);
+    const winnerScale = useSharedValue(1);
+    const winnerOpacity = useSharedValue(1);
+    const winnerTranslateX = useSharedValue(0);
+    const winnerTranslateY = useSharedValue(0);
+
+    const originOffset = useMemo(() => {
+        const horizontalOffset = width * 0.32;
+        const verticalOffset = height * 0.32;
+        if (origin === 'top-right') return { x: horizontalOffset, y: -verticalOffset };
+        if (origin === 'top-left') return { x: -horizontalOffset, y: -verticalOffset };
+        return { x: -horizontalOffset, y: verticalOffset };
+    }, [height, origin, width]);
 
     useEffect(() => {
-        if (visible && winner && !reducedMotion) {
+        if (visible && winner && compact && !reducedMotion) {
             pulseScale.value = withRepeat(
                 withSequence(
                     withTiming(1.15, { duration: 500 }),
@@ -51,7 +66,42 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
                 true // reverse
             );
         }
-    }, [visible, winner, reducedMotion]);
+    }, [visible, winner, reducedMotion, compact]);
+
+    useEffect(() => {
+        if (!visible || !winner || compact) {
+            winnerScale.value = 1;
+            winnerOpacity.value = 1;
+            winnerTranslateX.value = 0;
+            winnerTranslateY.value = 0;
+            return;
+        }
+
+        winnerScale.value = reducedMotion ? 1 : 0.45;
+        winnerOpacity.value = reducedMotion ? 1 : 0;
+        winnerTranslateX.value = reducedMotion ? 0 : originOffset.x;
+        winnerTranslateY.value = reducedMotion ? 0 : originOffset.y;
+
+        if (reducedMotion) return;
+
+        // L'avatar apparaît à la position de son joueur, clignote et zoome,
+        // puis rejoint le centre du plateau pour annoncer le vainqueur.
+        winnerOpacity.value = withSequence(
+            withTiming(1, { duration: 120 }),
+            withTiming(0.35, { duration: 110 }),
+            withTiming(1, { duration: 110 }),
+            withTiming(0.4, { duration: 110 }),
+            withTiming(1, { duration: 110 }),
+        );
+        winnerScale.value = withSequence(
+            withTiming(0.68, { duration: 220 }),
+            withTiming(0.48, { duration: 180 }),
+            withTiming(0.7, { duration: 140 }),
+            withTiming(1, { duration: 600 }),
+        );
+        winnerTranslateX.value = withDelay(510, withTiming(0, { duration: 600 }));
+        winnerTranslateY.value = withDelay(510, withTiming(0, { duration: 600 }));
+    }, [compact, originOffset, reducedMotion, visible, winner]);
 
     useEffect(() => {
         if (visible && winner) {
@@ -90,8 +140,13 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
         return () => clearTimeout(timer);
     }, [visible, isHost, autoAdvanceDelay, localPlayerIndex, compact]);
 
-    const pulseStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: pulseScale.value }]
+    const winnerMotionStyle = useAnimatedStyle(() => ({
+        opacity: compact ? 1 : winnerOpacity.value,
+        transform: [
+            { translateX: compact ? 0 : winnerTranslateX.value },
+            { translateY: compact ? 0 : winnerTranslateY.value },
+            { scale: compact ? pulseScale.value : winnerScale.value },
+        ],
     }));
 
     if (!visible) return null;
@@ -133,7 +188,7 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
                         <>
                     <Animated.View style={[
                         styles.avatarWrapper, 
-                        pulseStyle,
+                        winnerMotionStyle,
                         isSmallScreen && { width: 100, height: 100 }
                     ]}>
                         <Image
@@ -141,14 +196,14 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
                             style={[styles.avatar, isSmallScreen && { width: 100, height: 100, borderRadius: 50 }]}
                             contentFit="cover"
                         />
-                        <Animated.Text 
-                            entering={reducedMotion ? undefined : ZoomIn.delay(200).springify()} 
+                        <Animated.Text
+                            entering={reducedMotion ? undefined : ZoomIn.delay(1000).springify()}
                             style={[styles.crown, isSmallScreen && { fontSize: 36, top: -20, right: -15 }]}
                         >
                             👑
                         </Animated.Text>
                     </Animated.View>
-                    <Animated.View entering={reducedMotion ? undefined : FadeIn.delay(300)}>
+                    <Animated.View entering={reducedMotion ? undefined : FadeIn.delay(1120)}>
                         <Text style={[styles.winnerName, isSmallScreen && { fontSize: 18, marginTop: 10 }]}>
                             {isBoude 
                                 ? `${winner.name || 'Joueur'} a gagné ce round`

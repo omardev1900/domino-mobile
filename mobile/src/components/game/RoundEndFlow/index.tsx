@@ -70,7 +70,7 @@ export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, 
                 }
             }
 
-            // Reveal quickly so the complete hands remain readable before the 3s transition.
+            // Laisser le dernier domino visible avant de révéler le vainqueur du round.
             timeouts.push(setTimeout(() => {
                 setPhase('reveal');
                 // Simulate clack sounds
@@ -90,7 +90,7 @@ export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, 
                     }
                 }, 400));
 
-            }, 200));
+            }, isFinalMatch ? 200 : 1000));
         }
 
         return () => {
@@ -125,6 +125,11 @@ export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, 
     if (!visible || phase === 'idle') return null;
 
     const localPlayer = gameState.players.find(p => p.id === localPlayerId);
+    const winnerOrigin = (() => {
+        if (!winner || winner.id === localPlayerId) return 'bottom';
+        if (winner.id === opponents[0]?.id) return 'top-right';
+        return 'top-left';
+    })();
 
     return (
         <View style={[StyleSheet.absoluteFillObject, { zIndex: 1000, elevation: 1000 }]} pointerEvents="box-none">
@@ -172,6 +177,7 @@ export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, 
                 autoAdvanceDelay={autoAdvanceDelay}
                 localPlayerIndex={localPlayerIndex}
                 compact={isFinalMatch}
+                origin={winnerOrigin}
             />
         </View>
     );
