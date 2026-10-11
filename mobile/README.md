@@ -2,6 +2,16 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
+## Android release versioning
+
+Before every generated release APK, increment the final segment of the public
+version in `app.json`, `android/app/build.gradle`, and the generated Android
+runtime string. Increment `versionCode` as well. Builds stay local:
+
+```bash
+cd android && ./gradlew assembleRelease
+```
+
 ## Get started
 
 1. Install dependencies

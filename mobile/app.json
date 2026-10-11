@@ -2,7 +2,7 @@
   "expo": {
     "name": "Domino Martiniquais",
     "slug": "domino-martinique",
-    "version": "2.0.2",
+    "version": "2.0.6",
     "orientation": "landscape",
     "icon": "./src/assets/images/icon.png",
     "scheme": "domino-martinique",
@@ -17,7 +17,7 @@
     "android": {
       "package": "com.dominomartinique.mobile",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 17,
+      "versionCode": 19,
       "predictiveBackGestureEnabled": false,
       "intentFilters": [
         {
@@ -95,7 +95,7 @@
       }
     },
     "owner": "aboumalak",
-    "runtimeVersion": "2.0.2",
+    "runtimeVersion": "2.0.6",
     "updates": {
       "url": "https://u.expo.dev"
     }
