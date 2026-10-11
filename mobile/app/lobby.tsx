@@ -908,42 +908,44 @@ export default function LobbyScreen() {
     // ─── JOIN Tab ───────────────────────────────────────────────────
 
     const renderJoinTab = () => (
-        <Animated.View entering={FadeIn.delay(200)} style={styles.card}>
-            <Text style={styles.cardTitle}>Rejoindre une Table</Text>
-            <Text style={styles.cardSubtitle}>
-                Entre le code partagé par l&apos;hôte
-            </Text>
+        <Animated.View entering={FadeIn.delay(200)} style={styles.joinLayout}>
+            <View style={styles.joinHeader}>
+                <Text style={styles.joinTitle}>Rejoindre une table</Text>
+                <Text style={styles.joinSubtitle}>
+                    Entre le code partagé par l&apos;hôte
+                </Text>
+            </View>
             <TextInput
-                style={styles.input}
+                style={styles.joinCodeInput}
                 placeholder="Code de la table"
                 placeholderTextColor="rgba(255,255,255,0.4)"
                 value={roomIdToJoin}
                 onChangeText={setRoomIdToJoin}
-                autoCapitalize="none"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={20}
             />
-            <View style={styles.playButtonWrapper}>
-                <TouchableOpacity
-                    style={styles.playButton}
-                    onPress={handleJoinRoom}
-                    activeOpacity={0.8}
+            <TouchableOpacity
+                style={styles.joinButton}
+                onPress={handleJoinRoom}
+                activeOpacity={0.8}
+            >
+                <LinearGradient
+                    colors={["#FFD700", "#FFA500"]}
+                    style={styles.joinButtonGradient}
                 >
-                    <LinearGradient
-                        colors={["#FFD700", "#FFA500"]}
-                        style={styles.playGradient}
-                    >
-                        <View style={styles.playContent}>
-                            <View style={styles.costContainer}>
-                                <Text style={{ fontSize: 18 }}>🪙</Text>
-                                <Text style={styles.costText}>
-                                    -{TABLE_CONFIGS[tableTier].buyIn}
-                                </Text>
-                            </View>
-                            <View style={styles.playDivider} />
-                            <Text style={styles.playText}>REJOINDRE</Text>
+                    <View style={styles.playContent}>
+                        <View style={styles.costContainer}>
+                            <Text style={{ fontSize: 18 }}>🪙</Text>
+                            <Text style={styles.costText}>
+                                -{TABLE_CONFIGS[tableTier].buyIn}
+                            </Text>
                         </View>
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
+                        <View style={styles.playDivider} />
+                        <Text style={styles.playText}>REJOINDRE</Text>
+                    </View>
+                </LinearGradient>
+            </TouchableOpacity>
 
             {debitFeedback && (
                 <Animated.Text
@@ -1459,27 +1461,54 @@ const styles = StyleSheet.create({
     privateToggleTextActive: {
         color: "#FFD700",
     },
-    // ─── Card ───────────────────────────────────────────────────
-    card: {
-        backgroundColor: "rgba(255,255,255,0.05)",
-        borderRadius: 20,
-        padding: 20,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.1)",
+    // ─── Join table ─────────────────────────────────────────────
+    joinLayout: {
         width: "100%",
+        maxWidth: 680,
+        alignItems: "stretch",
     },
-    cardTitle: {
-        fontSize: 22,
-        fontWeight: "bold",
-        color: "#FFD700",
-        marginBottom: 6,
-        textAlign: "center",
-    },
-    cardSubtitle: {
-        fontSize: 14,
-        color: "rgba(255,255,255,0.5)",
+    joinHeader: {
+        alignItems: "center",
         marginBottom: 20,
+    },
+    joinTitle: {
+        fontSize: 28,
+        fontWeight: "900",
+        color: "#FFD700",
         textAlign: "center",
+    },
+    joinSubtitle: {
+        marginTop: 6,
+        fontSize: 16,
+        color: "rgba(255,255,255,0.5)",
+        textAlign: "center",
+    },
+    joinCodeInput: {
+        width: "100%",
+        minHeight: 64,
+        paddingHorizontal: 20,
+        borderRadius: 16,
+        backgroundColor: "rgba(0,0,0,0.3)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.16)",
+        color: "#FFF",
+        fontSize: 19,
+        fontWeight: "700",
+        letterSpacing: 1.2,
+    },
+    joinButton: {
+        width: "100%",
+        height: 58,
+        marginTop: 14,
+        borderRadius: 16,
+        overflow: "hidden",
+        elevation: 8,
+    },
+    joinButtonGradient: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 20,
     },
     // ─── Game Mode Cards (Solo Copy) ─────────────────────────────
     gameModeContainer: {
