@@ -2,6 +2,10 @@
 
 ### 2026-10-11
 
+- En fin de round, le dernier domino reste visible un instant avant l'annonce.
+  Le vainqueur est ensuite mis en avant dans une animation vers le centre, sans
+  masquer le plateau ni precipiter la lecture des resultats.
+
 - Les musiques et effets sonores fonctionnent de nouveau sur le web et Android,
   y compris sans provoquer d'erreur au chargement en navigation privee.
 - La recompense de fin de partie solo est desormais attribuee une seule fois et

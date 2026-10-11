@@ -2,6 +2,11 @@
 
 ### 2026-10-11
 
+- [x] `UI-ROUND-END-01` Fin de round et de match rendue lisible : dernier
+  domino conserve une seconde avant l'annonce, vainqueur de round anime depuis
+  sa position vers le centre, resultats prolonges et publicite differee. APK
+  Android 2.0.13 recettee et validee.
+
 - [x] `AUDIO-REGRESSION-01` Lecture BGM et SFX restauree sur web et Android
   apres le report d'initialisation Safari, sans reintroduire l'erreur
   `expo-audio` en navigation privee. Recette validee.
