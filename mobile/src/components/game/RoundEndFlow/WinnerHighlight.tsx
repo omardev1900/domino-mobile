@@ -46,6 +46,9 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
     const winnerOpacity = useSharedValue(1);
     const winnerTranslateX = useSharedValue(0);
     const winnerTranslateY = useSharedValue(0);
+    const departureSparkle = useSharedValue(0);
+    const travelAura = useSharedValue(0);
+    const arrivalBurst = useSharedValue(0);
 
     const originOffset = useMemo(() => {
         const horizontalOffset = width * 0.32;
@@ -74,6 +77,9 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
             winnerOpacity.value = 1;
             winnerTranslateX.value = 0;
             winnerTranslateY.value = 0;
+            departureSparkle.value = 0;
+            travelAura.value = 0;
+            arrivalBurst.value = 0;
             return;
         }
 
@@ -81,11 +87,16 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
         winnerOpacity.value = reducedMotion ? 1 : 0;
         winnerTranslateX.value = reducedMotion ? 0 : originOffset.x;
         winnerTranslateY.value = reducedMotion ? 0 : originOffset.y;
+        departureSparkle.value = 0;
+        travelAura.value = 0;
+        arrivalBurst.value = 0;
 
         if (reducedMotion) return;
 
         // L'avatar apparaît à la position de son joueur, clignote et zoome,
         // puis rejoint le centre du plateau pour annoncer le vainqueur.
+        // Les VFX restent des calques Reanimated locaux : aucun asset lourd ni
+        // rendu supplémentaire du plateau pendant cette transition.
         winnerOpacity.value = withSequence(
             withTiming(1, { duration: 120 }),
             withTiming(0.35, { duration: 110 }),
@@ -97,10 +108,23 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
             withTiming(0.68, { duration: 220 }),
             withTiming(0.48, { duration: 180 }),
             withTiming(0.7, { duration: 140 }),
-            withTiming(1, { duration: 600 }),
+            withTiming(1.38, { duration: 600 }),
+            withTiming(1.16, { duration: 220 }),
         );
         winnerTranslateX.value = withDelay(510, withTiming(0, { duration: 600 }));
         winnerTranslateY.value = withDelay(510, withTiming(0, { duration: 600 }));
+        departureSparkle.value = withSequence(
+            withTiming(1, { duration: 150 }),
+            withTiming(0, { duration: 250 }),
+        );
+        travelAura.value = withSequence(
+            withDelay(430, withTiming(0.9, { duration: 220 })),
+            withTiming(0, { duration: 480 }),
+        );
+        arrivalBurst.value = withSequence(
+            withDelay(1030, withTiming(1, { duration: 150 })),
+            withTiming(0, { duration: 500 }),
+        );
     }, [compact, originOffset, reducedMotion, visible, winner]);
 
     useEffect(() => {
@@ -149,6 +173,21 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
         ],
     }));
 
+    const departureSparkleStyle = useAnimatedStyle(() => ({
+        opacity: departureSparkle.value,
+        transform: [{ scale: 0.55 + departureSparkle.value * 0.8 }],
+    }));
+
+    const travelAuraStyle = useAnimatedStyle(() => ({
+        opacity: travelAura.value,
+        transform: [{ scale: 0.8 + travelAura.value * 0.65 }],
+    }));
+
+    const arrivalBurstStyle = useAnimatedStyle(() => ({
+        opacity: arrivalBurst.value,
+        transform: [{ scale: 0.45 + arrivalBurst.value * 1.45 }],
+    }));
+
     if (!visible) return null;
 
     return (
@@ -191,6 +230,17 @@ export const WinnerHighlight: React.FC<WinnerHighlightProps> = ({ winner, isTie,
                         winnerMotionStyle,
                         isSmallScreen && { width: 100, height: 100 }
                     ]}>
+                        <Animated.View style={[styles.departureSparkle, departureSparkleStyle]}>
+                            <Text style={styles.departureSparkleText}>✦</Text>
+                            <Text style={[styles.departureSparkleText, styles.departureSparkleSide]}>✧</Text>
+                        </Animated.View>
+                        <Animated.View style={[styles.travelAura, travelAuraStyle]} />
+                        <Animated.View style={[styles.arrivalBurst, arrivalBurstStyle]}>
+                            <Text style={styles.arrivalBurstText}>✦</Text>
+                            <Text style={[styles.arrivalBurstText, styles.arrivalBurstTop]}>✦</Text>
+                            <Text style={[styles.arrivalBurstText, styles.arrivalBurstLeft]}>✦</Text>
+                            <Text style={[styles.arrivalBurstText, styles.arrivalBurstRight]}>✦</Text>
+                        </Animated.View>
                         <Image
                             source={getAvatarImage((winner.avatarId as AvatarId) || 'avatar_default')}
                             style={[styles.avatar, isSmallScreen && { width: 100, height: 100, borderRadius: 50 }]}
@@ -276,6 +326,69 @@ const styles = StyleSheet.create({
         borderRadius: 70,
         borderWidth: 4,
         borderColor: '#FFD700',
+        zIndex: 2,
+    },
+    departureSparkle: {
+        alignItems: 'center',
+        height: 80,
+        justifyContent: 'center',
+        left: 30,
+        position: 'absolute',
+        top: 24,
+        width: 80,
+        zIndex: 3,
+    },
+    departureSparkleText: {
+        color: '#FFF6B0',
+        fontSize: 52,
+        textShadowColor: '#FFD700',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 12,
+    },
+    departureSparkleSide: {
+        fontSize: 28,
+        position: 'absolute',
+        right: 0,
+        top: 0,
+    },
+    travelAura: {
+        backgroundColor: 'rgba(255, 215, 0, 0.34)',
+        borderColor: 'rgba(255, 248, 180, 0.9)',
+        borderRadius: 92,
+        borderWidth: 2,
+        bottom: -18,
+        left: -18,
+        position: 'absolute',
+        right: -18,
+        top: -18,
+        zIndex: 0,
+    },
+    arrivalBurst: {
+        alignItems: 'center',
+        height: 220,
+        justifyContent: 'center',
+        left: -40,
+        position: 'absolute',
+        top: -40,
+        width: 220,
+        zIndex: 3,
+    },
+    arrivalBurstText: {
+        color: '#FFFFFF',
+        fontSize: 28,
+        position: 'absolute',
+        textShadowColor: '#FFD700',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 14,
+    },
+    arrivalBurstTop: {
+        top: 8,
+    },
+    arrivalBurstLeft: {
+        left: 14,
+    },
+    arrivalBurstRight: {
+        right: 14,
     },
     crown: {
         position: 'absolute',
@@ -285,6 +398,7 @@ const styles = StyleSheet.create({
         textShadowColor: 'rgba(255,215,0,0.5)',
         textShadowOffset: { width: 0, height: 0 },
         textShadowRadius: 15,
+        zIndex: 4,
     },
     winnerText: {
         marginTop: 25,
