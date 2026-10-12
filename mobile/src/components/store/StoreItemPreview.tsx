@@ -170,8 +170,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 4,
     },
     domino: {
-        width: '74%',
-        maxWidth: 132,
+        width: '37%',
+        maxWidth: 66,
         aspectRatio: 2,
         flexDirection: 'row',
         alignItems: 'stretch',
