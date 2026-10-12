@@ -56,12 +56,9 @@ export const MdcFeedbackModal: React.FC<MdcFeedbackModalProps> = ({ visible, onC
         onClose();
     };
 
-    const openUrl = (url: string) => {
-        Linking.openURL(url).catch(() => undefined);
-    };
-
-    const openEmail = (email: string) => {
-        Linking.openURL(`mailto:${email}`).catch(() => undefined);
+    const openDeveloperEmail = () => {
+        const subject = encodeURIComponent('Contact depuis le jeu Domino Martinique');
+        Linking.openURL(`mailto:cmm.saghir@gmail.com?subject=${subject}`).catch(() => undefined);
     };
 
     return (
@@ -90,29 +87,15 @@ export const MdcFeedbackModal: React.FC<MdcFeedbackModalProps> = ({ visible, onC
                         </View>
 
                         <View style={styles.contactBox}>
-                            <Text style={styles.contactTitle}>Infos & contact</Text>
-                            <View style={styles.contactRow}>
-                                <Ionicons name="code-slash-outline" size={15} color="#FFD700" />
-                                <View style={styles.contactTextBlock}>
-                                    <Text style={styles.credits}>Développeur :</Text>
-                                    <TouchableOpacity onPress={() => openEmail('Omar@happyagency.ma')} activeOpacity={0.7}>
-                                        <Text style={styles.linkText}>Omar@happyagency.ma</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                            <View style={styles.contactRow}>
-                                <Ionicons name="globe-outline" size={15} color="#FFD700" />
-                                <View style={styles.contactTextBlock}>
-                                    <Text style={styles.credits}>Sites Web :</Text>
-                                    <TouchableOpacity onPress={() => openUrl('https://happyagency.ma')} activeOpacity={0.7}>
-                                        <Text style={styles.linkText}>https://happyagency.ma</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => openUrl('https://omatrice.com')} activeOpacity={0.7}>
-                                        <Text style={styles.linkText}>https://omatrice.com</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                            
+                            <Text style={styles.contactTitle}>Contacter le développeur</Text>
+                            <TouchableOpacity
+                                style={styles.contactButton}
+                                onPress={openDeveloperEmail}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons name="mail-outline" size={16} color="#1A0E2E" />
+                                <Text style={styles.contactButtonText}>Contactez-nous</Text>
+                            </TouchableOpacity>
                         </View>
                         </View>
 
@@ -281,19 +264,20 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '900',
     },
-    contactRow: {
+    contactButton: {
         flexDirection: 'row',
-        gap: 9,
-        alignItems: 'flex-start',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        backgroundColor: '#FFD700',
+        borderRadius: 10,
+        gap: 7,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
     },
-    contactTextBlock: {
-        flex: 1,
-    },
-    contactHint: {
-        flex: 1,
-        color: 'rgba(255,255,255,0.58)',
-        fontSize: 12,
-        lineHeight: 16,
+    contactButtonText: {
+        color: '#1A0E2E',
+        fontSize: 13,
+        fontWeight: '900',
     },
     // ── Feedback ──
     feedbackSection: {
