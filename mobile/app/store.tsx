@@ -17,7 +17,7 @@ import { authService } from '../src/core/services/auth.service';
 import { DailyRewardModal } from '../src/components/DailyRewardModal';
 import { RewardOverlay } from '../src/components/RewardOverlay';
 
-type TabType = 'ALL' | StoreItemType;
+type TabType = 'ALL' | 'PREMIUM' | StoreItemType;
 
 export default function StoreScreen() {
     const { width, height } = useWindowDimensions();
@@ -66,6 +66,7 @@ export default function StoreScreen() {
         if (types.includes('SKIN')) tabs.push({ id: 'SKIN', label: 'Skins', icon: 'color-palette' });
         if (types.includes('CURRENCY_PACK')) tabs.push({ id: 'CURRENCY_PACK', label: 'Devises', icon: 'diamond' });
         if (types.includes('EMOTE')) tabs.push({ id: 'EMOTE', label: 'Emotions', icon: 'happy' });
+        if (catalog.some(item => item.isPremium)) tabs.push({ id: 'PREMIUM', label: 'Premium', icon: 'star' });
 
         return tabs;
     }, [catalog]);
@@ -177,7 +178,9 @@ export default function StoreScreen() {
 
     const filteredCatalog = activeTab === 'ALL'
         ? catalog
-        : catalog.filter(item => item.type === activeTab);
+        : activeTab === 'PREMIUM'
+            ? catalog.filter(item => item.isPremium)
+            : catalog.filter(item => item.type === activeTab);
 
     const StoreAdCard = ({ playerEconomy }: { playerEconomy: any }) => {
         const { width: currentWidth, height: currentHeight } = useWindowDimensions();
