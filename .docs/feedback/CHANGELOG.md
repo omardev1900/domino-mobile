@@ -1,5 +1,11 @@
 # Changelog
 
+### 2026-10-12
+
+- Une reserve minimale de 100 coins est maintenant conservee apres une mise.
+  Quand le solde atteint 200 coins ou moins, l'application propose une video
+  recompensee depuis la boutique pour gagner 100 coins.
+
 ### 2026-10-11
 
 - Le vainqueur d'un round est maintenant accompagne d'effets lumineux legers

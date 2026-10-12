@@ -1,5 +1,11 @@
 # Taches terminees
 
+### 2026-10-12
+
+- [x] `ECON-MIN-COINS-01` Carte Trello « Min de coins » livree : reserve de
+  100 coins appliquee aux mises, proposition Android a 200 coins ou moins vers
+  la video recompensee de la boutique, et bouton boutique renomme « Voir ».
+
 ### 2026-10-11
 
 - [x] `UI-ROUND-WINNER-VFX-01` Animation de victoire de round enrichie avec
