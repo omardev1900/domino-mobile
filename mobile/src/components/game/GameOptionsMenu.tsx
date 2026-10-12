@@ -291,12 +291,13 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                                     {settingsTab === 'SKINS' && (
                                         <ScrollView style={styles.skinsScroll} showsVerticalScrollIndicator={false}>
                                             <Text style={styles.skinsHint}>Choisissez un skin que vous possédez. Le plateau change immédiatement.</Text>
+                                            <View style={styles.skinsGrid}>
                                             {ownedSkins.map((skin) => {
                                                 const isEquipped = skin.id === equippedSkinId;
                                                 return (
                                                     <TouchableOpacity
                                                         key={skin.id}
-                                                        style={[styles.skinRow, isEquipped && styles.skinRowEquipped]}
+                                                        style={[styles.skinCard, isEquipped && styles.skinCardEquipped]}
                                                         onPress={() => onEquipSkin(skin)}
                                                         disabled={isEquipped}
                                                         activeOpacity={0.8}
@@ -304,16 +305,16 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                                                         <View style={styles.skinPreview}>
                                                             <StoreItemPreview item={skin} height={52} />
                                                         </View>
-                                                        <View style={styles.skinInfo}>
-                                                            <Text style={styles.skinName}>{skin.name}</Text>
-                                                            <Text style={styles.skinDescription} numberOfLines={2}>{skin.description}</Text>
-                                                        </View>
-                                                        <Text style={[styles.skinAction, isEquipped && styles.skinActionEquipped]}>
-                                                            {isEquipped ? 'ACTIF' : 'ACTIVER'}
-                                                        </Text>
+                                                        <Text style={styles.skinName} numberOfLines={1}>{skin.name}</Text>
+                                                        {isEquipped && (
+                                                            <View style={styles.skinCheck}>
+                                                                <Ionicons name="checkmark" size={14} color="#1A0E2E" />
+                                                            </View>
+                                                        )}
                                                     </TouchableOpacity>
                                                 );
                                             })}
+                                            </View>
                                             {ownedSkins.length === 0 && (
                                                 <Text style={styles.emptySkinsText}>Aucun skin disponible pour le moment.</Text>
                                             )}
@@ -571,52 +572,53 @@ const styles = StyleSheet.create({
     skinsScroll: {
         maxHeight: 250,
     },
+    skinsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+    },
     skinsHint: {
         color: 'rgba(255,255,255,0.55)',
         fontSize: 11,
         lineHeight: 15,
         marginBottom: 8,
     },
-    skinRow: {
-        alignItems: 'center',
-        borderBottomWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        flexDirection: 'row',
-        gap: 8,
-        paddingVertical: 8,
+    skinCard: {
+        backgroundColor: 'rgba(255,255,255,0.045)',
+        borderColor: 'rgba(255,255,255,0.1)',
+        borderRadius: 10,
+        borderWidth: 1,
+        overflow: 'hidden',
+        padding: 6,
+        position: 'relative',
+        width: '48%',
     },
-    skinRowEquipped: {
+    skinCardEquipped: {
         backgroundColor: 'rgba(255,215,0,0.08)',
         borderColor: 'rgba(255,215,0,0.35)',
-        borderRadius: 8,
-        borderWidth: 1,
-        paddingHorizontal: 6,
     },
     skinPreview: {
         borderRadius: 6,
         overflow: 'hidden',
-        width: 74,
-    },
-    skinInfo: {
-        flex: 1,
+        width: '100%',
     },
     skinName: {
         color: '#FFFFFF',
         fontSize: 12,
         fontWeight: '800',
+        marginTop: 6,
+        textAlign: 'center',
     },
-    skinDescription: {
-        color: 'rgba(255,255,255,0.48)',
-        fontSize: 10,
-        marginTop: 2,
-    },
-    skinAction: {
-        color: '#FFD700',
-        fontSize: 10,
-        fontWeight: '900',
-    },
-    skinActionEquipped: {
-        color: '#4CAF50',
+    skinCheck: {
+        alignItems: 'center',
+        backgroundColor: '#FFD700',
+        borderRadius: 12,
+        height: 24,
+        justifyContent: 'center',
+        position: 'absolute',
+        right: 7,
+        top: 7,
+        width: 24,
     },
     emptySkinsText: {
         color: 'rgba(255,255,255,0.48)',
