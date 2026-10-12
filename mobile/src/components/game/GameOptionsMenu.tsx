@@ -303,9 +303,8 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                                                         activeOpacity={0.8}
                                                     >
                                                         <View style={styles.skinPreview}>
-                                                            <StoreItemPreview item={skin} height={52} />
+                                                            <StoreItemPreview item={skin} height={57} />
                                                         </View>
-                                                        <Text style={styles.skinName} numberOfLines={1}>{skin.name}</Text>
                                                         {isEquipped && (
                                                             <View style={styles.skinCheck}>
                                                                 <Ionicons name="checkmark" size={14} color="#1A0E2E" />
@@ -570,6 +569,7 @@ const styles = StyleSheet.create({
         color: '#FFD700',
     },
     skinsScroll: {
+        flexGrow: 0,
         maxHeight: 250,
     },
     skinsGrid: {
@@ -598,16 +598,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,215,0,0.35)',
     },
     skinPreview: {
-        borderRadius: 6,
-        overflow: 'hidden',
         width: '100%',
-    },
-    skinName: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '800',
-        marginTop: 6,
-        textAlign: 'center',
     },
     skinCheck: {
         alignItems: 'center',

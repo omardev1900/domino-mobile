@@ -160,6 +160,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     skinFrame: {
+        borderRadius: 0,
         padding: 2,
     },
     board: {
