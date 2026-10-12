@@ -342,65 +342,6 @@ export default function LobbyScreen() {
         if (!requireAccountForMultiplayer()) return;
         if (!currentUser) return;
 
-        // ❌ Vérification : l'utilisateur héberge déjà une table en attente
-        const hostedRoom = await findHostedWaitingRoom(currentUser.uid);
-        if (hostedRoom) {
-            setHostedWaitingRoomId(hostedRoom);
-            Alert.alert(
-                "Table existante",
-                "Vous êtes déjà l'hôte d'une table en attente. Rejoignez-la ou attendez qu'elle soit fermée.",
-                [
-                    { text: "Annuler", style: "cancel" },
-                    {
-                        text: "Rejoindre ma table",
-                        onPress: () =>
-                            router.push({
-                                pathname: "/game/[id]",
-                                params: {
-                                    id: hostedRoom,
-                                    userId: currentUser.uid,
-                                    tableTier,
-                                },
-                            }),
-                    },
-                    {
-                        text: "Supprimer ma table",
-                        style: "destructive",
-                        onPress: () =>
-                            handleDeleteHostedWaitingRoom(hostedRoom),
-                    },
-                ],
-            );
-            return;
-        }
-
-        // ❌ Vérification : l'utilisateur est déjà dans une partie active
-        const activeRoom = await findActiveRoomForUser(currentUser.uid);
-        if (activeRoom) {
-            Alert.alert(
-                "Partie en cours",
-                "Vous êtes déjà dans une partie active. Terminez-la avant d'en créer une nouvelle.",
-                [
-                    { text: "Annuler", style: "cancel" },
-                    {
-                        text: "Rejoindre la partie",
-                        onPress: () =>
-                            router.push({
-                                pathname: "/game/[id]",
-                                params: {
-                                    id: activeRoom,
-                                    userId: currentUser.uid,
-                                    tableTier,
-                                },
-                            }),
-                    },
-                ],
-            );
-            return;
-        }
-
-        if (!(await checkBalanceOnly())) return; // ❌ Solde insuffisant
-
         setRoomError(null);
         const result = roomNameSchema.safeParse(roomNameInput);
         if (!result.success) {
@@ -409,7 +350,67 @@ export default function LobbyScreen() {
         }
 
         try {
+            // Affiché avant toute lecture distante : la création ne doit plus
+            // donner l'impression que le bouton ne répond pas.
             setLoading(true);
+            const [hostedRoom, activeRoom, economy] = await Promise.all([
+                findHostedWaitingRoom(currentUser.uid),
+                findActiveRoomForUser(currentUser.uid),
+                economyService.getEconomy(),
+            ]);
+
+            if (hostedRoom) {
+                setHostedWaitingRoomId(hostedRoom);
+                Alert.alert(
+                    "Table existante",
+                    "Vous êtes déjà l'hôte d'une table en attente. Rejoignez-la ou attendez qu'elle soit fermée.",
+                    [
+                        { text: "Annuler", style: "cancel" },
+                        {
+                            text: "Rejoindre ma table",
+                            onPress: () => router.push({
+                                pathname: "/game/[id]",
+                                params: { id: hostedRoom, userId: currentUser.uid, tableTier },
+                            }),
+                        },
+                        {
+                            text: "Supprimer ma table",
+                            style: "destructive",
+                            onPress: () => handleDeleteHostedWaitingRoom(hostedRoom),
+                        },
+                    ],
+                );
+                return;
+            }
+
+            if (activeRoom) {
+                Alert.alert(
+                    "Partie en cours",
+                    "Vous êtes déjà dans une partie active. Terminez-la avant d'en créer une nouvelle.",
+                    [
+                        { text: "Annuler", style: "cancel" },
+                        {
+                            text: "Rejoindre la partie",
+                            onPress: () => router.push({
+                                pathname: "/game/[id]",
+                                params: { id: activeRoom, userId: currentUser.uid, tableTier },
+                            }),
+                        },
+                    ],
+                );
+                return;
+            }
+
+            const tableConfig = TABLE_CONFIGS[tableTier];
+            if (economy.coins - tableConfig.buyIn < MINIMUM_COIN_RESERVE) {
+                Alert.alert(
+                    "Coins insuffisants 🪙",
+                    `Cette mise doit vous laisser au moins ${MINIMUM_COIN_RESERVE} coins. Regardez une vidéo dans la boutique pour recharger votre solde.`,
+                    [{ text: "OK", style: "cancel" }],
+                );
+                return;
+            }
+
             // [R3-M2] Garantir leagueGrade + activeFrame dans le profil écrit en Firestore
             // (ne pas dépendre du state React qui peut être en retard)
             const enrichedProfile = await getEnrichedProfile();

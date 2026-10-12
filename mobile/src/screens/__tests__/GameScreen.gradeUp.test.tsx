@@ -210,7 +210,7 @@ jest.mock('../../hooks/game/useGameEngine', () => ({
 
 jest.mock('../../core/LogicEngine', () => ({
     determineFirstPlayer: jest.fn(),
-    dealGameSolo: jest.fn(),
+    dealGameSolo: jest.fn(() => mockCurrentGameState),
     getForcedOpeningDominoId: jest.fn(() => null),
     getForcedTieBreakDominoId: jest.fn(() => null),
     dealGame: jest.fn(),
@@ -276,6 +276,10 @@ jest.mock('../../core/services/store.service', () => ({
 
 jest.mock('../../core/services/bot.service', () => ({
     botService: {
+        getLocalBotsForLevel: jest.fn(() => [
+            { id: 'bot_1', name: 'Bot 1', avatarId: 'avatar_default', difficulty: 'MAPIPI' },
+            { id: 'bot_2', name: 'Bot 2', avatarId: 'avatar_default', difficulty: 'MAPIPI' },
+        ]),
         getBotsForLevel: jest.fn().mockResolvedValue([]),
     },
 }));

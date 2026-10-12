@@ -11,8 +11,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     getFirestore,
     initializeFirestore,
-    persistentLocalCache,
-    persistentMultipleTabManager,
     collection,
     addDoc,
     doc,
@@ -62,11 +60,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore with Persistence
-const firestoreSettings = Platform.OS === 'web' 
-    ? { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }
-    : {}; // On Mobile, simplified init or use specific RN persistence if enabled
-
-export const db = initializeFirestore(app, firestoreSettings);
+// Le jeu exige une connexion, y compris en solo. Le cache IndexedDB persistant
+// n'apporte donc pas de bénéfice produit sur le Web et peut conserver un état de
+// synchronisation défectueux entre onglets. On utilise le cache mémoire Web.
+export const db = Platform.OS === 'web'
+    ? getFirestore(app)
+    : initializeFirestore(app, {});
 export const storage = getStorage(app);
 // Realtime Database — utilisé uniquement pour la présence (onDisconnect).
 // Toute la logique de jeu reste sur Firestore.
@@ -94,6 +93,54 @@ export const auth = authInstance;
 
 // Collection References
 const ROOMS_COLLECTION = 'rooms';
+const FIRESTORE_READ_TIMEOUT_MS = 6_000;
+
+/**
+ * Encadre les lectures bloquantes de parcours utilisateur par une durée maximale
+ * et journalise leur coût. Les écritures ne passent volontairement pas ici : une
+ * écriture qui réussit après un timeout apparent créerait un résultat ambigu.
+ */
+export const readFirestoreWithTimeout = async <T>(
+    operation: string,
+    read: () => Promise<T>,
+    timeoutMs = FIRESTORE_READ_TIMEOUT_MS,
+): Promise<T> => {
+    const startedAt = Date.now();
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    try {
+        const result = await Promise.race<T>([
+            read(),
+            new Promise<T>((_, reject) => {
+                timeoutId = setTimeout(() => {
+                    reject(new Error(`Firestore read timed out after ${timeoutMs}ms: ${operation}`));
+                }, timeoutMs);
+            }),
+        ]);
+        LogService.info('Firestore', `[${operation}] read completed in ${Date.now() - startedAt}ms`);
+        return result;
+    } catch (error) {
+        LogService.warn('Firestore', `[${operation}] read failed after ${Date.now() - startedAt}ms`, error);
+        throw error;
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+    }
+};
+
+export const measureFirestoreWrite = async <T>(
+    operation: string,
+    write: () => Promise<T>,
+): Promise<T> => {
+    const startedAt = Date.now();
+    try {
+        const result = await write();
+        LogService.info('Firestore', `[${operation}] write completed in ${Date.now() - startedAt}ms`);
+        return result;
+    } catch (error) {
+        LogService.error('Firestore', `[${operation}] write failed after ${Date.now() - startedAt}ms`, error);
+        throw error;
+    }
+};
 
 /**
  * Options de jeu configurables à la création de la room
@@ -182,11 +229,19 @@ export const createRoom = async (
         while (!isUnique && loopCount < 10) {
             shortCode = generateShortCode();
             const docRef = doc(db, ROOMS_COLLECTION, shortCode);
-            const snap = await getDoc(docRef);
-            if (!snap.exists()) {
-                isUnique = true;
-                await setDoc(docRef, cleanRoomData);
-            }
+            const created = await measureFirestoreWrite('createRoom.transaction', () =>
+                runTransaction(db, async (transaction) => {
+                    const snap = await transaction.get(docRef);
+                    if (snap.exists()) return false;
+
+                    transaction.set(docRef, {
+                        ...cleanRoomData,
+                        roomId: shortCode,
+                    });
+                    return true;
+                }),
+            );
+            isUnique = created;
             loopCount++;
         }
 
@@ -195,10 +250,6 @@ export const createRoom = async (
         }
 
         LogService.info('Firebase', "Room created with ID:", shortCode);
-
-        // Update the room with its own ID
-        const finalDocRef = doc(db, ROOMS_COLLECTION, shortCode);
-        await updateDoc(finalDocRef, { roomId: shortCode });
 
         return shortCode;
     } catch (e: any) {
@@ -662,7 +713,7 @@ export const findHostedWaitingRoom = async (userId: string): Promise<string | nu
             where("createdBy", "==", userId),
             where("status", "==", RoomStatus.WAITING)
         );
-        const snapshot = await getDocs(q);
+        const snapshot = await readFirestoreWithTimeout('findHostedWaitingRoom.query', () => getDocs(q));
         if (snapshot.empty) return null;
 
         const TEN_MINUTES = 10 * 60 * 1000;
@@ -675,7 +726,7 @@ export const findHostedWaitingRoom = async (userId: string): Promise<string | nu
 
             if (isStale) {
                 // Nettoyage automatique : room abandonnée (app fermée avant démarrage)
-                await deleteDoc(roomDoc.ref);
+                await measureFirestoreWrite('findHostedWaitingRoom.deleteStale', () => deleteDoc(roomDoc.ref));
                 LogService.info('Firebase', `Stale hosted room deleted: ${roomDoc.id}`);
             } else {
                 return roomDoc.id; // Room récente → bloquer la création
@@ -743,7 +794,7 @@ export const getUserActiveRoom = async (userId: string): Promise<string | null> 
     if (!userId) return null;
     try {
         const userRef = doc(db, 'users', userId);
-        const userSnap = await getDoc(userRef);
+        const userSnap = await readFirestoreWithTimeout('getUserActiveRoom.user', () => getDoc(userRef));
         if (!userSnap.exists()) return null;
         const data = userSnap.data();
         return typeof data.activeRoomId === 'string' && data.activeRoomId.length > 0 ? data.activeRoomId : null;
@@ -770,7 +821,7 @@ export const findActiveRoomForUser = async (userId: string): Promise<string | nu
         const persistedRoomId = await getUserActiveRoom(userId);
         if (persistedRoomId) {
             const persistedRoomRef = doc(db, ROOMS_COLLECTION, persistedRoomId);
-            const persistedRoomSnap = await getDoc(persistedRoomRef);
+            const persistedRoomSnap = await readFirestoreWithTimeout('findActiveRoomForUser.persistedRoom', () => getDoc(persistedRoomRef));
             if (persistedRoomSnap.exists()) {
                 const persistedRoom = persistedRoomSnap.data() as GameRoom;
                 const isActive = persistedRoom.status === RoomStatus.PLAYING || persistedRoom.status === RoomStatus.WAITING;
@@ -809,7 +860,7 @@ export const findActiveRoomForUser = async (userId: string): Promise<string | nu
             where("playerIds", "array-contains", userId)
         );
 
-        const snapshot = await getDocs(q);
+        const snapshot = await readFirestoreWithTimeout('findActiveRoomForUser.query', () => getDocs(q));
         LogService.debug('Firebase', `Found ${snapshot.docs.length} PLAYING rooms to check`);
 
         for (const doc of snapshot.docs) {

@@ -1,5 +1,5 @@
 import { collection, getDocs, query, where, addDoc, doc, setDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, readFirestoreWithTimeout } from './firebase';
 
 export type BotDifficulty = 'TI_MANMAY' | 'MAPIPI' | 'GRAN_MOUN' | 'METKAYALI';
 
@@ -28,6 +28,18 @@ export const LOCAL_BOTS_FALLBACK: Record<BotDifficulty, BotProfile[]> = {
 };
 
 class BotService {
+    getLocalBotsForLevel(level: BotDifficulty, count: number = 2): BotProfile[] {
+        const localPool = LOCAL_BOTS_FALLBACK[level];
+        if (!localPool || localPool.length === 0) return [];
+
+        // Certains niveaux ne définissent qu'un bot local. Dupliquer son profil
+        // est préférable à bloquer le lancement de la partie en attendant Firestore.
+        return Array.from({ length: count }, (_, index) => ({
+            ...localPool[index % localPool.length],
+            id: `${localPool[index % localPool.length].id}_${index + 1}`,
+        }));
+    }
+
     async getBotsForLevel(level: BotDifficulty, count: number = 2): Promise<BotProfile[]> {
         // Fallback de sécurité immédiat si le niveau n'existe pas localement (prévention crash absolu)
         const localPool = LOCAL_BOTS_FALLBACK[level];
@@ -39,7 +51,10 @@ class BotService {
         try {
             const botsRef = collection(db, 'bots');
             const q = query(botsRef, where('difficulty', '==', level));
-            const querySnapshot = await getDocs(q);
+            const querySnapshot = await readFirestoreWithTimeout(
+                'botService.getBotsForLevel',
+                () => getDocs(q),
+            );
 
             const botsFromDb: BotProfile[] = [];
             querySnapshot.forEach((doc) => {

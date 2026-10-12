@@ -1011,7 +1011,6 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [playerSkinId, setPlayerSkinId] = useState<string | undefined>(undefined);
     const [playerSkinConfig, setPlayerSkinConfig] = useState<SkinConfig | undefined>(undefined);
     const [ownedSkins, setOwnedSkins] = useState<StoreItem[]>([]);
-    const [profileLoaded, setProfileLoaded] = useState(false);
     const statsRecordedRef = useRef(false);
     const [matchReward, setMatchReward] = useState<MatchReward | null>(null);
     const [showRewardOverlay, setShowRewardOverlay] = useState(false);
@@ -1253,7 +1252,6 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     LogService.error('GameScreen', 'Error loading inventory cosmetics', e);
                 }
 
-                setProfileLoaded(true);
             };
             loadSettings();
         }, [isSoloMode])
@@ -1527,11 +1525,10 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         }
     }, [gameState?.phase, hasLegacyHostAuthority, isSoloMode, gameId, activeTableTier, localPlayerId]);
     useEffect(() => {
-        // Solo mode - wait for profile to load first
+        // Le solo est local-first : les cosmétiques et le profil continuent à se
+        // charger en arrière-plan, mais ne doivent jamais retarder le deal.
         if (isSoloMode) {
-            if (!profileLoaded) {
-                return; // Wait for profile to load
-            }
+            if (gameState) return;
             setIsStarting(false); // Ensure loading is off
             startSoloGame();
             return;
@@ -1546,7 +1543,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         // Multiplayer loading...
         // useGameSync handles the subscription internally now, but if we need a custom one for chat:
         // Actually, triggerOpponentChat logic can be moved into useGameSync or a dedicated effect here
-    }, [gameId, isSoloMode, profileLoaded]);
+    }, [gameId, gameState, isSoloMode]);
 
     const forcedOpeningDominoId = useMemo(() => {
         if (!gameState) return null;
@@ -1645,9 +1642,13 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
             const botDifficulty = difficulty || 'MAPIPI';
 
-            // Fetch bot profiles from Firestore (or fallback)
-            const botProfiles = await botService.getBotsForLevel(botDifficulty, 2);
-            const playerNames = [playerDisplayName, ...botProfiles.map(b => b.name)];
+            // Démarrage sans réseau : le profil local garantit deux adversaires
+            // instantanément. La lecture distante reste un préchargement non bloquant
+            // pour les lancements suivants et les personnalisations éventuelles.
+            const botProfiles = botService.getLocalBotsForLevel(botDifficulty, 2);
+            void botService.getBotsForLevel(botDifficulty, 2).then(() => {
+                LogService.info('GameScreen', `[SOLO] Remote bot profiles refreshed for ${botDifficulty}`);
+            });
 
             const eco = await economyService.getEconomy();
 
