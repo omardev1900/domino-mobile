@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import Animated, { FadeIn, ZoomIn, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, interpolateColor } from 'react-native-reanimated';
+import Animated, { ZoomIn, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, interpolateColor } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
-import { LinearGradient } from 'expo-linear-gradient';
 import { DominoSide } from '../core/types';
 import HapticManager from '../core/audio/HapticManager';
 import { SkinConfig } from '../core/store.types';
@@ -128,13 +127,11 @@ export const DominoTile: React.FC<DominoTileProps> = ({
         const dotRadius = size * 0.09;
         return (
             <>
-                <LinearGradient
-                    colors={[palette.backgroundColor, palette.backgroundColor, palette.backgroundColor] as const}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFill}
+                <View
+                    pointerEvents="none"
+                    style={[StyleSheet.absoluteFill, { backgroundColor: palette.backgroundColor }]}
                 />
-                <Svg width={size} height={size} viewBox="0 0 100 100">
+                <Svg width={size} height={size} viewBox="0 0 100 100" style={styles.pips}>
                     {pips.map(([x, y], idx) => (
                         <Circle
                             key={idx}
@@ -213,6 +210,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         padding: 2,
+    },
+    pips: {
+        zIndex: 1,
     },
     divider: {
         alignItems: 'center',
