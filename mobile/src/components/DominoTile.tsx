@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { DominoSide } from '../core/types';
 import HapticManager from '../core/audio/HapticManager';
 import { SkinConfig } from '../core/store.types';
+import { resolveDominoSidePalette } from '../core/skinPalette';
 
 interface DominoTileProps {
     left: DominoSide;
@@ -73,23 +74,10 @@ export const DominoTile: React.FC<DominoTileProps> = ({
         }
     }, [isPlayable]);
 
-    // Apply skin aesthetics
-    // Base defaults if no config is available
-    let gradientColors = ['#f0e68c', '#eee8aa', '#bdb76b']; // Ivory
-    const DEFAULT_PIP_COLOR = '#615e53ff'; // Couleur des points dominos
-    let pipColor = DEFAULT_PIP_COLOR;
+    // Apply skin aesthetics. Value palettes are optional, preserving legacy skins.
     let dividerColor = 'rgba(0,0,0,0.15)';
 
     if (skinConfig) {
-        gradientColors = [
-            skinConfig.dominoBackgroundColor,
-            skinConfig.dominoBackgroundColor,
-            skinConfig.dominoBackgroundColor
-        ];
-        // Normalise to lowercase to handle potential casing differences from Firestore
-        const dotColor = skinConfig.dominoDotColor?.toLowerCase?.() ?? '';
-        // If the skin uses pure black (legacy default), replace with our visible brown
-        pipColor = (dotColor === '#000000' || dotColor === '#000') ? DEFAULT_PIP_COLOR : skinConfig.dominoDotColor;
         dividerColor = skinConfig.dominoLineColor;
     }
 
@@ -127,6 +115,7 @@ export const DominoTile: React.FC<DominoTileProps> = ({
 
     const renderHalfSVG = (value: DominoSide, isSideHorizontal: boolean) => {
         let pips = [...DOT_POSITIONS[value]];
+        const palette = resolveDominoSidePalette(value, skinConfig);
 
         // Special logic for 6: Rotate dots if horizontal (3 colonnes → 3 lignes)
         if (value === 6 && isSideHorizontal) {
@@ -138,17 +127,25 @@ export const DominoTile: React.FC<DominoTileProps> = ({
 
         const dotRadius = size * 0.09;
         return (
-            <Svg width={size} height={size} viewBox="0 0 100 100">
-                {pips.map(([x, y], idx) => (
-                    <Circle
-                        key={idx}
-                        cx={x * 100}
-                        cy={y * 100}
-                        r={dotRadius * 2.4} // Taille des points dominos
-                        fill={pipColor}
-                    />
-                ))}
-            </Svg>
+            <>
+                <LinearGradient
+                    colors={[palette.backgroundColor, palette.backgroundColor, palette.backgroundColor] as const}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                />
+                <Svg width={size} height={size} viewBox="0 0 100 100">
+                    {pips.map(([x, y], idx) => (
+                        <Circle
+                            key={idx}
+                            cx={x * 100}
+                            cy={y * 100}
+                            r={dotRadius * 2.4} // Taille des points dominos
+                            fill={palette.dotColor}
+                        />
+                    ))}
+                </Svg>
+            </>
         );
     };
 
@@ -167,15 +164,6 @@ export const DominoTile: React.FC<DominoTileProps> = ({
                     animatedGlowStyle,
                 ]}
             >
-                {/* Visual Background with native Linear Gradient (respecte le borderRadius du parent, pas de double antialiasing) */}
-                <LinearGradient
-                    colors={[gradientColors[0], gradientColors[1], gradientColors[2]] as const}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                />
-
-
                 {/* Left/Top Half */}
                 <View style={styles.half}>
                     {renderHalfSVG(left, !isVertical)}

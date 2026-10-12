@@ -273,13 +273,14 @@ export default function StoreScreen() {
         const canAffordCoins = item.priceCoins ? (playerEconomy?.coins ?? 0) >= item.priceCoins : true;
         const canAffordDiamonds = item.priceDiamonds ? (playerEconomy?.diamonds ?? 0) >= item.priceDiamonds : true;
         const canAfford = canAffordCoins && canAffordDiamonds;
+        const canTryPremium = item.isPremium && __DEV__;
 
         return (
             <Animated.View entering={FadeIn} key={item.id} style={[styles.card, cardLandscape && styles.cardLandscape, cardLandscape && { width: currentWidth * 0.24 }]}>
                 <View style={{ flex: 1 }}>
                     <View style={styles.cardHeader}>
                         <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
-                        <Text style={styles.cardRarity}>{item.rarity}</Text>
+                        <Text style={styles.cardRarity}>{item.isPremium ? 'PREMIUM' : item.rarity}</Text>
                     </View>
 
                     <View style={styles.cardImagePlaceholder}>
@@ -301,13 +302,16 @@ export default function StoreScreen() {
                 <View style={styles.cardFooter}>
                     {!isOwned ? (
                         <View style={styles.priceContainer}>
-                            {item.priceCoins !== undefined && item.priceCoins > 0 ? (
+                            {item.isPremium ? (
+                                <Text style={[styles.priceText, styles.premiumText]}>{canTryPremium ? 'TEST DEV' : 'PREMIUM'}</Text>
+                            ) : null}
+                            {!item.isPremium && item.priceCoins !== undefined && item.priceCoins > 0 ? (
                                 <Text style={styles.priceText}>🪙 {item.priceCoins}</Text>
                             ) : null}
-                            {item.priceDiamonds !== undefined && item.priceDiamonds > 0 ? (
+                            {!item.isPremium && item.priceDiamonds !== undefined && item.priceDiamonds > 0 ? (
                                 <Text style={[styles.priceText, { color: '#60DCFF' }]}>💎 {item.priceDiamonds}</Text>
                             ) : null}
-                            {item.priceCoins === 0 && item.priceDiamonds === undefined ? (
+                            {!item.isPremium && item.priceCoins === 0 && item.priceDiamonds === undefined ? (
                                 <Text style={[styles.priceText, { color: '#4CAF50' }]}>GRATUIT</Text>
                             ) : null}
                         </View>
@@ -326,11 +330,11 @@ export default function StoreScreen() {
                         </TouchableOpacity>
                     ) : (
                         <TouchableOpacity
-                            style={[styles.buyButton, !canAfford && { opacity: 0.5 }]}
+                            style={[styles.buyButton, (item.isPremium ? !canTryPremium : !canAfford) && { opacity: 0.5 }]}
                             onPress={() => onPurchase(item)}
-                            disabled={!canAfford}
+                            disabled={item.isPremium ? !canTryPremium : !canAfford}
                         >
-                            <Text style={styles.buyButtonText}>Acheter</Text>
+                            <Text style={styles.buyButtonText}>{canTryPremium ? 'Tester' : item.isPremium ? 'Premium' : 'Acheter'}</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -481,6 +485,9 @@ const styles = StyleSheet.create({
     },
     activeHeaderTabText: {
         color: '#1A0E2E',
+    },
+    premiumText: {
+        color: '#FFD700',
     },
     centerContainer: {
         flex: 1,

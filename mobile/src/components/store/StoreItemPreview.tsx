@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { getAvatarImage, hasAvatarImage } from '../../core/avatars';
 import { StoreItem, SkinConfig } from '../../core/store.types';
+import { resolveDominoSidePalette } from '../../core/skinPalette';
 
 type StoreItemPreviewProps = {
     item: StoreItem;
@@ -32,18 +33,19 @@ function DominoPip({ color }: { color: string }) {
     return <View style={[styles.pip, { backgroundColor: color }]} />;
 }
 
-function DominoHalf({ color, value }: { color: string; value: 0 | 5 }) {
+function DominoHalf({ skin, value }: { skin: SkinConfig; value: 0 | 5 }) {
+    const palette = resolveDominoSidePalette(value, skin);
     if (value === 0) {
-        return <View style={styles.dominoHalf} />;
+        return <View style={[styles.dominoHalf, { backgroundColor: palette.backgroundColor }]} />;
     }
 
     return (
-        <View style={styles.dominoHalf}>
-            <View style={[styles.pipSlot, styles.pipTopLeft]}><DominoPip color={color} /></View>
-            <View style={[styles.pipSlot, styles.pipTopRight]}><DominoPip color={color} /></View>
-            <View style={[styles.pipSlot, styles.pipCenter]}><DominoPip color={color} /></View>
-            <View style={[styles.pipSlot, styles.pipBottomLeft]}><DominoPip color={color} /></View>
-            <View style={[styles.pipSlot, styles.pipBottomRight]}><DominoPip color={color} /></View>
+        <View style={[styles.dominoHalf, { backgroundColor: palette.backgroundColor }]}>
+            <View style={[styles.pipSlot, styles.pipTopLeft]}><DominoPip color={palette.dotColor} /></View>
+            <View style={[styles.pipSlot, styles.pipTopRight]}><DominoPip color={palette.dotColor} /></View>
+            <View style={[styles.pipSlot, styles.pipCenter]}><DominoPip color={palette.dotColor} /></View>
+            <View style={[styles.pipSlot, styles.pipBottomLeft]}><DominoPip color={palette.dotColor} /></View>
+            <View style={[styles.pipSlot, styles.pipBottomRight]}><DominoPip color={palette.dotColor} /></View>
         </View>
     );
 }
@@ -58,9 +60,9 @@ function SingleDominoPreview({ skin }: { skin: SkinConfig }) {
                 },
             ]}
         >
-            <DominoHalf color={skin.dominoDotColor} value={5} />
+            <DominoHalf skin={skin} value={5} />
             <View style={[styles.divider, { backgroundColor: skin.dominoLineColor }]} />
-            <DominoHalf color={skin.dominoDotColor} value={0} />
+            <DominoHalf skin={skin} value={0} />
         </View>
     );
 }

@@ -4,10 +4,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StoreItem, PlayerInventory, StoreItemType, StoreItemRarity } from '../store.types';
 import { economyService } from './economy.service';
 import { authService } from './auth.service';
-import { DEFAULT_INVENTORY } from '../store.constants';
+import { DEFAULT_INVENTORY, STORE_CATALOG } from '../store.constants';
 
 const STORE_COLLECTION = 'store_catalog';
 const STORAGE_KEY_GUEST_INVENTORY = '@guest_inventory';
+const IS_DEVELOPMENT = typeof __DEV__ !== 'undefined' && __DEV__;
+
+function mergeDevelopmentPremiumItems(catalog: StoreItem[]): StoreItem[] {
+    if (!IS_DEVELOPMENT) return catalog;
+
+    const premiumItems = STORE_CATALOG.filter(item => item.isPremium);
+    const nonPremiumItems = catalog.filter(item => !premiumItems.some(premium => premium.id === item.id));
+    return [...nonPremiumItems, ...premiumItems];
+}
 
 export class StoreService {
 
@@ -85,12 +94,13 @@ export class StoreService {
                     assetId: data.assetId || 'default',
                     imageUrl: data.imageUrl,
                     skinConfig: data.skinConfig,
+                    isPremium: data.isPremium === true,
                 });
             });
-            return catalog;
+            return mergeDevelopmentPremiumItems(catalog);
         } catch (error) {
             console.error("Error fetching catalog from Firestore:", error);
-            return []; // Fallback to empty if network issue
+            return mergeDevelopmentPremiumItems([]);
         }
     }
 
@@ -116,7 +126,7 @@ export class StoreService {
         }
 
         // Apply equipment mapping
-        const newInventory = JSON.parse(JSON.stringify(inventory)) as PlayerInventory;
+        const newInventory = structuredClone(inventory);
         if (item.type === 'AVATAR') {
             newInventory.equipped.avatar = itemId;
             // Sync with global auth profile to update everywhere. Prefer imageUrl if available (remote), fallback to assetId (local string)
@@ -140,6 +150,10 @@ export class StoreService {
         const item = catalog.find(i => i.id === itemId);
         if (!item) return { success: false, message: "Item introuvable" };
 
+        if (item.isPremium && !IS_DEVELOPMENT) {
+            return { success: false, message: "Cet objet est réservé aux abonnés Premium." };
+        }
+
         // 1. Check if already owned for non-consumables
         if (item.type !== 'CURRENCY_PACK') {
             const isOwned = await this.isItemOwned(item.id);
@@ -151,17 +165,17 @@ export class StoreService {
         // 2. Check funds
         const economy = await economyService.getEconomy();
 
-        if (item.priceCoins && economy.coins < item.priceCoins) {
+        if (!item.isPremium && item.priceCoins && economy.coins < item.priceCoins) {
             return { success: false, message: "Fonds insuffisants (Coins)." };
         }
-        if (item.priceDiamonds && economy.diamonds < item.priceDiamonds) {
+        if (!item.isPremium && item.priceDiamonds && economy.diamonds < item.priceDiamonds) {
             return { success: false, message: "Fonds insuffisants (Diamants)." };
         }
 
         // 3. Deduct funds
         const updatedEconomy = { ...economy };
-        if (item.priceCoins) updatedEconomy.coins -= item.priceCoins;
-        if (item.priceDiamonds) updatedEconomy.diamonds -= item.priceDiamonds;
+        if (!item.isPremium && item.priceCoins) updatedEconomy.coins -= item.priceCoins;
+        if (!item.isPremium && item.priceDiamonds) updatedEconomy.diamonds -= item.priceDiamonds;
 
         const currentUserId = userId || (await authService.getCurrentUser())?.uid;
 
@@ -184,7 +198,7 @@ export class StoreService {
         } else {
             // Add to inventory
             const inventory = await this.getInventory();
-            const newInventory = JSON.parse(JSON.stringify(inventory)) as PlayerInventory;
+            const newInventory = structuredClone(inventory);
             newInventory.ownedItems.push(item.id);
             await this.saveInventory(newInventory, currentUserId);
         }
