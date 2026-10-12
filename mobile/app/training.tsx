@@ -108,13 +108,20 @@ export default function TrainingScreen() {
                     <>
                         <View style={styles.progressRow}>
                             <Text style={styles.progressText}>Étape {lessonIndex + 1} sur {lessons.length}</Text>
-                            <TouchableOpacity
-                                style={styles.primaryButton}
-                                onPress={() => isLastLesson ? startGuidedGame() : setLessonIndex(index => index + 1)}
-                            >
-                                <Text style={styles.primaryButtonText}>{isLastLesson ? 'PARTIE PRATIQUE' : 'SUIVANT'}</Text>
-                                <Ionicons name={isLastLesson ? 'play' : 'arrow-forward'} size={18} color="#1A0E2E" />
-                            </TouchableOpacity>
+                            <View style={styles.navigationButtons}>
+                                {lessonIndex > 0 && (
+                                    <TouchableOpacity style={styles.secondaryButton} onPress={() => setLessonIndex(index => index - 1)}>
+                                        <Text style={styles.secondaryButtonText}>PRÉCÉDENT</Text>
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity
+                                    style={styles.primaryButton}
+                                    onPress={() => isLastLesson ? startGuidedGame() : setLessonIndex(index => index + 1)}
+                                >
+                                    <Text style={styles.primaryButtonText}>{isLastLesson ? 'PARTIE PRATIQUE' : 'SUIVANT'}</Text>
+                                    <Ionicons name={isLastLesson ? 'play' : 'arrow-forward'} size={18} color="#1A0E2E" />
+                                </TouchableOpacity>
+                            </View>
                         </View>
                         <View style={styles.progressTrack}>
                             <View style={[styles.progressFill, { width: `${((lessonIndex + 1) / lessons.length) * 100}%` }]} />
@@ -124,22 +131,13 @@ export default function TrainingScreen() {
                             <View style={styles.lessonCard}>
                                 <Text style={styles.lessonTitle}>{lesson.title}</Text>
                                 <Text style={styles.lessonText}>{lesson.text}</Text>
-                                <View style={styles.tipCard}>
-                                    <Ionicons name="information-circle-outline" size={20} color="#70D6FF" />
-                                    <Text style={styles.tipText}>Tu peux revoir ce parcours autant de fois que tu veux.</Text>
-                                </View>
-                                {lessonIndex > 0 && (
-                                    <TouchableOpacity style={styles.secondaryButton} onPress={() => setLessonIndex(index => index - 1)}>
-                                        <Text style={styles.secondaryButtonText}>PRÉCÉDENT</Text>
-                                    </TouchableOpacity>
-                                )}
                             </View>
                             <View style={styles.illustrationCard}>
                                 <View style={styles.lessonIcon}>
                                     <Ionicons name={lesson.icon} size={38} color="#FFD700" />
                                 </View>
                                 <View style={styles.dominoExample}>
-                                    <DominoTile left={lesson.example[0]} right={lesson.example[1]} size={76} orientation="horizontal" animateOnMount={false} disablePressScale />
+                                    <DominoTile left={lesson.example[0]} right={lesson.example[1]} size={76} orientation="horizontal" animateOnMount={false} disablePressScale pipScale={0.58} />
                                 </View>
                             </View>
                         </View>
@@ -171,6 +169,7 @@ const styles = StyleSheet.create({
     content: { flex: 1, padding: 20, paddingTop: 4, gap: 12 },
     progressRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
     progressText: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '700' },
+    navigationButtons: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     progressTrack: { height: 7, borderRadius: 4, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.14)' },
     progressFill: { height: '100%', borderRadius: 4, backgroundColor: '#FFD700' },
     lessonLayout: { flex: 1, flexDirection: 'row', gap: 14, minHeight: 0 },
@@ -180,9 +179,7 @@ const styles = StyleSheet.create({
     lessonTitle: { color: '#FFF', fontSize: 23, fontWeight: '900' },
     lessonText: { color: 'rgba(255,255,255,0.84)', fontSize: 16, lineHeight: 23 },
     dominoExample: { marginTop: 8, padding: 12, borderRadius: 14, backgroundColor: '#1B4332' },
-    tipCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, backgroundColor: 'rgba(112,214,255,0.10)' },
-    tipText: { flex: 1, color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 19 },
-    secondaryButton: { alignSelf: 'flex-start', minHeight: 42, paddingHorizontal: 18, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)' },
+    secondaryButton: { minHeight: 42, paddingHorizontal: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)' },
     secondaryButtonText: { color: '#FFF', fontSize: 13, fontWeight: '900' },
     primaryButton: { minHeight: 42, paddingHorizontal: 16, borderRadius: 14, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFD700' },
     primaryButtonText: { color: '#1A0E2E', fontSize: 13, fontWeight: '900' },

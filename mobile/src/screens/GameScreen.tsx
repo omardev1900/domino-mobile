@@ -26,6 +26,7 @@ import { RoundEndFlow } from '../components/game/RoundEndFlow';
 import { MancheEndFlow } from '../components/game/MancheEndFlow';
 import { RewardOverlay } from '../components/RewardOverlay';
 import { MatchRewardModal } from '../components/MatchRewardModal';
+import { BeginnerOnboarding } from '../components/training/BeginnerOnboarding';
 import { shouldOfferMatchAdReward } from '../core/ads/matchRewardPolicy';
 
 // Core
@@ -435,6 +436,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
     const [isPaused, setIsPaused] = useState(false);
     const [showOptions, setShowOptions] = useState(false);
+    const [showTrainingOnboarding, setShowTrainingOnboarding] = useState(isTrainingMode);
 
     // Référence mutable pour stocker la fonction handleTimeout issue du moteur
     const handleTimeoutRef = useRef<((pId: string, turnId?: number) => void) | null>(null);
@@ -481,7 +483,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         : null;
     const effectiveHiddenDominoId = hiddenDominoId ?? pendingHistoryDominoId;
 
-    const isGamePaused = isPaused || showOptions || isAdVisible;
+    const isGamePaused = isPaused || showOptions || isAdVisible || showTrainingOnboarding;
     const isMoveAnimationActive = isMoveAnimationPending || !!flyingDomino || !!hiddenDominoId || !!pendingHistoryDominoId;
     const pendingTurnDisplayHold = pendingHistoryMove?.action === 'PLAY'
         ? {
@@ -739,7 +741,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         localPlayerId,
         isSoloMode,
         gameId,
-        isPaused: isPaused || showOptions || isAdVisible || isMoveAnimationPending,
+        isPaused: isPaused || showOptions || isAdVisible || showTrainingOnboarding || isMoveAnimationPending,
         hasLegacyHostAuthority,
         usesSystemCoordinator,
         roomData,
@@ -2080,7 +2082,16 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
                 <StatusBar barStyle="light-content" translucent />
 
-                {isTrainingMode && showTrainingHint && !isGameOver && (
+                {isTrainingMode && showTrainingOnboarding && (
+                    <BeginnerOnboarding
+                        onComplete={() => {
+                            setShowTrainingOnboarding(false);
+                            setShowTrainingHint(true);
+                        }}
+                    />
+                )}
+
+                {isTrainingMode && !showTrainingOnboarding && showTrainingHint && !isGameOver && (
                     <View style={styles.trainingHint}>
                         <View style={styles.trainingHintIcon}>
                             <Text style={styles.trainingHintIconText}>?</Text>

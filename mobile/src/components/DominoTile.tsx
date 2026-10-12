@@ -21,6 +21,7 @@ interface DominoTileProps {
     skinConfig?: SkinConfig; // Cosmetic skin configuration
     animateOnMount?: boolean;
     disablePressScale?: boolean;
+    pipScale?: number;
 }
 
 // Logic for pip positions
@@ -49,7 +50,8 @@ export const DominoTile: React.FC<DominoTileProps> = ({
     isPlayable = false,
     skinConfig,
     animateOnMount = true,
-    disablePressScale = false
+    disablePressScale = false,
+    pipScale = 1,
 }) => {
     const isVertical = orientation === 'vertical';
     const width = isVertical ? size : size * 2;
@@ -137,7 +139,7 @@ export const DominoTile: React.FC<DominoTileProps> = ({
                             key={idx}
                             cx={x * 100}
                             cy={y * 100}
-                            r={dotRadius * 2.4} // Taille des points dominos
+                            r={dotRadius * 2.4 * pipScale} // Taille des points dominos
                             fill={palette.dotColor}
                         />
                     ))}
