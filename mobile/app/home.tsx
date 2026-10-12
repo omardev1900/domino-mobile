@@ -460,26 +460,7 @@ export default function HomeScreen() {
                 ) : null}
 
                 <View style={styles.topCardsRow}>
-                    {/* 1. Entraînement — accès rapide, avant les actualités */}
-                    <Animated.View entering={FadeInUp.delay(100).duration(500)} style={[styles.topCardWrapper, { flex: 0.4 }]}>
-                        <PremiumButton
-                            style={styles.trainingHomeButton}
-                            onPress={() => router.push('/training')}
-                            soundName="notify"
-                        >
-                            <LinearGradient
-                                colors={['#70B77E', '#2E7D32']}
-                                style={styles.trainingHomeGradient}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                            >
-                                <Ionicons name="school" size={25} color="#F4FFF3" />
-                                <Text style={styles.trainingHomeText}>S'ENTRAÎNER</Text>
-                            </LinearGradient>
-                        </PremiumButton>
-                    </Animated.View>
-
-                    {/* 2. Nouveau bloc Actualités - CAROUSEL */}
+                    {/* 1. Nouveau bloc Actualités - CAROUSEL */}
                     <Animated.View entering={FadeInUp.delay(200).duration(500)} style={[styles.topCardWrapper, { flex: 1.2 }]}>
                         <TouchableOpacity 
                             style={styles.newsContainerCompact}
@@ -540,9 +521,9 @@ export default function HomeScreen() {
                         </TouchableOpacity>
                     </Animated.View>
 
-                    {/* 3. Bloc Niveau Cochon - ENLARGED AGAIN */}
+                    {/* 2. Bloc Niveau Cochon */}
                     {user && (
-                        <View style={[styles.topCardWrapper, { flex: 1.4 }]}>
+                        <View style={[styles.topCardWrapper, { flex: 1.2 }]}>
                             <LeagueProgressWidget 
                                 points={cochonsGiven} 
                                 onInfoPress={() => router.push('/ligue-cochons')}
@@ -550,6 +531,25 @@ export default function HomeScreen() {
                             />
                         </View>
                     )}
+
+                    {/* 3. Entraînement — accès rapide entre le grade et les actions */}
+                    <Animated.View entering={FadeInUp.delay(300).duration(500)} style={[styles.topCardWrapper, { flex: 0.65 }]}>
+                        <PremiumButton
+                            style={styles.trainingHomeButton}
+                            onPress={() => router.push('/training')}
+                            soundName="notify"
+                        >
+                            <LinearGradient
+                                colors={['#70B77E', '#2E7D32']}
+                                style={styles.trainingHomeGradient}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                            >
+                                <Ionicons name="school" size={28} color="#F4FFF3" />
+                                <Text style={styles.trainingHomeText}>S'ENTRAÎNER</Text>
+                            </LinearGradient>
+                        </PremiumButton>
+                    </Animated.View>
 
                     {/* 4. Section Action (Inviter + Jouer) */}
                     <Animated.View entering={FadeInUp.delay(400).duration(500)} style={[styles.topCardWrapper, { flex: 0.4 }]}>
