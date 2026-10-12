@@ -2082,15 +2082,6 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
                 <StatusBar barStyle="light-content" translucent />
 
-                {isTrainingMode && showTrainingOnboarding && (
-                    <BeginnerOnboarding
-                        onComplete={() => {
-                            setShowTrainingOnboarding(false);
-                            setShowTrainingHint(true);
-                        }}
-                    />
-                )}
-
                 {isTrainingMode && !showTrainingOnboarding && showTrainingHint && !isGameOver && (
                     <View style={styles.trainingHint}>
                         <View style={styles.trainingHintIcon}>
@@ -2372,6 +2363,15 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     </Animated.View>
                 );
             })()}
+
+            {isTrainingMode && showTrainingOnboarding && (
+                <BeginnerOnboarding
+                    onComplete={() => {
+                        setShowTrainingOnboarding(false);
+                        setShowTrainingHint(true);
+                    }}
+                />
+            )}
 
         </View>
     );
