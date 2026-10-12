@@ -9,6 +9,8 @@ import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { GameState } from '../../core/types';
 import { PremiumButton } from '../common/PremiumButton';
 import { PlayerCard } from '../common/PlayerCard';
+import { StoreItem } from '../../core/store.types';
+import { StoreItemPreview } from '../store/StoreItemPreview';
 
 export interface GameOptionsMenuProps {
     visible: boolean;
@@ -24,6 +26,9 @@ export interface GameOptionsMenuProps {
     onToggleSfx: () => void;
     isVibrationEnabled: boolean;
     onToggleVibration: () => void;
+    ownedSkins?: StoreItem[];
+    equippedSkinId?: string;
+    onEquipSkin?: (skin: StoreItem) => void;
     onQuitGame: () => void;
 }
 
@@ -74,9 +79,13 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
     onToggleSfx,
     isVibrationEnabled,
     onToggleVibration,
+    ownedSkins = [],
+    equippedSkinId,
+    onEquipSkin = () => undefined,
     onQuitGame,
 }) => {
     const [activeTab, setActiveTab] = useState<Tab>('INFOS');
+    const [settingsTab, setSettingsTab] = useState<'SOUNDS' | 'SKINS'>('SOUNDS');
     const [showQuitConfirm, setShowQuitConfirm] = useState(false);
     const [codeCopied, setCodeCopied] = useState(false);
     const closeHandledRef = useRef(false);
@@ -99,6 +108,7 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
         closeHandledRef.current = true;
         setShowQuitConfirm(false);
         setActiveTab('INFOS');
+        setSettingsTab('SOUNDS');
         onClose();
         setTimeout(() => {
             closeHandledRef.current = false;
@@ -222,7 +232,7 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                                                 key={p.id}
                                                 playerId={p.id}
                                                 playerName={p.name}
-                                                avatarId={p.avatarId}
+                                                avatarId={p.avatarId ?? null}
                                                 grade={p.leagueGrade}
                                                 isLocalPlayer={p.id === localPlayerId}
                                             />
@@ -234,6 +244,24 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                             {/* Onglet JEU */}
                             {activeTab === 'JEU' && (
                                 <View>
+                                    <View style={styles.settingsTabBar}>
+                                        <PremiumButton
+                                            style={[styles.settingsTabButton, settingsTab === 'SOUNDS' && styles.settingsTabButtonActive]}
+                                            onPress={() => setSettingsTab('SOUNDS')}
+                                            soundName="clack1"
+                                        >
+                                            <Text style={[styles.settingsTabLabel, settingsTab === 'SOUNDS' && styles.settingsTabLabelActive]}>🔊 Sons</Text>
+                                        </PremiumButton>
+                                        <PremiumButton
+                                            style={[styles.settingsTabButton, settingsTab === 'SKINS' && styles.settingsTabButtonActive]}
+                                            onPress={() => setSettingsTab('SKINS')}
+                                            soundName="clack1"
+                                        >
+                                            <Text style={[styles.settingsTabLabel, settingsTab === 'SKINS' && styles.settingsTabLabelActive]}>🎨 Skins</Text>
+                                        </PremiumButton>
+                                    </View>
+
+                                    {settingsTab === 'SOUNDS' && <>
                                     {isSoloMode && (
                                         <View style={styles.pauseNotice}>
                                             <Ionicons name="pause-circle-outline" size={13} color="#aaa" />
@@ -258,6 +286,39 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                                         value={isVibrationEnabled}
                                         onToggle={onToggleVibration}
                                     />
+                                    </>}
+
+                                    {settingsTab === 'SKINS' && (
+                                        <ScrollView style={styles.skinsScroll} showsVerticalScrollIndicator={false}>
+                                            <Text style={styles.skinsHint}>Choisissez un skin que vous possédez. Le plateau change immédiatement.</Text>
+                                            {ownedSkins.map((skin) => {
+                                                const isEquipped = skin.id === equippedSkinId;
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={skin.id}
+                                                        style={[styles.skinRow, isEquipped && styles.skinRowEquipped]}
+                                                        onPress={() => onEquipSkin(skin)}
+                                                        disabled={isEquipped}
+                                                        activeOpacity={0.8}
+                                                    >
+                                                        <View style={styles.skinPreview}>
+                                                            <StoreItemPreview item={skin} height={52} />
+                                                        </View>
+                                                        <View style={styles.skinInfo}>
+                                                            <Text style={styles.skinName}>{skin.name}</Text>
+                                                            <Text style={styles.skinDescription} numberOfLines={2}>{skin.description}</Text>
+                                                        </View>
+                                                        <Text style={[styles.skinAction, isEquipped && styles.skinActionEquipped]}>
+                                                            {isEquipped ? 'ACTIF' : 'ACTIVER'}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                            {ownedSkins.length === 0 && (
+                                                <Text style={styles.emptySkinsText}>Aucun skin disponible pour le moment.</Text>
+                                            )}
+                                        </ScrollView>
+                                    )}
                                 </View>
                             )}
 
@@ -482,6 +543,86 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 13,
         fontWeight: '500',
+    },
+    settingsTabBar: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderRadius: 8,
+        marginBottom: 10,
+        padding: 2,
+    },
+    settingsTabButton: {
+        alignItems: 'center',
+        borderRadius: 6,
+        flex: 1,
+        paddingVertical: 7,
+    },
+    settingsTabButtonActive: {
+        backgroundColor: 'rgba(255,215,0,0.18)',
+    },
+    settingsTabLabel: {
+        color: 'rgba(255,255,255,0.52)',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    settingsTabLabelActive: {
+        color: '#FFD700',
+    },
+    skinsScroll: {
+        maxHeight: 250,
+    },
+    skinsHint: {
+        color: 'rgba(255,255,255,0.55)',
+        fontSize: 11,
+        lineHeight: 15,
+        marginBottom: 8,
+    },
+    skinRow: {
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        flexDirection: 'row',
+        gap: 8,
+        paddingVertical: 8,
+    },
+    skinRowEquipped: {
+        backgroundColor: 'rgba(255,215,0,0.08)',
+        borderColor: 'rgba(255,215,0,0.35)',
+        borderRadius: 8,
+        borderWidth: 1,
+        paddingHorizontal: 6,
+    },
+    skinPreview: {
+        borderRadius: 6,
+        overflow: 'hidden',
+        width: 74,
+    },
+    skinInfo: {
+        flex: 1,
+    },
+    skinName: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    skinDescription: {
+        color: 'rgba(255,255,255,0.48)',
+        fontSize: 10,
+        marginTop: 2,
+    },
+    skinAction: {
+        color: '#FFD700',
+        fontSize: 10,
+        fontWeight: '900',
+    },
+    skinActionEquipped: {
+        color: '#4CAF50',
+    },
+    emptySkinsText: {
+        color: 'rgba(255,255,255,0.48)',
+        fontSize: 12,
+        paddingVertical: 16,
+        textAlign: 'center',
     },
     infoRow: {
         flexDirection: 'row',

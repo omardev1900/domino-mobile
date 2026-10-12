@@ -62,7 +62,7 @@ import { LogService } from '../core/services/LogService';
 import { RewardEngine } from '../core/RewardEngine';
 import { MatchReward, TableTier } from '../core/economy.types';
 import { TABLE_CONFIGS } from '../core/economy.constants';
-import { SkinConfig } from '../core/store.types';
+import { SkinConfig, StoreItem } from '../core/store.types';
 import { useInterstitialAd, TestIds, AdMobIds } from '../core/services/AdMobAdapter';
 import { rtdb } from '../core/services/firebase';
 import { ref as rtdbRef, onValue as rtdbOnValue } from 'firebase/database';
@@ -1010,6 +1010,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [handSortMode, setHandSortMode] = useState<HandSortMode>('AUTO');
     const [playerSkinId, setPlayerSkinId] = useState<string | undefined>(undefined);
     const [playerSkinConfig, setPlayerSkinConfig] = useState<SkinConfig | undefined>(undefined);
+    const [ownedSkins, setOwnedSkins] = useState<StoreItem[]>([]);
     const [profileLoaded, setProfileLoaded] = useState(false);
     const statsRecordedRef = useRef(false);
     const [matchReward, setMatchReward] = useState<MatchReward | null>(null);
@@ -1236,12 +1237,13 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 // Load cosmetics like skin for both solo and multiplayer
                 try {
                     const inventory = await storeService.getInventory();
+                    const catalog = await storeService.getCatalog();
+                    const skinItems = catalog.filter(item => item.type === 'SKIN' && inventory.ownedItems.includes(item.id));
+                    setOwnedSkins(skinItems);
                     if (inventory?.equipped?.skin) {
                         const skinIdToLoad = inventory.equipped.skin;
                         setPlayerSkinId(skinIdToLoad);
 
-                        // Fetch catalog to get the config for the equipped skin
-                        const catalog = await storeService.getCatalog();
                         const equippedSkinItem = catalog.find(item => item.id === skinIdToLoad);
                         if (equippedSkinItem && equippedSkinItem.skinConfig) {
                             setPlayerSkinConfig(equippedSkinItem.skinConfig);
@@ -2109,6 +2111,17 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                         const newState = !isVibrationEnabled;
                         await SettingsManager.setVibrationEnabled(newState);
                         setIsVibrationEnabled(newState);
+                    }}
+                    ownedSkins={ownedSkins}
+                    equippedSkinId={playerSkinId}
+                    onEquipSkin={async (skin) => {
+                        const result = await storeService.equipItem(skin.id);
+                        if (!result.success) {
+                            Alert.alert('Skin indisponible', result.message ?? 'Impossible d’activer ce skin.');
+                            return;
+                        }
+                        setPlayerSkinId(skin.id);
+                        setPlayerSkinConfig(skin.skinConfig);
                     }}
                     onQuitGame={handleLeaveRoom}
                 />

@@ -1,5 +1,8 @@
 # Taches actives
 
+- [ ] `UI-IN-GAME-SKINS-01` En cours - Carte Trello « Modifier skin du jeu lors
+  d'une partie » : separer les reglages en onglets Sons et Skins, lister les
+  skins possedes et les equiper immediatement pendant une partie.
 - [ ] `UI-DEVELOPER-CONTACT-01` En cours - Carte Trello « Contact développeur » :
   remplacer le bloc infos/contact de la popup logo par un bouton e-mail vers
   cmm.saghir@gmail.com, avec l'objet pre-rempli du jeu.
