@@ -98,6 +98,7 @@ const styles = StyleSheet.create({
         shadowRadius: 6,
     },
     card: {
+        flex: 1,
         borderRadius: 14,
         paddingVertical: 12,
         paddingHorizontal: 14,
