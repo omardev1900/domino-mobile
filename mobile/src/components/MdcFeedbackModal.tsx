@@ -263,11 +263,12 @@ const styles = StyleSheet.create({
         color: '#FFD700',
         fontSize: 14,
         fontWeight: '900',
+        textAlign: 'center',
     },
     contactButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        alignSelf: 'flex-start',
+        alignSelf: 'center',
         backgroundColor: '#FFD700',
         borderRadius: 10,
         gap: 7,
