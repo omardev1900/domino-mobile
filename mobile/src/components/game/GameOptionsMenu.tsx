@@ -290,7 +290,6 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
 
                                     {settingsTab === 'SKINS' && (
                                         <ScrollView style={styles.skinsScroll} showsVerticalScrollIndicator={false}>
-                                            <Text style={styles.skinsHint}>Choisissez un skin que vous possédez. Le plateau change immédiatement.</Text>
                                             <View style={styles.skinsGrid}>
                                             {ownedSkins.map((skin) => {
                                                 const isEquipped = skin.id === equippedSkinId;
@@ -380,8 +379,8 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                             )}
                         </View>
 
-                        {/* ── Footer Quitter ── */}
-                        <View style={styles.footer}>
+                        {/* Quitter n'est proposé que dans les informations de partie. */}
+                        {activeTab === 'INFOS' && <View style={styles.footer}>
                             {!showQuitConfirm ? (
                                 <PremiumButton style={styles.quitBtn} onPress={() => setShowQuitConfirm(true)} soundName="notify">
                                     <Ionicons name="exit-outline" size={16} color="#fff" />
@@ -400,7 +399,7 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                                     </View>
                                 </View>
                             )}
-                        </View>
+                        </View>}
 
                     </LinearGradient>
                 </Animated.View>
@@ -576,12 +575,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 10,
-    },
-    skinsHint: {
-        color: 'rgba(255,255,255,0.55)',
-        fontSize: 11,
-        lineHeight: 15,
-        marginBottom: 8,
     },
     skinCard: {
         backgroundColor: 'rgba(255,255,255,0.045)',
