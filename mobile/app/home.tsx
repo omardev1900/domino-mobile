@@ -460,7 +460,26 @@ export default function HomeScreen() {
                 ) : null}
 
                 <View style={styles.topCardsRow}>
-                    {/* 1. Nouveau bloc Actualités - CAROUSEL */}
+                    {/* 1. Entraînement — accès rapide, avant les actualités */}
+                    <Animated.View entering={FadeInUp.delay(100).duration(500)} style={[styles.topCardWrapper, { flex: 0.4 }]}>
+                        <PremiumButton
+                            style={styles.trainingHomeButton}
+                            onPress={() => router.push('/training')}
+                            soundName="notify"
+                        >
+                            <LinearGradient
+                                colors={['#70B77E', '#2E7D32']}
+                                style={styles.trainingHomeGradient}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                            >
+                                <Ionicons name="school" size={25} color="#F4FFF3" />
+                                <Text style={styles.trainingHomeText}>S'ENTRAÎNER</Text>
+                            </LinearGradient>
+                        </PremiumButton>
+                    </Animated.View>
+
+                    {/* 2. Nouveau bloc Actualités - CAROUSEL */}
                     <Animated.View entering={FadeInUp.delay(200).duration(500)} style={[styles.topCardWrapper, { flex: 1.2 }]}>
                         <TouchableOpacity 
                             style={styles.newsContainerCompact}
@@ -521,7 +540,7 @@ export default function HomeScreen() {
                         </TouchableOpacity>
                     </Animated.View>
 
-                    {/* 2. Bloc Niveau Cochon - ENLARGED AGAIN */}
+                    {/* 3. Bloc Niveau Cochon - ENLARGED AGAIN */}
                     {user && (
                         <View style={[styles.topCardWrapper, { flex: 1.4 }]}>
                             <LeagueProgressWidget 
@@ -532,33 +551,9 @@ export default function HomeScreen() {
                         </View>
                     )}
 
-                    {/* 3. Section Action (Inviter + Jouer) */}
+                    {/* 4. Section Action (Inviter + Jouer) */}
                     <Animated.View entering={FadeInUp.delay(400).duration(500)} style={[styles.topCardWrapper, { flex: 0.4 }]}>
                         <View style={{ flex: 1, flexDirection: 'column', gap: 8 }}>
-                            <PremiumButton
-                                style={{
-                                    flex: 1,
-                                    borderRadius: 12,
-                                    overflow: 'hidden',
-                                    elevation: 6,
-                                    shadowColor: '#70D6FF',
-                                    shadowOffset: { width: 0, height: 3 },
-                                    shadowOpacity: 0.35,
-                                    shadowRadius: 4,
-                                }}
-                                onPress={() => router.push('/training')}
-                                soundName="notify"
-                            >
-                                <LinearGradient
-                                    colors={['#70D6FF', '#3A86FF']}
-                                    style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 }}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 1 }}
-                                >
-                                    <Ionicons name="school" size={24} color="#071B33" />
-                                    <Text style={{ color: '#071B33', fontSize: 11, fontWeight: '900', letterSpacing: 0.6 }}>S'ENTRAÎNER</Text>
-                                </LinearGradient>
-                            </PremiumButton>
                             {/* Bouton INVITER (haut) */}
                             <ShareTextButton 
                                 text="Rejoins-moi sur Domino Martiniquais pour une petite partie ! Télécharge le jeu ici : https://play.domino-martinique.online/"
@@ -1149,6 +1144,31 @@ const styles = StyleSheet.create({
         flex: 1,
         height: '100%',
         alignSelf: 'stretch',
+    },
+    trainingHomeButton: {
+        flex: 1,
+        height: '100%',
+        borderRadius: 12,
+        overflow: 'hidden',
+        elevation: 7,
+        shadowColor: '#4CAF50',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.4,
+        shadowRadius: 5,
+    },
+    trainingHomeGradient: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingHorizontal: 4,
+    },
+    trainingHomeText: {
+        color: '#F4FFF3',
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 0.5,
+        textAlign: 'center',
     },
     leagueWidgetCompact: {
         maxWidth: '100%',
