@@ -78,6 +78,7 @@ interface GameScreenProps {
     turnDuration?: number;
     startingHandSize?: number;
     tableTier?: string; // TableTier passé depuis solo.tsx / lobby.tsx
+    training?: 'basics';
 }
 
 const ROUND_RESULT_AUTO_ADVANCE_MS = 3000;
@@ -86,7 +87,7 @@ const RESULT_TRANSITION_FALLBACK_MS = 3000;
 const MATCH_REWARD_DELAY_MS = 6000;
 const MATCH_EXIT_AD_FALLBACK_MS = 15000;
 
-export default function GameScreen({ gameId, userId, authUid, mode, difficulty, gameMode, winningCondition, turnDuration, startingHandSize: propStartingHandSize, tableTier: propTableTier }: GameScreenProps) {
+export default function GameScreen({ gameId, userId, authUid, mode, difficulty, gameMode, winningCondition, turnDuration, startingHandSize: propStartingHandSize, tableTier: propTableTier, training }: GameScreenProps) {
     const { width, height } = useWindowDimensions();
     const insets = useSafeAreaInsets();
     const isLandscape = width > height;
@@ -96,6 +97,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // -- 1. Basal State & Identity --
     const [localPlayerId] = useState<PlayerId>(userId || 'p1');
     const [isSoloMode] = useState(mode === 'solo');
+    const isTrainingMode = training === 'basics';
     const [startingHandSize] = useState(() => resolveStartingHandSize(propStartingHandSize));
     const [activeTableTier] = useState<TableTier>((propTableTier as TableTier) || 'DEBUTANT');
     const persistenceUserId = authUid || userId;
@@ -1004,6 +1006,13 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const showScoreOverlay = (gameState?.phase === 'MANCHE_END' || gameState?.phase === 'MATCH_END')
         && scoreOverlayPhase === gameState.phase
         && !showRoundResult;
+    const trainingHint = !gameState
+        ? 'Préparation de la partie pratique…'
+        : gameState.table.leftValue === null
+            ? 'Commence : choisis un domino de ta main pour ouvrir la table.'
+            : isMyTurn
+                ? 'À toi : cherche un domino qui correspond à une extrémité ouverte.'
+                : 'Observe les extrémités et prépare ton prochain coup.';
 
     const [playerDisplayName, setPlayerDisplayName] = useState<string>('Moi');
     const [playerAvatarId, setPlayerAvatarId] = useState<string | undefined>('avatar_01');
@@ -1011,6 +1020,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [playerSkinId, setPlayerSkinId] = useState<string | undefined>(undefined);
     const [playerSkinConfig, setPlayerSkinConfig] = useState<SkinConfig | undefined>(undefined);
     const [ownedSkins, setOwnedSkins] = useState<StoreItem[]>([]);
+    const [showTrainingHint, setShowTrainingHint] = useState(true);
     const statsRecordedRef = useRef(false);
     const [matchReward, setMatchReward] = useState<MatchReward | null>(null);
     const [showRewardOverlay, setShowRewardOverlay] = useState(false);
@@ -1058,6 +1068,14 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     }, [gameState?.phase, gameState?.players, isSoloMode, handleLeaveRoom]);
 
     useEffect(() => {
+        if (isTrainingMode) {
+            if (gameState?.phase === 'MATCH_END') {
+                statsRecordedRef.current = true;
+                setMatchReward(null);
+                setShowRewardOverlay(false);
+            }
+            return;
+        }
         if (gameState?.phase === 'MATCH_END' && !statsRecordedRef.current) {
             const localPlayer = gameState.players.find(p => p.id === localPlayerId);
             if (localPlayer) {
@@ -1195,7 +1213,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             setMatchReward(null); // Reset pour la prochaine partie
             setShowRewardOverlay(false);
         }
-    }, [gameState?.phase, localPlayerId, isSoloMode, persistenceUserId, usesSystemCoordinator, roomData?.finalization?.id]);
+    }, [gameState?.phase, isTrainingMode, localPlayerId, isSoloMode, persistenceUserId, usesSystemCoordinator, roomData?.finalization?.id]);
 
     useEffect(() => {
         if (Platform.OS === 'web' && !showScoreOverlay && !showRoomInfo && !isPaused) {
@@ -2062,6 +2080,18 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
                 <StatusBar barStyle="light-content" translucent />
 
+                {isTrainingMode && showTrainingHint && !isGameOver && (
+                    <View style={styles.trainingHint}>
+                        <View style={styles.trainingHintIcon}>
+                            <Text style={styles.trainingHintIconText}>?</Text>
+                        </View>
+                        <Text style={styles.trainingHintText}>{trainingHint}</Text>
+                        <Pressable onPress={() => setShowTrainingHint(false)} hitSlop={10} accessibilityLabel="Masquer le conseil">
+                            <Text style={styles.trainingHintClose}>×</Text>
+                        </Pressable>
+                    </View>
+                )}
+
                 {debitFeedback && (
                     <Animated.View
                         key="debit-feedback"
@@ -2337,6 +2367,34 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 }
 
 const styles = StyleSheet.create({
+    trainingHint: {
+        position: 'absolute',
+        top: 82,
+        alignSelf: 'center',
+        zIndex: 9998,
+        maxWidth: 440,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 9,
+        backgroundColor: 'rgba(8, 32, 57, 0.95)',
+        borderColor: '#70D6FF',
+        borderWidth: 1,
+        borderRadius: 15,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        marginHorizontal: 18,
+    },
+    trainingHintIcon: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#70D6FF',
+    },
+    trainingHintIconText: { color: '#071B33', fontSize: 15, fontWeight: '900' },
+    trainingHintText: { flex: 1, color: '#FFF', fontSize: 13, fontWeight: '700', lineHeight: 18 },
+    trainingHintClose: { color: '#FFF', fontSize: 25, fontWeight: '300', lineHeight: 25 },
     container: {
         flex: 1,
     },

@@ -16,6 +16,7 @@ export default function GameRoute() {
         turnDuration?: string;
         startingHandSize?: string;
         tableTier?: string; // 🪙 Table tier pour le calcul du buy-in et des rewards
+        training?: string;
     }>();
 
     const [resolvedUserId, setResolvedUserId] = useState<string | null>(params.userId ?? null);
@@ -74,6 +75,7 @@ export default function GameRoute() {
             turnDuration={params.turnDuration ? Number(params.turnDuration) : undefined}
             startingHandSize={params.startingHandSize ? Number(params.startingHandSize) : undefined}
             tableTier={params.tableTier}
+            training={params.training === 'basics' ? 'basics' : undefined}
         />
     );
 }

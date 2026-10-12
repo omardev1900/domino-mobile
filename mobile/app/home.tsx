@@ -535,6 +535,30 @@ export default function HomeScreen() {
                     {/* 3. Section Action (Inviter + Jouer) */}
                     <Animated.View entering={FadeInUp.delay(400).duration(500)} style={[styles.topCardWrapper, { flex: 0.4 }]}>
                         <View style={{ flex: 1, flexDirection: 'column', gap: 8 }}>
+                            <PremiumButton
+                                style={{
+                                    flex: 1,
+                                    borderRadius: 12,
+                                    overflow: 'hidden',
+                                    elevation: 6,
+                                    shadowColor: '#70D6FF',
+                                    shadowOffset: { width: 0, height: 3 },
+                                    shadowOpacity: 0.35,
+                                    shadowRadius: 4,
+                                }}
+                                onPress={() => router.push('/training')}
+                                soundName="notify"
+                            >
+                                <LinearGradient
+                                    colors={['#70D6FF', '#3A86FF']}
+                                    style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 }}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
+                                >
+                                    <Ionicons name="school" size={24} color="#071B33" />
+                                    <Text style={{ color: '#071B33', fontSize: 11, fontWeight: '900', letterSpacing: 0.6 }}>S'ENTRAÎNER</Text>
+                                </LinearGradient>
+                            </PremiumButton>
                             {/* Bouton INVITER (haut) */}
                             <ShareTextButton 
                                 text="Rejoins-moi sur Domino Martiniquais pour une petite partie ! Télécharge le jeu ici : https://play.domino-martinique.online/"
