@@ -11,7 +11,7 @@ import { DEFAULT_STARTING_HAND_SIZE, DEV_STARTING_HAND_SIZES } from '../src/core
 import { authService } from '../src/core/services/auth.service';
 import { PlayerProfile } from '../src/core/types';
 import { economyService } from '../src/core/services/economy.service';
-import { TABLE_CONFIGS } from '../src/core/economy.constants';
+import { MINIMUM_COIN_RESERVE, TABLE_CONFIGS } from '../src/core/economy.constants';
 import { GameModeCard } from '../src/components/GameModeCard';
 import { SelectedModeHeader } from '../src/components/SelectedModeHeader';
 import { TableTier } from '../src/core/economy.types';
@@ -153,7 +153,7 @@ export default function SoloScreen() {
             if (!success) {
                 Alert.alert(
                     'Coins insuffisants 🪙',
-                    `Il vous faut ${tableConfig.buyIn} coins pour jouer à la ${tableConfig.label}.\n\nVous n'en avez pas assez.`,
+                    `Cette mise doit vous laisser au moins ${MINIMUM_COIN_RESERVE} coins. Regardez une vidéo dans la boutique pour recharger votre solde.`,
                     [{ text: 'OK', style: 'cancel' }]
                 );
                 return; // ❌ Bloquer la navigation

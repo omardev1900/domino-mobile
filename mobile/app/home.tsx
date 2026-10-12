@@ -22,7 +22,7 @@ import { authService } from '../src/core/services/auth.service';
 import { statsService } from '../src/core/services/stats.service';
 import { economyService } from '../src/core/services/economy.service';
 import { PlayerProfile } from '../src/core/types';
-import { DAILY_REWARD_COINS, LEAGUE_GRADE_COLORS, NEW_PLAYER_COINS } from '../src/core/economy.constants';
+import { DAILY_REWARD_COINS, LEAGUE_GRADE_COLORS, LOW_COINS_PROMPT_THRESHOLD, NEW_PLAYER_COINS } from '../src/core/economy.constants';
 import { LeagueGrade } from '../src/core/economy.types';
 import { getAvatarImage } from '../src/core/avatars';
 import { EconomyHeader } from '../src/components/EconomyHeader';
@@ -55,6 +55,7 @@ export default function HomeScreen() {
     const [myLeagueGrade, setMyLeagueGrade] = useState<LeagueGrade | null>(null);
     const [showDailyReward, setShowDailyReward] = useState(false);
     const [showWelcomeReward, setShowWelcomeReward] = useState(false);
+    const [showLowCoinsPrompt, setShowLowCoinsPrompt] = useState(false);
     const [dailyRewardAmount, setDailyRewardAmount] = useState(0);
     const [isProcessingRewardAd, setIsProcessingRewardAd] = useState(false);
     const { isLoaded: isRewardLoaded, isClosed: isRewardClosed, isEarnedReward, error: rewardError, load: loadReward, show: showReward } = useRewardedAd(AdMobIds.REWARDED_FIN_PARTIE);
@@ -63,6 +64,7 @@ export default function HomeScreen() {
     const AD_FALLBACK_TIMEOUT_MS = 8000;
     const adFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isProcessingRewardAdRef = useRef(false);
+    const lowCoinsPromptShownRef = useRef(false);
 
     useEffect(() => {
         isProcessingRewardAdRef.current = isProcessingRewardAd;
@@ -196,6 +198,19 @@ export default function HomeScreen() {
                         setTimeout(() => {
                             if (!cancelled) setShowDailyReward(true);
                         }, 500);
+                    } else {
+                        const economy = await economyService.getEconomy();
+                        if (
+                            !cancelled
+                            && Platform.OS !== 'web'
+                            && economy.coins <= LOW_COINS_PROMPT_THRESHOLD
+                            && !lowCoinsPromptShownRef.current
+                        ) {
+                            lowCoinsPromptShownRef.current = true;
+                            setTimeout(() => {
+                                if (!cancelled) setShowLowCoinsPrompt(true);
+                            }, 700);
+                        }
                     }
                 }
             });
@@ -601,6 +616,46 @@ export default function HomeScreen() {
                 onSkip={handleSkipDailyReward}
                 claimTriggerRef={dailyClaimTriggerRef}
             />
+
+            {/* Réserve basse : le bouton ouvre volontairement le flux vidéo unique de la boutique. */}
+            <Modal
+                visible={showLowCoinsPrompt && !reconnectRoomId && !showDailyReward && !showWelcomeReward}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowLowCoinsPrompt(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <Animated.View entering={ZoomIn.duration(280)} style={styles.modalContent}>
+                        <LinearGradient colors={['#2D1B4E', '#422770']} style={styles.modalGradient}>
+                            <Text style={styles.modalIcon}>🪙</Text>
+                            <Text style={styles.modalTitle}>Réserve de coins faible</Text>
+                            <Text style={styles.modalDescription}>
+                                Il vous reste peu de coins. Gardez au moins 100 coins pour pouvoir continuer à jouer.{"\n\n"}
+                                Regardez une vidéo récompensée pour gagner 100 coins.
+                            </Text>
+                            <View style={styles.modalButtons}>
+                                <TouchableOpacity
+                                    style={styles.modalButtonSecondary}
+                                    onPress={() => setShowLowCoinsPrompt(false)}
+                                >
+                                    <Text style={styles.modalButtonTextSecondary}>PLUS TARD</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.modalButtonPrimary}
+                                    onPress={() => {
+                                        setShowLowCoinsPrompt(false);
+                                        router.push('/store');
+                                    }}
+                                >
+                                    <LinearGradient colors={['#FFD700', '#FFA500']} style={styles.modalButtonGradient}>
+                                        <Text style={styles.modalButtonTextPrimary}>VOIR</Text>
+                                    </LinearGradient>
+                                </TouchableOpacity>
+                            </View>
+                        </LinearGradient>
+                    </Animated.View>
+                </View>
+            </Modal>
 
 
 

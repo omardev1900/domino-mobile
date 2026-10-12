@@ -43,7 +43,7 @@ import {
     DEV_STARTING_HAND_SIZES,
 } from "../src/core/startingHandSize";
 import { economyService } from "../src/core/services/economy.service";
-import { TABLE_CONFIGS } from "../src/core/economy.constants";
+import { MINIMUM_COIN_RESERVE, TABLE_CONFIGS } from "../src/core/economy.constants";
 import { TableTier } from "../src/core/economy.types";
 import { EconomyHeader } from "../src/components/EconomyHeader";
 import { GameModeCard } from "../src/components/GameModeCard";
@@ -272,12 +272,12 @@ export default function LobbyScreen() {
         if (tableConfig.buyIn <= 0) return true;
 
         const economy = await economyService.getEconomy();
-        const hasEnough = economy.coins >= tableConfig.buyIn;
+        const hasEnough = economy.coins - tableConfig.buyIn >= MINIMUM_COIN_RESERVE;
 
         if (!hasEnough) {
             Alert.alert(
                 "Coins insuffisants 🪙",
-                `Il vous faut ${tableConfig.buyIn} coins pour la ${tableConfig.label}.`,
+                `Cette mise doit vous laisser au moins ${MINIMUM_COIN_RESERVE} coins. Regardez une vidéo dans la boutique pour recharger votre solde.`,
                 [{ text: "OK", style: "cancel" }],
             );
         }

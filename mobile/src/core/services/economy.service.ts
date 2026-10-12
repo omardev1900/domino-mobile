@@ -18,7 +18,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { auth, db } from './firebase';
 import { LogService } from './LogService';
 import { PlayerEconomy, MatchReward, LeagueGrade, RewardCalculationInput, LeagueFrameId } from '../economy.types';
-import { NEW_PLAYER_COINS, DAILY_REWARD_COINS, AD_REWARD_COINS } from '../economy.constants';
+import { NEW_PLAYER_COINS, DAILY_REWARD_COINS, AD_REWARD_COINS, MINIMUM_COIN_RESERVE } from '../economy.constants';
 import { getLevelFromXP, getLeagueGrade } from '../RewardEngine';
 
 /** Infos de profil minimales nécessaires pour les écrire dans Firestore avec l'économie */
@@ -414,13 +414,17 @@ class EconomyService {
 
     /**
      * Déduit le buy-in avant le début d'une partie.
-     * Retourne `false` si le joueur n'a pas assez de coins.
+     * Retourne `false` si le joueur n'a pas assez de coins ou si la mise
+     * ferait tomber son solde sous la reserve minimale.
      */
     async deductBuyIn(buyIn: number, userId?: string, profile?: EconomyProfileInfo): Promise<boolean> {
         const current = await this.getEconomy();
 
-        if (current.coins < buyIn) {
-            LogService.warn('EconomyService', `Not enough coins. Have: ${current.coins}, Need: ${buyIn}`);
+        if (current.coins - buyIn < MINIMUM_COIN_RESERVE) {
+            LogService.warn(
+                'EconomyService',
+                `Buy-in would breach reserve. Have: ${current.coins}, Need: ${buyIn}, Reserve: ${MINIMUM_COIN_RESERVE}`
+            );
             return false;
         }
 

@@ -92,6 +92,12 @@ export const DAILY_REWARD_COINS = 200; // 🎁
 /** Coins crédités après visionnage volontaire d'une pub post-match */
 export const AD_REWARD_COINS = 100; // 📺
 
+/** Solde que le joueur conserve toujours apres une mise de table. */
+export const MINIMUM_COIN_RESERVE = 100;
+
+/** Seuil auquel l'application propose la video recompensee de la boutique. */
+export const LOW_COINS_PROMPT_THRESHOLD = 200;
+
 // ─── XP et Niveaux ───────────────────────────────────────────────────────────
 
 /** XP requis pour passer du niveau 1 au niveau 2 */

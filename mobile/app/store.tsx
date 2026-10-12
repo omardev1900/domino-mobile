@@ -233,7 +233,7 @@ export default function StoreScreen() {
                         <ActivityIndicator color="#FFD700" size="small" />
                     ) : isAvailable ? (
                         <TouchableOpacity style={styles.buyButton} onPress={handleWatchStoreAd}>
-                            <Text style={styles.buyButtonText}>Visionner</Text>
+                            <Text style={styles.buyButtonText}>Voir</Text>
                         </TouchableOpacity>
                     ) : (
                         <View style={[styles.buyButton, { backgroundColor: 'gray' }]}>
@@ -388,7 +388,13 @@ export default function StoreScreen() {
                     breakdown: [{ id: 'store_ad', label: 'Récompense publicitaire', coins: 100, xp: 0, leaguePoints: 0, diamonds: 0 }]
                 }}
                 isWinner={false}
-                onContinue={() => setShowRewardOverlay(false)}
+                onContinue={() => {
+                    setShowRewardOverlay(false);
+                    Alert.alert(
+                        'Encore plus de coins',
+                        'Vous pourrez gagner encore des coins en regardant d’autres vidéos dans la boutique.'
+                    );
+                }}
             />
             
             {loading ? (
