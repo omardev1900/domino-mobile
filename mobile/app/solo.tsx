@@ -16,7 +16,6 @@ import { GameModeCard } from '../src/components/GameModeCard';
 import { SelectedModeHeader } from '../src/components/SelectedModeHeader';
 import { TableTier } from '../src/core/economy.types';
 import { EconomyHeader } from '../src/components/EconomyHeader';
-import { findActiveRoomForUser } from '../src/core/services/firebase';
 import { BotDifficulty, getFloorLevel, isLevelAllowed } from '../src/core/services/bot.service';
 import { useInterstitialAd, AdMobIds } from '../src/core/services/AdMobAdapter';
 
@@ -122,22 +121,6 @@ export default function SoloScreen() {
             Alert.alert(
                 'Connexion requise',
                 'Vous devez être connecté pour lancer une partie.'
-            );
-            return;
-        }
-
-        const activeRoomId = await findActiveRoomForUser(user.uid);
-        if (activeRoomId) {
-            Alert.alert(
-                'Match multijoueur en cours',
-                'Vous avez une partie multijoueur encore active. Rejoignez-la avant de lancer une partie solo.',
-                [
-                    { text: 'Plus tard', style: 'cancel' },
-                    {
-                        text: 'Rejoindre le match',
-                        onPress: () => router.push({ pathname: '/game/[id]', params: { id: activeRoomId, userId: user.uid } })
-                    }
-                ]
             );
             return;
         }

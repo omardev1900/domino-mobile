@@ -1,39 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, Alert, useWindowDimensions } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { authService } from '../src/core/services/auth.service';
-import { deleteWaitingRoomIfOwner, findActiveRoomForUser, findHostedWaitingRoom } from '../src/core/services/firebase';
 
 export default function GameModesScreen() {
     const router = useRouter();
     const { width, height } = useWindowDimensions();
     const isLandscape = width > height;
     const [user, setUser] = useState<any>(null);
-    const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
-    const [hostedWaitingRoomId, setHostedWaitingRoomId] = useState<string | null>(null);
 
     const refreshPendingMultiplayerState = useCallback(async () => {
         const currentUser = await authService.getCurrentUser();
         setUser(currentUser);
-        if (!currentUser?.uid || currentUser.uid.startsWith('guest_')) {
-            setActiveRoomId(null);
-            setHostedWaitingRoomId(null);
-            return;
-        }
-
-        const [activeRoom, hostedRoom] = await Promise.all([
-            findActiveRoomForUser(currentUser.uid),
-            findHostedWaitingRoom(currentUser.uid),
-        ]);
-
-        setActiveRoomId(activeRoom);
-        setHostedWaitingRoomId(hostedRoom);
-        if (activeRoom) {
-            router.replace({ pathname: '/game/[id]', params: { id: activeRoom, userId: currentUser.uid } });
-        }
     }, []);
 
     useFocusEffect(
@@ -41,43 +22,6 @@ export default function GameModesScreen() {
             refreshPendingMultiplayerState().catch(console.error);
         }, [refreshPendingMultiplayerState])
     );
-
-    useEffect(() => {
-        refreshPendingMultiplayerState().catch(console.error);
-    }, [refreshPendingMultiplayerState]);
-
-    const handleRejoinActiveMatch = () => {
-        if (!activeRoomId || !user?.uid) return;
-        router.replace({ pathname: '/game/[id]', params: { id: activeRoomId, userId: user.uid } });
-    };
-
-    const guardAgainstActiveMultiplayerMatch = useCallback(() => {
-        if (!activeRoomId || !user?.uid) return false;
-        Alert.alert(
-            'Match multijoueur en cours',
-            'Vous avez déjà une partie multijoueur active. Rejoignez-la avant de lancer un autre mode.',
-            [
-                { text: 'Plus tard', style: 'cancel' },
-                { text: 'Rejoindre le match', onPress: handleRejoinActiveMatch }
-            ]
-        );
-        return true;
-    }, [activeRoomId, user?.uid]);
-
-    const handleDeleteHostedRoom = async () => {
-        if (!hostedWaitingRoomId || !user?.uid) return;
-        try {
-            const deleted = await deleteWaitingRoomIfOwner(hostedWaitingRoomId, user.uid);
-            if (deleted) {
-                setHostedWaitingRoomId(null);
-                Alert.alert('Table supprimée', 'Votre table vide a bien été supprimée.');
-            }
-        } catch (error: any) {
-            Alert.alert('Suppression impossible', error?.message || 'Impossible de supprimer cette table.');
-        } finally {
-            refreshPendingMultiplayerState().catch(console.error);
-        }
-    };
 
     return (
         <LinearGradient colors={['#2D1B4E', '#1A0E2E']} style={styles.container}>
@@ -89,43 +33,11 @@ export default function GameModesScreen() {
                 <View style={styles.backBtn} />
             </View>
 
-            {activeRoomId ? (
-                <View style={styles.noticeCard}>
-                    <Text style={styles.noticeTitle}>Match en cours détecté</Text>
-                    <Text style={styles.noticeText}>
-                        Une partie multijoueur vous attend encore. Reprenez-la avant de lancer un autre mode.
-                    </Text>
-                    <TouchableOpacity style={[styles.noticePrimary, styles.noticePrimaryStandalone]} onPress={handleRejoinActiveMatch} activeOpacity={0.85}>
-                        <Text style={styles.noticePrimaryText}>Rejoindre le match</Text>
-                    </TouchableOpacity>
-                </View>
-            ) : hostedWaitingRoomId ? (
-                <View style={styles.noticeCard}>
-                    <Text style={styles.noticeTitle}>Table en attente détectée</Text>
-                    <Text style={styles.noticeText}>
-                        Vous avez une table multijoueur encore vide. Vous pouvez la rejoindre ou la supprimer avant de lancer autre chose.
-                    </Text>
-                    <View style={styles.noticeActions}>
-                        <TouchableOpacity style={styles.noticeSecondary} onPress={handleDeleteHostedRoom} activeOpacity={0.85}>
-                            <Text style={styles.noticeSecondaryText}>Supprimer</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.noticePrimary}
-                            onPress={() => router.replace({ pathname: '/lobby', params: { autoJoinRoomId: hostedWaitingRoomId } })}
-                            activeOpacity={0.85}
-                        >
-                            <Text style={styles.noticePrimaryText}>Retourner à ma table</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            ) : null}
-
             <View style={[styles.cardsContainer, isLandscape && styles.cardsContainerLandscape]}>
                 <Animated.View entering={FadeInUp.delay(100).duration(400)} style={[styles.cardWrapper, isLandscape && styles.cardWrapperLandscape]}>
                     <TouchableOpacity
                         style={styles.modeCard}
                         onPress={() => {
-                            if (guardAgainstActiveMultiplayerMatch()) return;
                             router.replace('/solo');
                         }}
                         activeOpacity={0.85}
@@ -142,7 +54,6 @@ export default function GameModesScreen() {
                     <TouchableOpacity
                         style={styles.modeCard}
                         onPress={() => {
-                            if (guardAgainstActiveMultiplayerMatch()) return;
                             if (user?.uid?.startsWith('guest_')) {
                                 Alert.alert(
                                     'Accès Restreint',
@@ -173,7 +84,6 @@ export default function GameModesScreen() {
                     <TouchableOpacity
                         style={styles.modeCard}
                         onPress={() => {
-                            if (guardAgainstActiveMultiplayerMatch()) return;
                             if (user?.uid?.startsWith('guest_')) {
                                 Alert.alert(
                                     'Accès Restreint',

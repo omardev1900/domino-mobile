@@ -6,15 +6,12 @@ import {
     Text,
     TouchableOpacity,
     ScrollView,
-    useWindowDimensions,
     Modal,
-    Alert,
     Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInUp, FadeInRight, ZoomIn } from 'react-native-reanimated';
@@ -34,7 +31,6 @@ import { NewsService, NewsItem } from '../src/core/services/news.service';
 import { useRewardedAd, useAppOpenAd, AdMobIds } from '../src/core/services/AdMobAdapter';
 import { USE_NEW_SIDEBAR } from '../src/core/config/navigation.config';
 import { getLeagueProgress, getMonthlyCochonsFromHistory } from '../src/core/leagueProgress';
-import { deleteWaitingRoomIfOwner, findActiveRoomForUser, findHostedWaitingRoom } from '../src/core/services/firebase';
 import { PremiumButton } from '../src/components/common/PremiumButton';
 
 let hasShownAppOpenAd = false;
@@ -42,14 +38,11 @@ let hasShownAppOpenAd = false;
 export default function HomeScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { height } = useWindowDimensions();
     const [user, setUser] = useState<PlayerProfile | null>(null);
     const dailyClaimTriggerRef = useRef<(() => void) | null>(null);
     const [showHelp, setShowHelp] = useState(false);
     const [newsList, setNewsList] = useState<NewsItem[]>([]);
     const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
-    const [reconnectRoomId, setReconnectRoomId] = useState<string | null>(null);
-    const [hostedWaitingRoomId, setHostedWaitingRoomId] = useState<string | null>(null);
     const [economyRefresh, setEconomyRefresh] = useState(0);
     const [cochonsGiven, setCochonsGiven] = useState(0);
     const [myLeagueGrade, setMyLeagueGrade] = useState<LeagueGrade | null>(null);
@@ -58,7 +51,7 @@ export default function HomeScreen() {
     const [showLowCoinsPrompt, setShowLowCoinsPrompt] = useState(false);
     const [dailyRewardAmount, setDailyRewardAmount] = useState(0);
     const [isProcessingRewardAd, setIsProcessingRewardAd] = useState(false);
-    const { isLoaded: isRewardLoaded, isClosed: isRewardClosed, isEarnedReward, error: rewardError, load: loadReward, show: showReward } = useRewardedAd(AdMobIds.REWARDED_FIN_PARTIE);
+    const { isLoaded: isRewardLoaded, isClosed: isRewardClosed, isEarnedReward, load: loadReward, show: showReward } = useRewardedAd(AdMobIds.REWARDED_FIN_PARTIE);
     const { isLoaded: isAppOpenLoaded, load: loadAppOpen, show: showAppOpen } = useAppOpenAd(AdMobIds.APP_OPEN);
 
     const AD_FALLBACK_TIMEOUT_MS = 8000;
@@ -152,27 +145,10 @@ export default function HomeScreen() {
             authService.getCurrentUser().then(async u => {
                 if (cancelled) return;
                 if (u && !u.uid.startsWith('guest_')) {
-                    // 1. Vérifier si une partie est en cours AVANT d'afficher les modales pour éviter les flashs
-                    try {
-                        const firestoreActiveRoomId = await findActiveRoomForUser(u.uid);
-                        const hostedRoomId = await findHostedWaitingRoom(u.uid);
-                        if (cancelled) return;
+                    // La reprise d'une partie multijoueur est contrôlée une seule fois
+                    // par useMultiResume dans le layout global.
 
-                        if (firestoreActiveRoomId) {
-                            await AsyncStorage.setItem('active_roomId', firestoreActiveRoomId);
-                            setReconnectRoomId(firestoreActiveRoomId);
-                            setHostedWaitingRoomId(hostedRoomId);
-                            return; // On stoppe l'évaluation des cadeaux : on va rediriger vers le jeu
-                        } else {
-                            await AsyncStorage.removeItem('active_roomId');
-                            setReconnectRoomId(null);
-                            setHostedWaitingRoomId(hostedRoomId);
-                        }
-                    } catch (e) {
-                        console.error('Error checking active room', e);
-                    }
-
-                    // 2. Synchronisation
+                    // 1. Synchronisation
                     // [R3-B12] syncFromFirebase AVANT isDailyRewardAvailable — sinon le timestamp
                     // n'est pas encore chargé depuis Firestore et le cadeau réapparaît à chaque connexion
                     await Promise.all([
@@ -184,7 +160,7 @@ export default function HomeScreen() {
                     await refreshMonthlyLeague();
                     if (cancelled) return;
 
-                    // 3. Évaluation des cadeaux (base serveur fiable)
+                    // 2. Évaluation des cadeaux (base serveur fiable)
                     const isNewAccount = !(await economyService.hasClaimedWelcomeGift());
                     const dailyAvailable = await economyService.isDailyRewardAvailable();
                     if (cancelled) return;
@@ -300,50 +276,6 @@ export default function HomeScreen() {
         adFallbackTimerRef.current = fallbackTimer;
     };
 
-    const handleReconnect = useCallback(() => {
-        if (reconnectRoomId) {
-            router.push({
-                pathname: '/game/[id]',
-                params: {
-                    id: reconnectRoomId,
-                    userId: user?.uid || 'guest'
-                }
-            });
-            setReconnectRoomId(null);
-        }
-    }, [reconnectRoomId, user, router]);
-
-    const handleCancelReconnect = async () => {
-        try {
-            await AsyncStorage.removeItem('active_roomId');
-            setReconnectRoomId(null);
-        } catch (e) {
-            console.error('Error clearing active room', e);
-        }
-    };
-
-    const handleDeleteHostedRoom = async () => {
-        if (!hostedWaitingRoomId || !user?.uid) return;
-        try {
-            const deleted = await deleteWaitingRoomIfOwner(hostedWaitingRoomId, user.uid);
-            if (deleted) {
-                setHostedWaitingRoomId(null);
-                if (Platform.OS === 'web') {
-                    window.alert("La table a été supprimée avec succès.");
-                } else {
-                    Alert.alert("Succès", "La table a été supprimée avec succès.");
-                }
-            }
-        } catch (e: any) {
-            console.error('Error deleting hosted room', e);
-            if (Platform.OS === 'web') {
-                window.alert(e.message || "Impossible de supprimer la table.");
-            } else {
-                Alert.alert('Suppression impossible', e.message || 'Impossible de supprimer cette table.');
-            }
-        }
-    };
-
     return (
         <LinearGradient
             colors={['#2D1B4E', '#1A0E2E']}
@@ -434,31 +366,6 @@ export default function HomeScreen() {
                 ]}
                 showsVerticalScrollIndicator={false}
             >
-                {!reconnectRoomId && hostedWaitingRoomId ? (
-                    <View style={styles.sessionNoticeCard}>
-                        <Text style={styles.sessionNoticeTitle}>Table en attente détectée</Text>
-                        <Text style={styles.sessionNoticeText}>
-                            Vous avez une table multijoueur encore vide. Retournez-y directement ou supprimez-la avant de lancer autre chose.
-                        </Text>
-                        <View style={styles.sessionNoticeActions}>
-                            <TouchableOpacity
-                                style={styles.sessionNoticeSecondary}
-                                onPress={handleDeleteHostedRoom}
-                                activeOpacity={0.8}
-                            >
-                                <Text style={styles.sessionNoticeSecondaryText}>Supprimer</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.sessionNoticePrimary}
-                                onPress={() => router.push({ pathname: '/lobby', params: { autoJoinRoomId: hostedWaitingRoomId } })}
-                                activeOpacity={0.8}
-                            >
-                                <Text style={styles.sessionNoticePrimaryText}>Retourner à ma table</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                ) : null}
-
                 <View style={styles.topCardsRow}>
                     {/* 1. Nouveau bloc Actualités - CAROUSEL */}
                     <Animated.View entering={FadeInUp.delay(200).duration(500)} style={[styles.topCardWrapper, { flex: 1.2 }]}>
@@ -618,7 +525,7 @@ export default function HomeScreen() {
 
             {/* Welcome Reward Modal — Nouveau joueur */}
             <DailyRewardModal
-                visible={showWelcomeReward && !reconnectRoomId}
+                visible={showWelcomeReward}
                 amount={NEW_PLAYER_COINS}
                 isWelcome={true}
                 onClaim={handleClaimWelcomeReward}
@@ -628,7 +535,7 @@ export default function HomeScreen() {
 
             {/* Daily Reward Modal — affiché uniquement si aucun modal de reconnexion */}
             <DailyRewardModal
-                visible={showDailyReward && !reconnectRoomId}
+                visible={showDailyReward}
                 amount={dailyRewardAmount}
                 onClaim={handleClaimDailyReward}
                 onWatchAd={handleWatchAdForReward}
@@ -638,7 +545,7 @@ export default function HomeScreen() {
 
             {/* Réserve basse : le bouton ouvre volontairement le flux vidéo unique de la boutique. */}
             <Modal
-                visible={showLowCoinsPrompt && !reconnectRoomId && !showDailyReward && !showWelcomeReward}
+                visible={showLowCoinsPrompt && !showDailyReward && !showWelcomeReward}
                 transparent
                 animationType="fade"
                 onRequestClose={() => setShowLowCoinsPrompt(false)}
@@ -676,50 +583,6 @@ export default function HomeScreen() {
                 </View>
             </Modal>
 
-
-
-            {/* Reconnection Modal */}
-            <Modal
-                visible={!!reconnectRoomId}
-                transparent={true}
-                animationType="fade"
-            >
-                <View style={styles.modalOverlay}>
-                    <Animated.View entering={ZoomIn.duration(400)} style={styles.modalContent}>
-                        <LinearGradient
-                            colors={['#2D1B4E', '#422770']}
-                            style={styles.modalGradient}
-                        >
-                            <Text style={styles.modalIcon}>📡</Text>
-                            <Text style={styles.modalTitle}>Match en cours détecté</Text>
-                            <Text style={styles.modalDescription}>
-                                Vous avez une partie multijoueur toujours active. Rejoignez-la directement pour reprendre la main.
-                            </Text>
-
-                            <View style={styles.modalButtons}>
-                                <TouchableOpacity
-                                    style={styles.modalButtonSecondary}
-                                    onPress={handleCancelReconnect}
-                                >
-                                    <Text style={styles.modalButtonTextSecondary}>Ignorer</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.modalButtonPrimary}
-                                    onPress={handleReconnect}
-                                >
-                                    <LinearGradient
-                                        colors={['#FFD700', '#FFA500']}
-                                        style={styles.modalButtonGradient}
-                                    >
-                                        <Text style={styles.modalButtonTextPrimary}>REJOINDRE LE MATCH</Text>
-                                    </LinearGradient>
-                                </TouchableOpacity>
-                            </View>
-                        </LinearGradient>
-                    </Animated.View>
-                </View>
-            </Modal>
         </LinearGradient>
     );
 }

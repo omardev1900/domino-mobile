@@ -46,13 +46,26 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
     const hasAutoStarted = useRef(false);
     const rootRef = useRef<View>(null);
     const [botModalVisible, setBotModalVisible] = useState(false);
+    const [isAddingBot, setIsAddingBot] = useState(false);
 
     const handleAddBot = () => {
+        if (isAddingBot || roomData.players.length >= 3) return;
         setBotModalVisible(true);
     };
 
-    const handleBotSelected = (difficulty: BotDifficulty) => {
-        addBotToWaitingRoom(roomData.roomId, difficulty);
+    const handleBotSelected = async (difficulty: BotDifficulty): Promise<void> => {
+        if (isAddingBot || roomData.players.length >= 3) return;
+
+        setIsAddingBot(true);
+        try {
+            await addBotToWaitingRoom(roomData.roomId, difficulty);
+        } catch (error) {
+            LogService.error('LobbyScreen', 'Unable to add bot to waiting room', error);
+            Alert.alert('Ajout impossible', 'Le bot n’a pas pu être ajouté. Réessaie dans un instant.');
+            throw error;
+        } finally {
+            setIsAddingBot(false);
+        }
     };
 
     const handleRemoveBot = (botUid: string) => {
@@ -185,6 +198,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
                                 <PremiumButton 
                                     style={styles.addBotButton} 
                                     onPress={handleAddBot}
+                                    disabled={isAddingBot}
                                     soundName="clack1"
                                 >
                                     <Text style={styles.addBotButtonText}>+ Bot</Text>

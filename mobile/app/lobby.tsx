@@ -164,20 +164,6 @@ export default function LobbyScreen() {
                             activeFrame: eco.activeFrame ?? undefined,
                         };
                         setCurrentUser(enrichedUser);
-                        const activeRoom = await findActiveRoomForUser(
-                            user.uid,
-                        );
-                        if (activeRoom) {
-                            router.replace({
-                                pathname: "/game/[id]",
-                                params: {
-                                    id: activeRoom,
-                                    userId: user.uid,
-                                    tableTier,
-                                },
-                            });
-                            return;
-                        }
                         const hostedRoom = await findHostedWaitingRoom(
                             user.uid,
                         );
@@ -353,14 +339,9 @@ export default function LobbyScreen() {
             // Affiché avant toute lecture distante : la création ne doit plus
             // donner l'impression que le bouton ne répond pas.
             setLoading(true);
-            const [hostedRoom, activeRoom, economy] = await Promise.all([
-                findHostedWaitingRoom(currentUser.uid),
-                findActiveRoomForUser(currentUser.uid),
-                economyService.getEconomy(),
-            ]);
+            const economy = await economyService.getEconomy();
 
-            if (hostedRoom) {
-                setHostedWaitingRoomId(hostedRoom);
+            if (hostedWaitingRoomId) {
                 Alert.alert(
                     "Table existante",
                     "Vous êtes déjà l'hôte d'une table en attente. Rejoignez-la ou attendez qu'elle soit fermée.",
@@ -370,31 +351,13 @@ export default function LobbyScreen() {
                             text: "Rejoindre ma table",
                             onPress: () => router.push({
                                 pathname: "/game/[id]",
-                                params: { id: hostedRoom, userId: currentUser.uid, tableTier },
+                                params: { id: hostedWaitingRoomId, userId: currentUser.uid, tableTier },
                             }),
                         },
                         {
                             text: "Supprimer ma table",
                             style: "destructive",
-                            onPress: () => handleDeleteHostedWaitingRoom(hostedRoom),
-                        },
-                    ],
-                );
-                return;
-            }
-
-            if (activeRoom) {
-                Alert.alert(
-                    "Partie en cours",
-                    "Vous êtes déjà dans une partie active. Terminez-la avant d'en créer une nouvelle.",
-                    [
-                        { text: "Annuler", style: "cancel" },
-                        {
-                            text: "Rejoindre la partie",
-                            onPress: () => router.push({
-                                pathname: "/game/[id]",
-                                params: { id: activeRoom, userId: currentUser.uid, tableTier },
-                            }),
+                            onPress: () => handleDeleteHostedWaitingRoom(hostedWaitingRoomId),
                         },
                     ],
                 );

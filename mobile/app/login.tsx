@@ -17,7 +17,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authService } from '../src/core/services/auth.service';
 import { LogService } from '../src/core/services/LogService';
-import { findActiveRoomForUser } from '../src/core/services/firebase';
 
 const DEV_TEST_ACCOUNTS = [
     { label: 'Adil', email: 'adil@adil.com' },
@@ -117,17 +116,7 @@ export default function LoginScreen() {
         setIsLoading(true);
         try {
             if (isLoginMode) {
-                const user = await authService.signIn(email, password);
-                if (user) {
-                    try {
-                        const activeRoomId = await findActiveRoomForUser(user.uid);
-                        if (activeRoomId) {
-                            // La modale MultiResumeModal (_layout.tsx) s'occupera d'afficher l'invitation.
-                        }
-                    } catch (e) {
-                        LogService.warn('LoginScreen', 'Rejoin check failed', e);
-                    }
-                }
+                await authService.signIn(email, password);
                 navigateAfterAuthentication();
             } else {
                 if (password.length < 6) {
@@ -156,17 +145,7 @@ export default function LoginScreen() {
         setIsLoading(true);
 
         try {
-            const user = await authService.signIn(testEmail, testEmail);
-            if (user) {
-                try {
-                    const activeRoomId = await findActiveRoomForUser(user.uid);
-                    if (activeRoomId) {
-                        // La modale MultiResumeModal (_layout.tsx) s'occupera d'afficher l'invitation.
-                    }
-                } catch (e) {
-                    LogService.warn('LoginScreen', 'Rejoin check failed', e);
-                }
-            }
+            await authService.signIn(testEmail, testEmail);
 
             navigateAfterAuthentication();
         } catch (error: unknown) {
