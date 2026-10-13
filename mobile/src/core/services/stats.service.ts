@@ -337,7 +337,13 @@ class StatsService {
 
             // Propagate to monthly stats
             const displayName = auth.currentUser?.displayName || undefined;
-            const avatarId = auth.currentUser?.photoURL || undefined;
+            // Ne jamais propager une photo distante du fournisseur Google dans
+            // les classements. Une clé locale choisie dans le profil reste
+            // cependant utilisable.
+            const profileAvatar = auth.currentUser?.photoURL;
+            const avatarId = profileAvatar && !profileAvatar.startsWith('http')
+                ? profileAvatar
+                : 'avatar_default';
             let activeFrame: string | null | undefined = undefined;
             try {
                 const eco = await economyService.getEconomy();

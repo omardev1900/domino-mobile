@@ -63,7 +63,6 @@ export const AVAILABLE_AVATARS: AvatarId[] = [
 // SEC-9: Whitelist stricte pour éviter l'injection d'URLs arbitraires
 const ALLOWED_AVATAR_DOMAINS = [
     'firebasestorage.googleapis.com',
-    'lh3.googleusercontent.com', // Google Photos (comptes Google)
     'i.ibb.co',                  // imgbb (hébergement avatars bots)
     'ibb.co',                    // imgbb domaine principal
 ];

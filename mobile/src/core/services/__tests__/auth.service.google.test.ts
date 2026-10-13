@@ -79,7 +79,7 @@ describe('AuthService Google', () => {
         expect(mockEconomyService.syncProfileMetadata).toHaveBeenCalledWith(
             'google-uid',
             'Joueur Google',
-            'https://lh3.googleusercontent.com/avatar'
+            'avatar_default'
         );
     });
 

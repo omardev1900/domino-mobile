@@ -165,12 +165,17 @@ class AuthService {
     }
 
     private mapFirebaseUserToProfile(user: User): PlayerProfile {
+        // La photo fournie par Google reste une métadonnée d'authentification,
+        // jamais une ressource affichée par le jeu. Les avatars du jeu sont
+        // locaux (ou, à terme, hébergés par notre propre stockage).
+        const isGoogleProfilePhoto = user.photoURL?.startsWith('https://lh3.googleusercontent.com') ?? false;
+        const avatarId = isGoogleProfilePhoto ? 'avatar_default' : (user.photoURL || 'avatar_default');
         return {
             uid: user.uid,
             displayName: user.displayName || user.email?.split('@')[0] || 'Joueur',
             email: user.email || undefined,
-            avatarUrl: user.photoURL || undefined,
-            avatarId: user.photoURL || 'avatar_default',
+            avatarUrl: isGoogleProfilePhoto ? undefined : (user.photoURL || undefined),
+            avatarId,
             gamesPlayed: 0,
             gamesWon: 0
         };
@@ -338,8 +343,7 @@ class AuthService {
 
         if (updates.photoURL) {
             const isKnownAvatarId = updates.photoURL in AVATAR_IMAGES;
-            const isAllowedUrl = updates.photoURL.startsWith('https://firebasestorage.googleapis.com') ||
-                updates.photoURL.startsWith('https://lh3.googleusercontent.com');
+            const isAllowedUrl = updates.photoURL.startsWith('https://firebasestorage.googleapis.com');
             if (!isKnownAvatarId && !isAllowedUrl) {
                 throw new Error('Avatar invalide');
             }

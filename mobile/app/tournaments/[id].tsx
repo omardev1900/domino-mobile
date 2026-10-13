@@ -44,7 +44,8 @@ export default function TournamentDetailScreen() {
     // Auth info
     const userId = auth.currentUser?.uid;
     const userDisplayName = auth.currentUser?.displayName || 'Joueur';
-    const userPhoto = auth.currentUser?.photoURL || 'avatar_default';
+    // Les photos Google Auth ne sont pas utilisées comme avatars du jeu.
+    const userPhoto = 'avatar_default';
 
     useEffect(() => {
         if (!id) return;
