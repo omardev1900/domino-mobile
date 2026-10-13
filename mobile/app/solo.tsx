@@ -46,7 +46,7 @@ export default function SoloScreen() {
     const [difficulty, setDifficulty] = useState<Difficulty>('MAPIPI');
     const [playerGrade, setPlayerGrade] = useState<string | null>(null);
     const [gameMode, setGameMode] = useState<GameMode>('COCHON');
-    const [winningCondition, setWinningCondition] = useState(__DEV__ ? 1 : 10);
+    const [winningCondition, setWinningCondition] = useState(__DEV__ ? 1 : 2);
     const [turnDuration, setTurnDuration] = useState(TURN_DURATION_SECONDS);
     const [startingHandSize, setStartingHandSize] = useState(DEFAULT_STARTING_HAND_SIZE);
     const [user, setUser] = useState<PlayerProfile | null>(null);
@@ -244,7 +244,7 @@ export default function SoloScreen() {
                                         description="Évite de rester à zéro point pour ne pas être le cochon !"
                                         icon="🐷"
                                         colors={['#EC407A', '#FF7043']}
-                                        onPress={() => { setGameMode('COCHON'); setWinningCondition(__DEV__ ? 1 : 5); setUiStep('CONFIG'); }}
+                                        onPress={() => { setGameMode('COCHON'); setWinningCondition(__DEV__ ? 1 : 2); setUiStep('CONFIG'); }}
                                         delay={200}
                                     />
                                     <GameModeCard
