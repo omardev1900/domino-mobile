@@ -9,7 +9,9 @@ import {
 import { GameRoom } from './gameCore/types';
 import { finalizeCoordinatedMatch } from './matchFinalizer';
 
-export const TERMINAL_TRANSITION_DELAY_MS = 3000;
+// L'animation client révèle le vainqueur après son entrée. Six secondes lui
+// laissent une durée de lecture réelle avant la distribution suivante.
+export const TERMINAL_TRANSITION_DELAY_MS = 6000;
 
 const wait = (delayMs: number): Promise<void> =>
     new Promise(resolve => setTimeout(resolve, delayMs));

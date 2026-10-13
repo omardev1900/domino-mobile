@@ -2,12 +2,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { GameState } from '../../core/types';
 import SoundManager from '../../core/audio/SoundManager';
 import { TURN_TIMEOUT_GRACE_SECONDS } from '../../core/constants';
+import { LogService } from '../../core/services/LogService';
 
 export interface UseGameTimersProps {
     gameState: GameState | null;
     isPaused: boolean;
     localPlayerId: string;
     onTimeout: (playerId: string, turnIdFromTimer: number) => void;
+    /** En salle coordonnée, seule la Function serveur résout le timeout. */
+    isServerCoordinated?: boolean;
 }
 
 export interface UseGameTimersResult {
@@ -23,7 +26,8 @@ export const useGameTimers = ({
     gameState,
     isPaused,
     localPlayerId,
-    onTimeout
+    onTimeout,
+    isServerCoordinated = false
 }: UseGameTimersProps): UseGameTimersResult => {
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
     const [overtime, setOvertime] = useState<number | null>(null);
@@ -145,6 +149,12 @@ export const useGameTimers = ({
             const currentPlayerId = gameState?.currentPlayerId;
             const turnIdToSend = capturedTurnIdRef.current;
 
+            // En multijoueur coordonné, l'expiration est déjà planifiée côté
+            // serveur. Ne pas émettre de faux retry depuis le navigateur.
+            if (isServerCoordinated) {
+                setOvertime(null);
+                return;
+            }
 
             // ✅ RADICAL FIX: Le timer ne verrouille PLUS l'interface.
             // Il se contente d'émettre le signal onTimeout. 
@@ -156,7 +166,7 @@ export const useGameTimers = ({
                 if (watchdogRetriesRef.current <= 3) {
                     setOvertime(2); // Watchdog loop: try again in 2 seconds
                 } else {
-                    console.error(`[Watchdog] Max retries (3) reached for timeout on turn ${turnIdToSend}. Stopping timer to prevent zombie loop.`);
+                    LogService.error('GameTimers', `Watchdog retries exhausted for turn ${turnIdToSend}.`);
                     setOvertime(null);
                 }
             }
@@ -165,7 +175,7 @@ export const useGameTimers = ({
         return () => {
             if (overtimeTimerRef.current) clearTimeout(overtimeTimerRef.current);
         };
-    }, [overtime, isPaused, gameState?.currentPlayerId, gameState?.phase]);
+    }, [overtime, isPaused, gameState?.currentPlayerId, gameState?.phase, isServerCoordinated]);
 
     return {
         timeLeft,

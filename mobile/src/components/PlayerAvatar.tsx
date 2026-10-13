@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { View, StyleSheet, Text, Animated as RNAnimated, Image } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedProps, useAnimatedStyle, withTiming, Easing, withRepeat, withSequence, FadeIn, FadeOut, ZoomIn, cancelAnimation } from 'react-native-reanimated';
@@ -37,6 +37,7 @@ interface PlayerAvatarProps {
     skinConfig?: SkinConfig; // NEW: Skin configuration for dominoes
     dimmed?: boolean; // NEW: Theatrical focus (dimmed if waiting)
     isSoloMode?: boolean; // Hide bot league visuals in solo only
+    disableRemoteAvatars?: boolean; // Multiplayer: never reload third-party profile photos during a match
 }
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -65,6 +66,7 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({
     skinConfig,
     dimmed = false,
     isSoloMode = false,
+    disableRemoteAvatars = false,
 }) => {
     const strokeWidth = 3; // Reduced from 4
     const radius = (size - strokeWidth) / 2;
@@ -238,9 +240,13 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({
     const isLocalPlayer = position === 'bottom';
     const hideLeagueVisuals = isSoloMode && player.status === 'BOT';
 
-    // L'image de l'avatar est sûrement gérée par getAvatarImage 
-    // qui recourt au placeholder 'avatar_default' si non trouvée
-    const avatarImage = getAvatarImage(player.avatarId);
+    // Une partie multi ne charge pas les photos tierces : elles peuvent être
+    // limitées par leur CDN. Le mémo évite aussi les nouveaux chargements à
+    // chaque tick du chrono.
+    const avatarImage = useMemo(
+        () => getAvatarImage(player.avatarId, !disableRemoteAvatars),
+        [disableRemoteAvatars, player.avatarId]
+    );
 
     // Image scaling factor to zoom into the face (top portion)
     const imageScale = 1.8;

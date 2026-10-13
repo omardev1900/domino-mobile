@@ -74,13 +74,19 @@ const ALLOWED_AVATAR_DOMAINS = [
  * - URL distante (ex: "https://i.ibb.co/…") → { uri } si domaine autorisé
  * - Null / invalide → avatar_default
  */
-export const getAvatarImage = (avatarId: string | null | undefined) => {
+export const getAvatarImage = (
+    avatarId: string | null | undefined,
+    allowRemoteAvatar = true
+) => {
     if (!avatarId) {
         return AVATAR_IMAGES.avatar_default;
     }
 
     // URL distante : vérifier le domaine avant d'utiliser
     if (avatarId.startsWith('http://') || avatarId.startsWith('https://')) {
+        if (!allowRemoteAvatar) {
+            return AVATAR_IMAGES.avatar_default;
+        }
         try {
             const url = new URL(avatarId);
             const hostname = url?.hostname;

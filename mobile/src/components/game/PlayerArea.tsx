@@ -24,6 +24,7 @@ export interface PlayerAreaProps {
     handSortMode?: HandSortMode;
     onSelectHandSortMode?: (mode: HandSortMode) => void;
     isSoloMode?: boolean;
+    disableRemoteAvatars?: boolean;
 }
 
 export const PlayerArea: React.FC<PlayerAreaProps> = ({
@@ -43,6 +44,7 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
     handSortMode = 'AUTO',
     onSelectHandSortMode,
     isSoloMode = false,
+    disableRemoteAvatars = false,
 }) => {
     const { width: screenWidth } = useWindowDimensions();
 
@@ -103,6 +105,7 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
                             skinConfig={skinConfig}
                             dimmed={isPlaying && gameState.currentPlayerId !== opponents[0]?.id}
                             isSoloMode={isSoloMode}
+                            disableRemoteAvatars={disableRemoteAvatars}
                         />
                     </Animated.View>
                 </View>
@@ -145,6 +148,7 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
                             skinConfig={skinConfig}
                             dimmed={isPlaying && gameState.currentPlayerId !== opponents[1]?.id}
                             isSoloMode={isSoloMode}
+                            disableRemoteAvatars={disableRemoteAvatars}
                         />
                         {/* Barre dominos à DROITE du bloc avatar (côté centre écran) pour top-left */}
                         <OpponentHandBar
@@ -193,6 +197,7 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
                             skinConfig={skinConfig}
                             dimmed={isPlaying && gameState.currentPlayerId !== localPlayerId}
                             isSoloMode={isSoloMode}
+                            disableRemoteAvatars={disableRemoteAvatars}
                         />
                     </Animated.View>
                 </View>

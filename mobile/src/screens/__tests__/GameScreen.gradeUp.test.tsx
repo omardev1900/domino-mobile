@@ -655,7 +655,7 @@ describe('GameScreen grade-up flow', () => {
         expect(mockHandleOverlayContinue).not.toHaveBeenCalled();
     });
 
-    it('affiche immediatement MANCHE_END pour une salle coordonnee', async () => {
+    it('affiche l animation de fin de round pour MANCHE_END dans une salle coordonnee', async () => {
         mockCurrentGameState = {
             ...mockCurrentGameState,
             phase: 'MANCHE_END',
@@ -683,10 +683,9 @@ describe('GameScreen grade-up flow', () => {
         );
 
         await waitFor(() => {
-            expect(mockMancheEndFlow).toHaveBeenCalled();
-            const props = mockMancheEndFlow.mock.calls[mockMancheEndFlow.mock.calls.length - 1][0];
+            const props = getLastRoundResultProps();
             expect(props.visible).toBe(true);
-            expect(getLastRoundResultProps().visible).toBe(false);
+            expect(mockMancheEndFlow).not.toHaveBeenCalled();
         });
     });
 

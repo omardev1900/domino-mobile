@@ -29,6 +29,6 @@ describe('coordinator deployment', () => {
         assert.equal(activeTurn.__endpoint.timeoutSeconds, 120);
         assert.equal(terminal.__endpoint.timeoutSeconds, 60);
         assert.equal(presence.__endpoint.timeoutSeconds, 60);
-        assert.equal(TERMINAL_TRANSITION_DELAY_MS, 3000);
+        assert.equal(TERMINAL_TRANSITION_DELAY_MS, 6000);
     });
 });

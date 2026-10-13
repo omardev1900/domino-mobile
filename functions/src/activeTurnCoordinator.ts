@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { logger } from 'firebase-functions';
 
 import { GameRoom } from './gameCore/types';
 import {
@@ -109,7 +110,58 @@ export const createActiveTurnCoordinator = (db: admin.firestore.Firestore) =>
 
             const delayMs = getCoordinatedTurnDelayMs(afterRoom.gameState);
             if (delayMs === null) return;
-            await wait(delayMs);
-            await applyCoordinatedTurn(db, event.params.roomId, expected);
+
+            // Diagnostic volontairement limité : les coups humains normaux ne sont
+            // pas journalisés. On observe les bots et les expirations réellement
+            // appliquées, qui sont les deux parcours signalés comme instables.
+            const isBotTurn = expected.playerStatus === 'BOT';
+            if (isBotTurn) {
+                logger.info('active_turn_bot_scheduled', {
+                    roomId: event.params.roomId,
+                    turnId: expected.turnId,
+                    currentPlayerId: expected.currentPlayerId,
+                    delayMs,
+                });
+            }
+
+            const startedAt = Date.now();
+            try {
+                await wait(delayMs);
+                const decisionStartedAt = Date.now();
+                const applied = await applyCoordinatedTurn(db, event.params.roomId, expected);
+                const elapsedMs = Date.now() - startedAt;
+                const processingMs = Date.now() - decisionStartedAt;
+
+                if (applied && (isBotTurn || expected.playerStatus === 'HUMAN')) {
+                    logger.info('active_turn_resolved', {
+                        roomId: event.params.roomId,
+                        turnId: expected.turnId,
+                        currentPlayerId: expected.currentPlayerId,
+                        playerStatus: expected.playerStatus,
+                        delayMs,
+                        elapsedMs,
+                        processingMs,
+                    });
+                } else if (isBotTurn && !applied) {
+                    logger.warn('active_turn_bot_skipped', {
+                        roomId: event.params.roomId,
+                        turnId: expected.turnId,
+                        currentPlayerId: expected.currentPlayerId,
+                        delayMs,
+                        elapsedMs,
+                        processingMs,
+                    });
+                }
+            } catch (error) {
+                logger.error('active_turn_failed', {
+                    roomId: event.params.roomId,
+                    turnId: expected.turnId,
+                    currentPlayerId: expected.currentPlayerId,
+                    playerStatus: expected.playerStatus,
+                    delayMs,
+                    error,
+                });
+                throw error;
+            }
         }
     );

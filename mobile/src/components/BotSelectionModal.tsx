@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     Modal,
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
-    TouchableWithoutFeedback,
+    Pressable,
     ScrollView,
+    ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -60,7 +61,7 @@ const BOT_OPTIONS: BotOption[] = [
 interface BotSelectionModalProps {
     visible: boolean;
     onClose: () => void;
-    onSelectBot: (difficulty: BotDifficulty) => void;
+    onSelectBot: (difficulty: BotDifficulty) => Promise<void>;
 }
 
 export const BotSelectionModal: React.FC<BotSelectionModalProps> = ({
@@ -68,23 +69,51 @@ export const BotSelectionModal: React.FC<BotSelectionModalProps> = ({
     onClose,
     onSelectBot,
 }) => {
+    const [isSelecting, setIsSelecting] = useState(false);
+
+    const handleSelectBot = async (difficulty: BotDifficulty) => {
+        if (isSelecting) return;
+
+        setIsSelecting(true);
+        try {
+            await onSelectBot(difficulty);
+            onClose();
+        } catch {
+            // L'écran parent affiche un message compréhensible et laisse le choix ouvert.
+        } finally {
+            setIsSelecting(false);
+        }
+    };
+
     return (
         <Modal
             visible={visible}
             transparent
             animationType="fade"
-            onRequestClose={onClose}
+            onRequestClose={() => {
+                if (!isSelecting) onClose();
+            }}
             statusBarTranslucent
         >
-            <TouchableWithoutFeedback onPress={onClose}>
-                <View style={styles.overlay}>
-                    <TouchableWithoutFeedback>
-                        <Animated.View entering={FadeInDown.duration(280).springify()} style={styles.container}>
+            <View style={styles.overlay}>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Fermer la sélection de bot"
+                    disabled={isSelecting}
+                    onPress={onClose}
+                    style={StyleSheet.absoluteFill}
+                />
+                <Animated.View entering={FadeInDown.duration(280).springify()} style={styles.container}>
                             {/* Header */}
                             <LinearGradient colors={['#2D1B4E', '#1A0E2E']} style={styles.header}>
                                 <Text style={styles.title}>🤖 Choisir un Bot</Text>
                                 <Text style={styles.subtitle}>Sélectionne le niveau de difficulté</Text>
-                                <TouchableOpacity style={styles.closeButton} onPress={onClose} hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}>
+                                <TouchableOpacity
+                                    style={styles.closeButton}
+                                    onPress={onClose}
+                                    disabled={isSelecting}
+                                    hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+                                >
                                     <Ionicons name="close" size={20} color="rgba(255,255,255,0.6)" />
                                 </TouchableOpacity>
                             </LinearGradient>
@@ -99,10 +128,8 @@ export const BotSelectionModal: React.FC<BotSelectionModalProps> = ({
                                     >
                                         <TouchableOpacity
                                             style={styles.optionRow}
-                                            onPress={() => {
-                                                onSelectBot(option.difficulty);
-                                                onClose();
-                                            }}
+                                            onPress={() => handleSelectBot(option.difficulty)}
+                                            disabled={isSelecting}
                                             activeOpacity={0.7}
                                         >
                                             <LinearGradient
@@ -124,15 +151,17 @@ export const BotSelectionModal: React.FC<BotSelectionModalProps> = ({
                                                 </View>
                                                 <Text style={styles.optionDescription}>{option.description}</Text>
                                             </View>
-                                            <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
+                                            {isSelecting ? (
+                                                <ActivityIndicator size="small" color="rgba(255,255,255,0.8)" />
+                                            ) : (
+                                                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
+                                            )}
                                         </TouchableOpacity>
                                     </Animated.View>
                                 ))}
                             </ScrollView>
-                        </Animated.View>
-                    </TouchableWithoutFeedback>
-                </View>
-            </TouchableWithoutFeedback>
+                </Animated.View>
+            </View>
         </Modal>
     );
 };

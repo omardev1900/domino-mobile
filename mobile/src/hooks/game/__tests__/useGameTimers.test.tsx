@@ -31,12 +31,19 @@ describe('useGameTimers Hook (Component Wrapper)', () => {
         ...overrides
     });
 
-    const TestComponent = ({ gameState, localPlayerId = 'p1', onTimeout }: any) => {
+    interface TestComponentProps {
+        gameState: GameState;
+        localPlayerId?: string;
+        isServerCoordinated?: boolean;
+    }
+
+    const TestComponent = ({ gameState, localPlayerId = 'p1', isServerCoordinated = false }: TestComponentProps) => {
         const { timeLeft, overtime } = useGameTimers({
             gameState,
             isPaused: false,
             localPlayerId,
-            onTimeout: mockOnTimeout
+            onTimeout: mockOnTimeout,
+            isServerCoordinated
         });
 
 
@@ -50,7 +57,7 @@ describe('useGameTimers Hook (Component Wrapper)', () => {
 
     it('initializes timer for human player in PLAYING phase', () => {
         const gameState = createMockState();
-        const { getByTestId } = render(<TestComponent gameState={gameState} onTimeout={mockOnTimeout} />);
+        const { getByTestId } = render(<TestComponent gameState={gameState} />);
 
         expect(getByTestId('timeLeft').props.children).toBe(10);
         expect(getByTestId('overtime').props.children).toBe('null');
@@ -58,7 +65,7 @@ describe('useGameTimers Hook (Component Wrapper)', () => {
 
     it('clears timer if phase is not PLAYING', () => {
         const gameState = createMockState({ phase: 'MATCH_END' });
-        const { getByTestId } = render(<TestComponent gameState={gameState} onTimeout={mockOnTimeout} />);
+        const { getByTestId } = render(<TestComponent gameState={gameState} />);
 
         expect(getByTestId('timeLeft').props.children).toBe('null');
         expect(getByTestId('overtime').props.children).toBe('null');
@@ -66,7 +73,7 @@ describe('useGameTimers Hook (Component Wrapper)', () => {
 
     it('does not run the turn timer during BOUDE resolution', () => {
         const gameState = createMockState({ phase: 'BOUDE' });
-        const { getByTestId } = render(<TestComponent gameState={gameState} onTimeout={mockOnTimeout} />);
+        const { getByTestId } = render(<TestComponent gameState={gameState} />);
 
         expect(getByTestId('timeLeft').props.children).toBe('null');
         expect(getByTestId('overtime').props.children).toBe('null');
@@ -74,14 +81,14 @@ describe('useGameTimers Hook (Component Wrapper)', () => {
 
     it('does not start timer for bot players', () => {
         const gameState = createMockState({ currentPlayerId: 'p2' }); // p2 est un bot
-        const { getByTestId } = render(<TestComponent gameState={gameState} onTimeout={mockOnTimeout} />);
+        const { getByTestId } = render(<TestComponent gameState={gameState} />);
 
         expect(getByTestId('timeLeft').props.children).toBe('null');
     });
 
     it('decrements timeLeft and activates overtime when it reaches 0', () => {
         const gameState = createMockState({ turnDuration: 5 });
-        const { getByTestId } = render(<TestComponent gameState={gameState} onTimeout={mockOnTimeout} />);
+        const { getByTestId } = render(<TestComponent gameState={gameState} />);
 
         act(() => {
             jest.advanceTimersByTime(4000);
@@ -98,7 +105,7 @@ describe('useGameTimers Hook (Component Wrapper)', () => {
 
     it('triggers onTimeout and watchdog resets overtime to 2', () => {
         const gameState = createMockState({ turnDuration: 1 });
-        const { getByTestId } = render(<TestComponent gameState={gameState} onTimeout={mockOnTimeout} />);
+        const { getByTestId } = render(<TestComponent gameState={gameState} />);
 
         // Passer le timeLeft
         act(() => {
@@ -118,7 +125,7 @@ describe('useGameTimers Hook (Component Wrapper)', () => {
 
     it('watchdog stops after 3 retries', () => {
         const gameState = createMockState({ turnDuration: 1 });
-        const { getByTestId } = render(<TestComponent gameState={gameState} onTimeout={mockOnTimeout} />);
+        const { getByTestId } = render(<TestComponent gameState={gameState} />);
 
         // Passer le timeLeft
         act(() => {
@@ -150,5 +157,24 @@ describe('useGameTimers Hook (Component Wrapper)', () => {
         act(() => { jest.advanceTimersByTime(1000); });
         expect(getByTestId('overtime').props.children).toBe('null');
         expect(mockOnTimeout).toHaveBeenCalledTimes(4);
+    });
+
+    it('leaves timeout resolution to the server in a coordinated room', () => {
+        const gameState = createMockState({ turnDuration: 1 });
+        const { getByTestId } = render(
+            <TestComponent gameState={gameState} isServerCoordinated />
+        );
+
+        act(() => {
+            jest.advanceTimersByTime(1100);
+        });
+        for (let second = 0; second < TURN_TIMEOUT_GRACE_SECONDS; second += 1) {
+            act(() => {
+                jest.advanceTimersByTime(1000);
+            });
+        }
+
+        expect(getByTestId('overtime').props.children).toBe('null');
+        expect(mockOnTimeout).not.toHaveBeenCalled();
     });
 });

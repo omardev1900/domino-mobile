@@ -85,6 +85,8 @@ interface GameScreenProps {
 const ROUND_RESULT_AUTO_ADVANCE_MS = 3000;
 const MATCH_RESULT_AUTO_ADVANCE_MS = 5500;
 const RESULT_TRANSITION_FALLBACK_MS = 3000;
+// Doit correspondre au délai du coordinateur terminal serveur.
+const COORDINATED_ROUND_RESULT_DISPLAY_MS = 6000;
 const MATCH_REWARD_DELAY_MS = 6000;
 const MATCH_EXIT_AD_FALLBACK_MS = 15000;
 
@@ -540,6 +542,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         gameState: currentDisplayState,
         isPaused: isGamePaused || isMoveAnimationActive,
         localPlayerId,
+        isServerCoordinated: usesSystemCoordinator,
         onTimeout: (pId, turnId) => {
             if (!usesSystemCoordinator) handleTimeoutCb(pId, turnId);
         }
@@ -1402,11 +1405,12 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         if (gameState.phase === 'MANCHE_END') {
             setScoreOverlayPhase(null);
             if (usesSystemCoordinator) {
-                // Le serveur avancera l'etat apres trois secondes. Afficher le
-                // resultat de manche immediatement lui laisse toute la fenetre UX.
+                // Le serveur avance l'état après trois secondes. La même
+                // animation de fin de round doit rester visible pour chaque
+                // manche, au lieu de basculer silencieusement vers l'écran de
+                // score simplifié.
                 setRoundResultSnapshot(gameState);
-                setShowRoundResult(false);
-                setScoreOverlayPhase('MANCHE_END');
+                setShowRoundResult(true);
                 return;
             }
             // Rafraichir le resultat avec l'etat final de la manche. La transition
@@ -1449,7 +1453,12 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 partieEndContinueRef.current();
             };
             if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
-            roundResultTimerRef.current = setTimeout(handleDismissRoundResult, RESULT_TRANSITION_FALLBACK_MS);
+            roundResultTimerRef.current = setTimeout(
+                handleDismissRoundResult,
+                usesSystemCoordinator
+                    ? COORDINATED_ROUND_RESULT_DISPLAY_MS
+                    : RESULT_TRANSITION_FALLBACK_MS
+            );
             return () => {
                 if (roundResultTimerRef.current) {
                     clearTimeout(roundResultTimerRef.current);
@@ -1480,6 +1489,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 }
             };
         }
+    // Rejouer l'effet après le dernier domino : une transition Firestore peut
+    // arriver pendant son animation. Sans cette dépendance, la fin de round
+    // était ignorée de façon intermittente.
     }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, hasLegacyHostAuthority, usesSystemCoordinator, resolveBoudeOnce, isMoveAnimationActive]);
 
     // Laisser les scores lisibles avant d'afficher le cadeau de fin de match.
@@ -2219,6 +2231,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     setHandSortMode(mode);
                 }}
                 isSoloMode={isSoloMode}
+                disableRemoteAvatars={!isSoloMode}
             />
 
             <GameOverlays
@@ -2283,7 +2296,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     isHost={hasLegacyHostAuthority}
                     autoAdvanceDelay={(roundResultSnapshot ?? gameState)?.phase === 'MATCH_END'
                         ? MATCH_RESULT_AUTO_ADVANCE_MS
-                        : ROUND_RESULT_AUTO_ADVANCE_MS}
+                        : usesSystemCoordinator
+                            ? COORDINATED_ROUND_RESULT_DISPLAY_MS
+                            : ROUND_RESULT_AUTO_ADVANCE_MS}
                     localPlayerIndex={(roundResultSnapshot ?? gameState)?.players.findIndex(p => p.id === localPlayerId) ?? 0}
                     isFinalMatch={(roundResultSnapshot ?? gameState)?.phase === 'MATCH_END'}
                 />
