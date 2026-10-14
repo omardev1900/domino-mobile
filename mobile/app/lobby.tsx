@@ -49,6 +49,7 @@ import { EconomyHeader } from "../src/components/EconomyHeader";
 import { GameModeCard } from "../src/components/GameModeCard";
 import { SelectedModeHeader } from "../src/components/SelectedModeHeader";
 import { describeMultiplayerJoinError } from "../src/core/utils/describeMultiplayerJoinError";
+import { useMatchmakingPresence } from "../src/hooks/useMatchmakingPresence";
 
 type LobbyTab = "CREATE" | "JOIN" | "PUBLIC";
 
@@ -139,6 +140,7 @@ export default function LobbyScreen() {
     // — PUBLIC tab state —
     const [publicRooms, setPublicRooms] = useState<GameRoom[]>([]);
     const [loadingPublicRooms, setLoadingPublicRooms] = useState(false);
+    const { availableCount } = useMatchmakingPresence(currentUser?.uid, Boolean(currentUser));
 
     useFocusEffect(
         useCallback(() => {
@@ -1077,6 +1079,16 @@ export default function LobbyScreen() {
                             isLandscape && styles.mainWrapperLandscape,
                         ]}
                     >
+                        {availableCount !== null && (
+                            <View style={styles.availabilityBadge} testID="matchmaking-availability">
+                                <View style={styles.availabilityDot} />
+                                <Text style={styles.availabilityText}>
+                                    {availableCount === 0
+                                        ? "Aucun joueur disponible"
+                                        : `${availableCount} joueur${availableCount > 1 ? "s" : ""} disponible${availableCount > 1 ? "s" : ""}`}
+                                </Text>
+                            </View>
+                        )}
                         {activeTab === "CREATE" && renderCreateTab()}
                         {activeTab === "JOIN" && renderJoinTab()}
                         {activeTab === "PUBLIC" && renderPublicTab()}
@@ -1185,6 +1197,30 @@ const styles = StyleSheet.create({
     stepContainer: {
         width: "100%",
         alignItems: "center",
+    },
+    availabilityBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        alignSelf: "center",
+        backgroundColor: "rgba(76, 175, 80, 0.16)",
+        borderColor: "rgba(129, 199, 132, 0.45)",
+        borderRadius: 14,
+        borderWidth: 1,
+        gap: 7,
+        marginBottom: 14,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+    },
+    availabilityDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: "#81C784",
+    },
+    availabilityText: {
+        color: "#E8F5E9",
+        fontSize: 12,
+        fontWeight: "700",
     },
     stepTitle: {
         fontSize: 18,

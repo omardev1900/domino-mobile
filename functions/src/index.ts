@@ -9,9 +9,11 @@ import { createPresenceCoordinator } from './presenceCoordinator';
 import { createSubmitGameAction } from './submitGameAction';
 import { createRequestRematch } from './roomLifecycle';
 import { createPublicRoomProjection } from './spectatorProjection';
+import { createMatchmakingPresenceCoordinator } from './matchmakingPresence';
 
 admin.initializeApp();
 const db = admin.firestore();
+const rtdb = admin.database();
 
 const LOCAL_WEB_ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
@@ -476,6 +478,7 @@ export * from './cleanupRooms';
 export const coordinateTerminalGamePhasesV2 = createTerminalGameCoordinator(db);
 export const coordinateActiveGameTurnsV2 = createActiveTurnCoordinator(db);
 export const coordinatePresenceLeasesV2 = createPresenceCoordinator(db);
+export const coordinateMatchmakingPresenceV1 = createMatchmakingPresenceCoordinator(rtdb);
 export const submitGameAction = createSubmitGameAction(db);
 export const projectPublicRoomViewsV1 = createPublicRoomProjection(db);
 export const requestRematch = createRequestRematch(db);

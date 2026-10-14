@@ -33,6 +33,34 @@
           }
         }
       }
+    },
+    "matchmakingAvailability": {
+      "public": {
+        ".read": "auth != null",
+        ".write": false,
+        "availableCount": {
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        }
+      },
+      "connections": {
+        "$uid": {
+          ".read": false,
+          "$connectionId": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['t'])",
+            "t": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      },
+      "availableUsers": {
+        ".read": false,
+        ".write": false
+      }
     }
   }
 }
