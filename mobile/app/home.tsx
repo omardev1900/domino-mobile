@@ -32,6 +32,8 @@ import { useRewardedAd, useAppOpenAd, AdMobIds } from '../src/core/services/AdMo
 import { USE_NEW_SIDEBAR } from '../src/core/config/navigation.config';
 import { getLeagueProgress, getMonthlyCochonsFromHistory } from '../src/core/leagueProgress';
 import { PremiumButton } from '../src/components/common/PremiumButton';
+import { ReleaseNotesModal } from '../src/components/ReleaseNotesModal';
+import { useReleaseNotes } from '../src/hooks/useReleaseNotes';
 
 let hasShownAppOpenAd = false;
 
@@ -51,6 +53,7 @@ export default function HomeScreen() {
     const [showLowCoinsPrompt, setShowLowCoinsPrompt] = useState(false);
     const [dailyRewardAmount, setDailyRewardAmount] = useState(0);
     const [isProcessingRewardAd, setIsProcessingRewardAd] = useState(false);
+    const releaseNotes = useReleaseNotes();
     const { isLoaded: isRewardLoaded, isClosed: isRewardClosed, isEarnedReward, load: loadReward, show: showReward } = useRewardedAd(AdMobIds.REWARDED_FIN_PARTIE);
     const { isLoaded: isAppOpenLoaded, load: loadAppOpen, show: showAppOpen } = useAppOpenAd(AdMobIds.APP_OPEN);
 
@@ -65,13 +68,13 @@ export default function HomeScreen() {
 
     // Initialiser la pub d'ouverture d'app (une seule fois par session)
     useEffect(() => {
-        if (Platform.OS !== 'web' && !hasShownAppOpenAd) {
+        if (releaseNotes.isReady && !releaseNotes.visible && user && Platform.OS !== 'web' && !hasShownAppOpenAd) {
             loadAppOpen();
         }
-    }, [loadAppOpen]);
+    }, [loadAppOpen, releaseNotes.isReady, releaseNotes.visible, user]);
 
     useEffect(() => {
-        if (isAppOpenLoaded && !hasShownAppOpenAd) {
+        if (releaseNotes.isReady && !releaseNotes.visible && user && isAppOpenLoaded && !hasShownAppOpenAd) {
             hasShownAppOpenAd = true;
             try {
                 showAppOpen();
@@ -79,7 +82,7 @@ export default function HomeScreen() {
                 console.warn('Erreur affichage pub App Open:', error);
             }
         }
-    }, [isAppOpenLoaded, showAppOpen]);
+    }, [isAppOpenLoaded, releaseNotes.isReady, releaseNotes.visible, showAppOpen, user]);
     useEffect(() => {
         loadReward();
     }, [loadReward]);
@@ -142,6 +145,12 @@ export default function HomeScreen() {
         useCallback(() => {
             let cancelled = false;
 
+            if (!releaseNotes.isReady || releaseNotes.visible) {
+                return () => {
+                    cancelled = true;
+                };
+            }
+
             authService.getCurrentUser().then(async u => {
                 if (cancelled) return;
                 if (u && !u.uid.startsWith('guest_')) {
@@ -196,7 +205,7 @@ export default function HomeScreen() {
                 cancelled = true;
 
             };
-        }, [refreshMonthlyLeague])
+        }, [refreshMonthlyLeague, releaseNotes.isReady, releaseNotes.visible])
     );
 
     // Carousel Timer: Alterner les news toutes les 5 secondes
@@ -519,6 +528,13 @@ export default function HomeScreen() {
             <HelpOverlay 
                 visible={showHelp} 
                 onClose={() => setShowHelp(false)} 
+            />
+
+            <ReleaseNotesModal
+                visible={releaseNotes.isReady && releaseNotes.visible}
+                onAcknowledge={() => {
+                    void releaseNotes.acknowledge();
+                }}
             />
 
 

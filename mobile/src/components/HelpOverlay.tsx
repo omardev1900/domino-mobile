@@ -14,13 +14,14 @@ import Animated, { FadeIn, ZoomIn, SlideInDown, useSharedValue, useAnimatedStyle
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LeagueInfoContent } from './LeagueInfoContent';
+import { ReleaseNotesContent } from './ReleaseNotesContent';
 
 interface HelpOverlayProps {
     visible: boolean;
     onClose: () => void;
 }
 
-type TabType = 'REGLES' | 'RECOMPENSES' | 'LIGUE' | 'DON';
+type TabType = 'REGLES' | 'RECOMPENSES' | 'LIGUE' | 'NOUVEAUTES' | 'DON';
 
 export const HelpOverlay: React.FC<HelpOverlayProps> = ({ visible, onClose }) => {
     const { width, height } = useWindowDimensions();
@@ -160,6 +161,14 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({ visible, onClose }) =>
         </View>
     );
 
+    const renderNouveautes = () => (
+        <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+            <Section title="Nouveautés de cette version" icon="✨">
+                <ReleaseNotesContent />
+            </Section>
+        </ScrollView>
+    );
+
     const renderDon = () => (
         <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
             <Section title="Soutenir le Domino Martiniquais" icon="🤝">
@@ -226,6 +235,7 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({ visible, onClose }) =>
                                 {renderTabButton('REGLES', 'Règles', '🎲')}
                                 {renderTabButton('RECOMPENSES', 'Récompenses', '💰')}
                                 {renderTabButton('LIGUE', 'Ligue', '🏆')}
+                                {renderTabButton('NOUVEAUTES', 'Nouveautés', '✨')}
                                 {renderTabButton('DON', 'Soutenir MDC', '🤝')}
                             </ScrollView>
                         </View>
@@ -235,6 +245,7 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({ visible, onClose }) =>
                             {activeTab === 'REGLES' && renderRegles()}
                             {activeTab === 'RECOMPENSES' && renderRecompenses()}
                             {activeTab === 'LIGUE' && renderLigue()}
+                            {activeTab === 'NOUVEAUTES' && renderNouveautes()}
                             {activeTab === 'DON' && renderDon()}
                         </View>
                     </LinearGradient>
