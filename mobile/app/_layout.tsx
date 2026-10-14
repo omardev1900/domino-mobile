@@ -305,6 +305,8 @@ export default function RootLayout() {
                 <Stack.Screen name="index" />
                 <Stack.Screen name="login" />
                 <Stack.Screen name="home" />
+                <Stack.Screen name="premium" />
+                <Stack.Screen name="premium-codes" />
                 <Stack.Screen name="solo" />
                 <Stack.Screen name="lobby" />
                 <Stack.Screen name="game/[id]" />

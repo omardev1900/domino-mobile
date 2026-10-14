@@ -183,6 +183,23 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Les droits Premium ne sont attribués que par les Cloud Functions.
+    // Un joueur peut voir son statut, jamais s'en attribuer un.
+    match /premium_entitlements/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // Les codes ne doivent jamais être exposés aux clients. Leur consommation
+    // est validée par une Cloud Function transactionnelle.
+    match /premium_codes/{codeId} {
+      allow read, write: if false;
+    }
+
+    match /premium_code_redemptions/{redemptionId} {
+      allow read, write: if false;
+    }
+
     // Règle pour les statistiques mensuelles des utilisateurs (leaderboard)
     match /users_monthly_stats/{statId} {
       allow read: if request.auth != null;

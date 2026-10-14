@@ -44,6 +44,7 @@ const NAV_ITEMS: NavItem[] = [
     { route: '/leaderboard', icon: 'podium-outline', label: 'Rank' },
     { route: '/stats', icon: 'bar-chart-outline', label: 'Mes Stats' },
     { route: '/store', icon: 'storefront-outline', label: 'Boutique' },
+    { route: '/premium', icon: 'star-outline', label: 'Premium' },
     { route: '/collection', icon: 'shirt-outline', label: 'Vestiaire' },
     { route: '', icon: 'help-circle-outline', label: 'Aide', isAction: true, actionKey: 'HELP' },
 ];

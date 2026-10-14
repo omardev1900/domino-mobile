@@ -5,6 +5,7 @@ import { StoreItem, PlayerInventory, StoreItemType, StoreItemRarity } from '../s
 import { economyService } from './economy.service';
 import { authService } from './auth.service';
 import { DEFAULT_INVENTORY, STORE_CATALOG } from '../store.constants';
+import { premiumService } from './premium.service';
 
 const STORE_COLLECTION = 'store_catalog';
 const STORAGE_KEY_GUEST_INVENTORY = '@guest_inventory';
@@ -150,7 +151,7 @@ export class StoreService {
         const item = catalog.find(i => i.id === itemId);
         if (!item) return { success: false, message: "Item introuvable" };
 
-        if (item.isPremium && !IS_DEVELOPMENT) {
+        if (item.isPremium && !IS_DEVELOPMENT && !(await premiumService.hasActiveAccess(userId))) {
             return { success: false, message: "Cet objet est réservé aux abonnés Premium." };
         }
 

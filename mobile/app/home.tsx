@@ -522,6 +522,21 @@ export default function HomeScreen() {
                         </View>
                     </Animated.View>
                 </View>
+
+                <Animated.View entering={FadeInUp.delay(450).duration(500)} style={styles.premiumHomeWrapper}>
+                    <TouchableOpacity style={styles.premiumHomeCard} onPress={() => router.push('/premium' as never)} activeOpacity={0.86}>
+                        <LinearGradient colors={['#6A3C8F', '#36204F']} style={styles.premiumHomeGradient}>
+                            <View style={styles.premiumHomeIcon}>
+                                <Ionicons name="star" size={24} color="#2D1B4E" />
+                            </View>
+                            <View style={styles.premiumHomeCopy}>
+                                <Text style={styles.premiumHomeTitle}>PREMIUM</Text>
+                                <Text style={styles.premiumHomeText}>3 jours gratuits · skins et entraînement avancé</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={22} color="#FFD700" />
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </Animated.View>
             </ScrollView>
 
             {/* Help Overlay */}
@@ -965,6 +980,34 @@ const styles = StyleSheet.create({
         alignItems: 'stretch',
         height: 160,
     },
+    premiumHomeWrapper: {
+        marginHorizontal: 10,
+        marginBottom: 16,
+    },
+    premiumHomeCard: {
+        overflow: 'hidden',
+        borderRadius: 17,
+        borderWidth: 1,
+        borderColor: 'rgba(255,215,0,0.52)',
+    },
+    premiumHomeGradient: {
+        minHeight: 70,
+        paddingHorizontal: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    premiumHomeIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFD700',
+    },
+    premiumHomeCopy: { flex: 1 },
+    premiumHomeTitle: { color: '#FFD700', fontSize: 16, fontWeight: '900', letterSpacing: 0.9 },
+    premiumHomeText: { marginTop: 2, color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: '600' },
     sessionNoticeCard: {
         backgroundColor: 'rgba(255,255,255,0.08)',
         borderRadius: 18,

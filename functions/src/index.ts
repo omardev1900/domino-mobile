@@ -10,10 +10,21 @@ import { createSubmitGameAction } from './submitGameAction';
 import { createRequestRematch } from './roomLifecycle';
 import { createPublicRoomProjection } from './spectatorProjection';
 import { createMatchmakingPresenceCoordinator } from './matchmakingPresence';
+import {
+    createActivatePremiumTrial,
+    createGrantPremiumAccess,
+    createPremiumCodesCallable,
+    createRedeemPremiumCode,
+} from './premiumAccess';
 
 admin.initializeApp();
 const db = admin.firestore();
 const rtdb = admin.database();
+
+export const activatePremiumTrial = createActivatePremiumTrial(db);
+export const grantPremiumAccess = createGrantPremiumAccess(db);
+export const createPremiumCodes = createPremiumCodesCallable(db);
+export const redeemPremiumCode = createRedeemPremiumCode(db);
 
 const LOCAL_WEB_ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 

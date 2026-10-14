@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DominoTile } from '../src/components/DominoTile';
+import { isPremiumActive, premiumService } from '../src/core/services/premium.service';
 
 type TrainingTab = 'BASICS' | 'PRACTICE' | 'EXPERT';
 
@@ -41,10 +42,87 @@ const lessons = [
     },
 ];
 
+type PremiumExercise = {
+    title: string;
+    bot: string;
+    strategy: string;
+    prompt: string;
+    options: readonly string[];
+    answer: number;
+    explanation: string;
+};
+
+// Ces exercices reprennent les principes réellement appliqués par les IA :
+// MAPIPI conserve une sortie, GRAN-MOUN exploite sa valeur dominante et
+// Mèt Kayali tient compte des valeurs sur lesquelles un adversaire a passé.
+const premiumExercises: Record<'PRACTICE' | 'EXPERT', PremiumExercise[]> = {
+    PRACTICE: [
+        {
+            title: 'Garder une sortie',
+            bot: 'Méthode Mapipi',
+            strategy: 'Conserver une valeur que tu peux rejouer.',
+            prompt: 'La table est ouverte sur 3 et 6. Tu peux jouer 3|1 ou 6|5. Il te reste 1|4 et 1|6. Quel choix garde le plus de solutions ? ',
+            options: ['Jouer 3|1', 'Jouer 6|5', 'Passer'],
+            answer: 0,
+            explanation: 'Après 3|1, tu ouvres sur 1 et tu conserves deux réponses : 1|4 et 1|6. Mapipi favorise ce type de continuité.',
+        },
+        {
+            title: 'Se délester',
+            bot: 'Méthode Mapipi',
+            strategy: 'Sortir les points lourds quand le coup reste sûr.',
+            prompt: 'Tu peux jouer 6|6 ou 6|1. Tes autres dominos couvrent encore le 6. Quel coup allège le mieux ta main ?',
+            options: ['Jouer 6|1', 'Jouer 6|6', 'Attendre un autre tour'],
+            answer: 1,
+            explanation: 'Le double 6 retire 12 points. Lorsque la suite est assurée, réduire ce risque est le réflexe de Mapipi.',
+        },
+        {
+            title: 'Ne pas ouvrir seul',
+            bot: 'Méthode Mapipi',
+            strategy: 'Éviter une extrémité sans relais dans sa main.',
+            prompt: 'En jouant 4|2 tu ouvrirais sur 2, mais tu n’as aucun autre 2. En jouant 4|5 tu ouvrirais sur 5, avec deux autres 5 en main. Que joues-tu ?',
+            options: ['4|2', '4|5', 'Passer'],
+            answer: 1,
+            explanation: 'Ouvrir sur 5 te laisse des réponses. Le moteur Mapipi pénalise les valeurs qui ne disposent d’aucun relais.',
+        },
+    ],
+    EXPERT: [
+        {
+            title: 'Jouer sa clé',
+            bot: 'Méthode Gran-Moun',
+            strategy: 'Ouvrir sur une valeur que tu domines.',
+            prompt: 'Tu détiens quatre dominos contenant le 5, contre un seul contenant le 2. Tu peux poser 6|5 ou 6|2. Quelle extrémité choisis-tu ?',
+            options: ['Ouvrir sur 2 avec 6|2', 'Ouvrir sur 5 avec 6|5', 'Choisir au hasard'],
+            answer: 1,
+            explanation: 'Gran-Moun privilégie sa valeur dominante : ouvrir sur 5 augmente la probabilité que tu contrôles les prochains coups.',
+        },
+        {
+            title: 'Lire un passage',
+            bot: 'Méthode Gran-Moun',
+            strategy: 'Exposer une valeur qui a déjà bloqué un adversaire.',
+            prompt: 'Un adversaire a passé alors que les extrémités étaient 1 et 4. Tu peux maintenant ouvrir sur 1 ou sur 6. Quel choix met le plus de pression ?',
+            options: ['Ouvrir sur 1', 'Ouvrir sur 6', 'Le passage ne donne aucune information'],
+            answer: 0,
+            explanation: 'Le passage indique que l’adversaire ne pouvait répondre ni au 1 ni au 4. Gran-Moun réutilise cette information pour le bloquer.',
+        },
+        {
+            title: 'Fin de manche',
+            bot: 'Méthode Mèt Kayali',
+            strategy: 'Limiter le risque de boudé quand les mains sont courtes.',
+            prompt: 'Il reste peu de dominos. Un coup ouvre sur 0, valeur déjà presque épuisée ; un autre ouvre sur 3, encore bien présente dans ta main. Que privilégier ?',
+            options: ['Ouvrir sur 0', 'Ouvrir sur 3', 'Jouer le domino le plus lourd sans regarder'],
+            answer: 1,
+            explanation: 'Mèt Kayali évite les bouts morts et simule le risque de boudé. Ouvrir sur 3 conserve une issue et réduit le blocage subi.',
+        },
+    ],
+};
+
 export default function TrainingScreen() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<TrainingTab>('BASICS');
     const [lessonIndex, setLessonIndex] = useState(0);
+    const [exerciseIndex, setExerciseIndex] = useState(0);
+    const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+    const [hasPremium, setHasPremium] = useState(false);
     const lesson = lessons[lessonIndex];
     const isLastLesson = lessonIndex === lessons.length - 1;
 
@@ -54,14 +132,25 @@ export default function TrainingScreen() {
         { id: 'EXPERT' as const, label: 'Devenir expert', icon: 'trophy-outline' as const, premium: true },
     ], []);
 
-    const notifyComingSoon = (title: string) => {
-        const message = 'Cette section Premium arrive bientôt. Le parcours débutant est disponible dès maintenant.';
-        if (Platform.OS === 'web') {
-            window.alert(`${title}\n\n${message}`);
+    useFocusEffect(useCallback(() => {
+        let active = true;
+        void premiumService.getEntitlement().then(entitlement => {
+            if (active) setHasPremium(isPremiumActive(entitlement));
+        });
+        return () => { active = false; };
+    }, []));
+
+    const selectTab = (tab: TrainingTab) => {
+        if (tab !== 'BASICS' && !hasPremium) {
+            router.push('/premium' as never);
             return;
         }
-        Alert.alert(title, message);
+        setActiveTab(tab);
+        setExerciseIndex(0);
+        setSelectedAnswer(null);
     };
+
+    const exercise = activeTab === 'BASICS' ? null : premiumExercises[activeTab][exerciseIndex];
 
     const startGuidedGame = () => {
         router.push({
@@ -90,13 +179,10 @@ export default function TrainingScreen() {
                         <TouchableOpacity
                             key={tab.id}
                             style={[styles.tab, isActive && styles.tabActive]}
-                            onPress={() => {
-                                setActiveTab(tab.id);
-                                if (tab.premium) notifyComingSoon(tab.label);
-                            }}
+                            onPress={() => selectTab(tab.id)}
                             activeOpacity={0.8}
                         >
-                            <Ionicons name={tab.premium ? 'lock-closed' : tab.icon} size={15} color={isActive ? '#1A0E2E' : '#FFF'} />
+                            <Ionicons name={tab.premium && !hasPremium ? 'lock-closed' : tab.icon} size={15} color={isActive ? '#1A0E2E' : '#FFF'} />
                             <Text style={[styles.tabText, isActive && styles.tabTextActive]} numberOfLines={1}>{tab.label}</Text>
                         </TouchableOpacity>
                     );
@@ -142,16 +228,60 @@ export default function TrainingScreen() {
                             </View>
                         </View>
                     </>
-                ) : (
-                    <View style={styles.lockedCard}>
-                        <View style={styles.lockIcon}><Ionicons name="lock-closed" size={36} color="#FFD700" /></View>
-                        <Text style={styles.lockedTitle}>{activeTab === 'PRACTICE' ? "S'entraîner" : 'Devenir expert'}</Text>
-                        <Text style={styles.lockedText}>Contenu Premium — bientôt disponible.</Text>
-                        <Text style={styles.lockedDetail}>
-                            {activeTab === 'PRACTICE'
-                                ? 'Niveaux de difficulté, aides activables et défis pratiques.'
-                                : 'Stratégies avancées, lecture du jeu et mises en situation.'}
-                        </Text>
+                ) : exercise && (
+                    <View style={styles.exerciseCard}>
+                        <View style={styles.exerciseHeader}>
+                            <View>
+                                <Text style={styles.exerciseBadge}>{exercise.bot.toUpperCase()}</Text>
+                                <Text style={styles.exerciseTitle}>{exercise.title}</Text>
+                            </View>
+                            <Text style={styles.exerciseProgress}>{exerciseIndex + 1}/{premiumExercises[activeTab].length}</Text>
+                        </View>
+                        <Text style={styles.exerciseStrategy}>{exercise.strategy}</Text>
+                        <Text style={styles.exercisePrompt}>{exercise.prompt}</Text>
+                        <View style={styles.answerList}>
+                            {exercise.options.map((option, index) => {
+                                const isSelected = selectedAnswer === index;
+                                const isCorrect = index === exercise.answer;
+                                return (
+                                    <TouchableOpacity
+                                        key={option}
+                                        disabled={selectedAnswer !== null}
+                                        onPress={() => setSelectedAnswer(index)}
+                                        style={[
+                                            styles.answer,
+                                            isSelected && (isCorrect ? styles.answerCorrect : styles.answerWrong),
+                                            selectedAnswer !== null && isCorrect && styles.answerCorrect,
+                                        ]}
+                                    >
+                                        <Text style={styles.answerText}>{option}</Text>
+                                        {selectedAnswer !== null && isCorrect && <Ionicons name="checkmark" size={19} color="#7EE081" />}
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                        {selectedAnswer !== null && (
+                            <View style={styles.explanation}>
+                                <Text style={styles.explanationTitle}>{selectedAnswer === exercise.answer ? 'Bien joué !' : 'À retenir'}</Text>
+                                <Text style={styles.explanationText}>{exercise.explanation}</Text>
+                            </View>
+                        )}
+                        <View style={styles.exerciseNavigation}>
+                            <TouchableOpacity
+                                disabled={exerciseIndex === 0}
+                                style={[styles.secondaryButton, exerciseIndex === 0 && styles.invisibleButton]}
+                                onPress={() => { setExerciseIndex(index => index - 1); setSelectedAnswer(null); }}
+                            >
+                                <Text style={styles.secondaryButtonText}>PRÉCÉDENT</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.primaryButton}
+                                onPress={() => { setExerciseIndex(index => (index + 1) % premiumExercises[activeTab].length); setSelectedAnswer(null); }}
+                            >
+                                <Text style={styles.primaryButtonText}>SUIVANT</Text>
+                                <Ionicons name="arrow-forward" size={18} color="#1A0E2E" />
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 )}
             </View>
@@ -183,9 +313,21 @@ const styles = StyleSheet.create({
     secondaryButtonText: { color: '#FFF', fontSize: 13, fontWeight: '900' },
     primaryButton: { minHeight: 42, paddingHorizontal: 16, borderRadius: 14, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFD700' },
     primaryButtonText: { color: '#1A0E2E', fontSize: 13, fontWeight: '900' },
-    lockedCard: { alignItems: 'center', padding: 30, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.30)', gap: 12 },
-    lockIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,215,0,0.13)' },
-    lockedTitle: { color: '#FFF', fontSize: 23, fontWeight: '900' },
-    lockedText: { color: '#FFD700', fontSize: 15, fontWeight: '800' },
-    lockedDetail: { color: 'rgba(255,255,255,0.72)', fontSize: 14, textAlign: 'center', lineHeight: 20 },
+    exerciseCard: { flex: 1, padding: 20, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.30)' },
+    exerciseHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+    exerciseBadge: { color: '#FFD700', fontSize: 11, fontWeight: '900', letterSpacing: 0.8 },
+    exerciseTitle: { marginTop: 4, color: '#FFF', fontSize: 23, fontWeight: '900' },
+    exerciseProgress: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '800' },
+    exerciseStrategy: { marginTop: 15, color: '#83D9FF', fontSize: 14, fontWeight: '800' },
+    exercisePrompt: { marginTop: 14, color: 'rgba(255,255,255,0.86)', fontSize: 16, lineHeight: 23 },
+    answerList: { marginTop: 18, gap: 9 },
+    answer: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.16)' },
+    answerCorrect: { borderColor: '#7EE081', backgroundColor: 'rgba(126,224,129,0.15)' },
+    answerWrong: { borderColor: '#FF8A80', backgroundColor: 'rgba(255,138,128,0.12)' },
+    answerText: { flex: 1, color: '#FFF', fontSize: 14, fontWeight: '700' },
+    explanation: { marginTop: 15, padding: 14, borderRadius: 13, backgroundColor: 'rgba(112,214,255,0.12)' },
+    explanationTitle: { color: '#83D9FF', fontSize: 14, fontWeight: '900' },
+    explanationText: { marginTop: 4, color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 19 },
+    exerciseNavigation: { marginTop: 'auto', paddingTop: 18, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+    invisibleButton: { opacity: 0 },
 });
