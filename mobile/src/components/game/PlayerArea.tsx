@@ -215,14 +215,14 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
                 ]} pointerEvents="box-none">
                     <View style={styles.handSortWrapper} pointerEvents="auto">
                         <Text style={styles.handSortModeLabel}>
-                            {handSortMode === 'AUTO' ? 'Auto' : handSortMode === 'DOUBLES' ? 'Doubles' : 'Somme'}
+                            {handSortMode === 'AUTO' ? 'Auto' : handSortMode === 'DOUBLES' ? 'Doubles' : handSortMode === 'SUM' ? 'Somme' : 'Manuel'}
                         </Text>
                         <TouchableOpacity
                             accessibilityRole="button"
                             onPress={() => {
-                                if (handSortMode === 'AUTO') onSelectHandSortMode?.('DOUBLES');
+                                if (handSortMode === 'MANUAL' || handSortMode === 'SUM') onSelectHandSortMode?.('AUTO');
+                                else if (handSortMode === 'AUTO') onSelectHandSortMode?.('DOUBLES');
                                 else if (handSortMode === 'DOUBLES') onSelectHandSortMode?.('SUM');
-                                else onSelectHandSortMode?.('AUTO');
                             }}
                             style={styles.handSortTrigger}
                             testID="hand-sort-trigger"
@@ -232,12 +232,14 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
                                     {handSortMode === 'AUTO' && <Text style={styles.miniDominoText}>A</Text>}
                                     {handSortMode === 'DOUBLES' && <View style={styles.dot} />}
                                     {handSortMode === 'SUM' && <Text style={styles.miniDominoText}>+</Text>}
+                                    {handSortMode === 'MANUAL' && <Text style={styles.miniDominoText}>M</Text>}
                                 </View>
                                 <View style={styles.miniDominoDivider} />
                                 <View style={styles.miniDominoBottom}>
                                     {handSortMode === 'AUTO' && <Text style={styles.miniDominoText}>A</Text>}
                                     {handSortMode === 'DOUBLES' && <View style={styles.dot} />}
                                     {handSortMode === 'SUM' && <Text style={styles.miniDominoText}>+</Text>}
+                                    {handSortMode === 'MANUAL' && <Text style={styles.miniDominoText}>M</Text>}
                                 </View>
                             </View>
                         </TouchableOpacity>

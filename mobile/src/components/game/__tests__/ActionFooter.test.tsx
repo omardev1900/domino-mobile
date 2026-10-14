@@ -7,8 +7,8 @@ import { GameState, Player, Domino } from '../../../core/types';
 // Mock PlayerHand
 const MockPlayerHand = (props: any) => <View {...props} />;
 jest.mock('../../PlayerHand', () => ({
-    PlayerHand: jest.fn(({ disabled }) => (
-        <MockPlayerHand testID="mock-player-hand" disabled={disabled} />
+    PlayerHand: jest.fn(({ disabled, allowManualReorder }) => (
+        <MockPlayerHand testID="mock-player-hand" disabled={disabled} allowManualReorder={allowManualReorder} />
     ))
 }));
 
@@ -38,6 +38,7 @@ describe('ActionFooter Component', () => {
         const hand = getByTestId('mock-player-hand');
         expect(hand).toBeTruthy();
         expect(hand.props.disabled).toBe(false);
+        expect(hand.props.allowManualReorder).toBe(true);
     });
 
     it('passes disabled=true to PlayerHand when not local player turn', () => {
@@ -50,6 +51,7 @@ describe('ActionFooter Component', () => {
 
         const hand = getByTestId('mock-player-hand');
         expect(hand.props.disabled).toBe(true);
+        expect(hand.props.allowManualReorder).toBe(true);
     });
 
     it('passes disabled=true to PlayerHand while a move animation is pausing interactions', () => {
@@ -62,6 +64,7 @@ describe('ActionFooter Component', () => {
 
         const hand = getByTestId('mock-player-hand');
         expect(hand.props.disabled).toBe(true);
+        expect(hand.props.allowManualReorder).toBe(false);
     });
 
     it('renders pass turn button when canPassTurn is true', () => {

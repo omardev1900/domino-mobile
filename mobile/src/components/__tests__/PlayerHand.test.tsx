@@ -1,6 +1,6 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
-import { PlayerHand } from '../PlayerHand';
+import { orderHand, PlayerHand } from '../PlayerHand';
 import { Domino } from '../../core/types';
 
 jest.mock('../DominoTile', () => ({
@@ -89,6 +89,18 @@ describe('PlayerHand', () => {
             '6|4',
             '0|5',
             '1|1',
+        ]);
+    });
+
+    it('uses the local manual order without changing the dominoes in hand', () => {
+        expect(orderHand(hand, 'MANUAL', ['d', 'a', 'c', 'b']).map(domino => domino.id)).toEqual([
+            'd', 'a', 'c', 'b',
+        ]);
+    });
+
+    it('keeps new or unknown dominoes after the known manual order', () => {
+        expect(orderHand(hand, 'MANUAL', ['d', 'missing', 'a']).map(domino => domino.id)).toEqual([
+            'd', 'a', 'b', 'c',
         ]);
     });
 });

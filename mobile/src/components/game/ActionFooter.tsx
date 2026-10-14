@@ -21,6 +21,8 @@ export interface ActionFooterProps {
     isPaused?: boolean;
     skinConfig?: SkinConfig; // Cosmetic skin configuration
     handSortMode?: HandSortMode;
+    manualOrderIds?: string[];
+    onManualOrderChange?: (orderedIds: string[]) => void;
     hiddenDominoId?: string | null;
     preservePlayableHighlights?: boolean;
     preservedPlayableDominoIds?: string[];
@@ -41,6 +43,8 @@ export const ActionFooter: React.FC<ActionFooterProps> = ({
     isPaused = false,
     skinConfig,
     handSortMode = 'AUTO',
+    manualOrderIds = [],
+    onManualOrderChange,
     hiddenDominoId = null,
     preservePlayableHighlights = false,
     preservedPlayableDominoIds = [],
@@ -52,6 +56,7 @@ export const ActionFooter: React.FC<ActionFooterProps> = ({
     // ✅ RADICAL FIX: La main est active si c'est mon tour et la phase est PLAYING.
     // Plus de dépendance à isHardLocked — nouveau turnId = nouvelle main cliquable.
     const isHandDisabled = !isMyTurn || !isPlaying || bannerState !== 'NONE' || isPaused;
+    const allowManualReorder = isPlaying && bannerState === 'NONE' && !isPaused && !showSideSelection;
 
     return (
         <View style={[styles.container, { paddingBottom: insets.bottom }]} pointerEvents={isPaused ? 'none' : 'box-none'} testID="action-footer">
@@ -100,6 +105,9 @@ export const ActionFooter: React.FC<ActionFooterProps> = ({
                 forcedPlayableDominoId={forcedOpeningDominoId}
                 skinConfig={skinConfig}
                 sortMode={handSortMode}
+                manualOrderIds={manualOrderIds}
+                onManualOrderChange={onManualOrderChange}
+                allowManualReorder={allowManualReorder}
                 hiddenDominoId={hiddenDominoId}
                 preservePlayableHighlights={preservePlayableHighlights}
                 preservedPlayableDominoIds={preservedPlayableDominoIds}

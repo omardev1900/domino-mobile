@@ -1022,6 +1022,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [playerDisplayName, setPlayerDisplayName] = useState<string>('Moi');
     const [playerAvatarId, setPlayerAvatarId] = useState<string | undefined>('avatar_01');
     const [handSortMode, setHandSortMode] = useState<HandSortMode>('AUTO');
+    const [manualHandOrderIds, setManualHandOrderIds] = useState<string[]>([]);
     const [playerSkinId, setPlayerSkinId] = useState<string | undefined>(undefined);
     const [playerSkinConfig, setPlayerSkinConfig] = useState<SkinConfig | undefined>(undefined);
     const [ownedSkins, setOwnedSkins] = useState<StoreItem[]>([]);
@@ -1030,6 +1031,12 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [matchReward, setMatchReward] = useState<MatchReward | null>(null);
     const [showRewardOverlay, setShowRewardOverlay] = useState(false);
     const playerEconomyRef = useRef<{ level: number; xp: number; leaguePoints: number; cochonsGiven?: number; unlockedFrames?: any[]; leagueGrade?: string | null }>({ level: 1, xp: 0, leaguePoints: 0 });
+
+    // Une nouvelle donne ne doit pas reprendre l'ordre d'une main précédente.
+    useEffect(() => {
+        setManualHandOrderIds([]);
+        setHandSortMode('AUTO');
+    }, [gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber]);
 
     // Load economy on mount
     useEffect(() => {
@@ -2205,6 +2212,11 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     isPaused={isGamePaused || isMoveAnimationActive}
                     skinConfig={playerSkinConfig}
                     handSortMode={handSortMode}
+                    manualOrderIds={manualHandOrderIds}
+                    onManualOrderChange={(orderedIds) => {
+                        setManualHandOrderIds(orderedIds);
+                        setHandSortMode('MANUAL');
+                    }}
                     hiddenDominoId={hiddenHandDominoId}
                     preservePlayableHighlights={preserveLocalHandHighlights}
                     preservedPlayableDominoIds={preservedPlayableDominoIds}

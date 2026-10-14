@@ -83,4 +83,19 @@ describe('PlayerArea Component', () => {
         fireEvent.press(getByTestId('hand-sort-trigger'));
         expect(onSelectHandSortMode).toHaveBeenCalledWith('DOUBLES');
     });
+
+    it('returns to auto sorting when the hand is manually organised', () => {
+        const onSelectHandSortMode = jest.fn();
+        const { getByTestId, getByText } = render(
+            <PlayerArea
+                {...defaultProps}
+                handSortMode="MANUAL"
+                onSelectHandSortMode={onSelectHandSortMode}
+            />
+        );
+
+        expect(getByText('Manuel')).toBeTruthy();
+        fireEvent.press(getByTestId('hand-sort-trigger'));
+        expect(onSelectHandSortMode).toHaveBeenCalledWith('AUTO');
+    });
 });
