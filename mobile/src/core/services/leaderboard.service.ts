@@ -28,6 +28,7 @@ import { db } from './firebase';
 import { LeagueGrade } from '../economy.types';
 import { getStartOfCurrentMonthUtc, getYearMonthUtcString } from './leaderboard.time';
 import { LogService } from './LogService';
+import { toActivityMillis } from '../lastActivity';
 
 export type ClassementCategory = 'PLUS_COCHONS' | 'MOINS_COCHONS' | 'PLUS_POINTS';
 
@@ -57,6 +58,8 @@ export interface LeaderboardEntry {
     totalCochonsSubisThisMonth: number;
     /** Points cumulés depuis le début du mois en cours */
     totalPointsAccumulatedThisMonth: number;
+    /** Dernière activité enregistrée (non temps réel) */
+    lastActiveAt: number | null;
     rank: number;
 }
 
@@ -126,6 +129,7 @@ class LeaderboardService {
             gamesPlayedThisMonth: monthlyHistory.length,
             totalCochonsSubisThisMonth,
             totalPointsAccumulatedThisMonth,
+            lastActiveAt: toActivityMillis(data.lastActiveAt),
             rank,
         };
     }
@@ -284,6 +288,9 @@ class LeaderboardService {
                     totalPointsAccumulatedThisMonth: data.pointsAccumulated || 0,
                     gamesPlayed: data.gamesPlayed || 0,
                     gamesPlayedThisMonth: data.gamesPlayed || 0,
+                    // Les anciens documents mensuels n'ont pas encore lastActiveAt.
+                    // updatedAt existe déjà et représente leur dernière mise à jour de classement.
+                    lastActiveAt: toActivityMillis(data.lastActiveAt) ?? toActivityMillis(data.updatedAt),
                     rank: currentRank++,
                 });
             });

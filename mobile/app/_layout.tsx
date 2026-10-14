@@ -34,6 +34,7 @@ import { WebFullscreenButton } from '@/components/WebFullscreenButton';
 import { USE_NEW_SIDEBAR, SIDEBAR_HIDDEN_ROUTES, SIDEBAR_HIDDEN_PREFIXES } from '@/core/config/navigation.config';
 import { LogService } from '@/core/services/LogService';
 import { AndroidStoreBanner } from '@/components/AndroidStoreBanner';
+import { lastActivityService } from '@/core/services/lastActivity.service';
 
 // Keep the native splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -127,6 +128,24 @@ export default function RootLayout() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Activité publique de la Ligue : au plus une écriture toutes les six heures.
+  // Elle ne sert pas de présence temps réel et ne bloque jamais l'ouverture de l'app.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const recordActivity = () => {
+      const uid = auth.currentUser?.uid;
+      if (uid) void lastActivityService.recordIfDue(uid);
+    };
+
+    recordActivity();
+    const subscription = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') recordActivity();
+    });
+
+    return () => subscription.remove();
+  }, [isAuthenticated]);
 
   // Auth redirection guard
   useEffect(() => {

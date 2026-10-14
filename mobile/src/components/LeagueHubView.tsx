@@ -14,6 +14,7 @@ import { getLeagueGrade } from '../core/RewardEngine';
 import { LeagueGrade } from '../core/economy.types';
 import { statsService } from '../core/services/stats.service';
 import { leaderboardService, LeaderboardEntry } from '../core/services/leaderboard.service';
+import { formatLastActivity } from '../core/lastActivity';
 import { authService } from '../core/services/auth.service';
 import { getAvatarImage } from '../core/avatars';
 import { getLeagueProgress, getMonthlyCochonsFromHistory } from '../core/leagueProgress';
@@ -430,6 +431,7 @@ export const LeagueHubView: React.FC<LeagueHubViewProps> = ({
                                         </View>
                                         <View style={{ flex: 1 }}>
                                             <Text style={[styles.clsName, { color: cfg.color }]} numberOfLines={1}>Vous</Text>
+                                            <Text style={styles.clsLastActive}>{formatLastActivity(myEntry.lastActiveAt)}</Text>
                                             {grade ? (
                                                 <Text style={styles.clsGrade}>
                                                     {LEAGUE_ICONS[grade]} {LEAGUE_LABELS[grade]}
@@ -475,6 +477,7 @@ export const LeagueHubView: React.FC<LeagueHubViewProps> = ({
                                             <Text style={[styles.clsName, isMe && { color: cfg.color }]} numberOfLines={1}>
                                                 {isMe ? `${entry.displayName} (Vous)` : entry.displayName}
                                             </Text>
+                                            <Text style={styles.clsLastActive}>{formatLastActivity(entry.lastActiveAt)}</Text>
                                             {grade ? (
                                                 <Text style={styles.clsGrade}>
                                                     {LEAGUE_ICONS[grade]} {LEAGUE_LABELS[grade]}
@@ -864,6 +867,7 @@ const styles = StyleSheet.create({
     },
     clsAvatar: { width: '100%', height: '100%' },
     clsName: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+    clsLastActive: { color: 'rgba(255,255,255,0.48)', fontSize: 10, fontWeight: '700', marginTop: 1 },
     clsGrade: { color: 'rgba(255,255,255,0.4)', fontSize: 10, marginTop: 1 },
     clsScore: { alignItems: 'flex-end', marginLeft: 6, minWidth: 74 },
     clsScoreNum: { fontSize: 16, fontWeight: '900' },

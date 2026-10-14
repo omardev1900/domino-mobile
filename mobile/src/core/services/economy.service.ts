@@ -651,7 +651,7 @@ class EconomyService {
         if (uid.startsWith('guest_')) return;
         try {
             const userRef = doc(db, 'users', uid);
-            await setDoc(userRef, { displayName, avatarId, lastActiveAt: Date.now() }, { merge: true });
+            await setDoc(userRef, { displayName, avatarId }, { merge: true });
             LogService.info('EconomyService', 'Profile metadata synced.', displayName);
 
             // Propagate profile metadata to monthly leaderboard document
