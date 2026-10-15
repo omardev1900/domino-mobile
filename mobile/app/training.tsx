@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -123,6 +123,9 @@ export default function TrainingScreen() {
     const [exerciseIndex, setExerciseIndex] = useState(0);
     const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
     const [hasPremium, setHasPremium] = useState(false);
+    const { height } = useWindowDimensions();
+    const compactLayout = height < 700;
+    const exampleDominoSize = compactLayout ? 48 : 76;
     const lesson = lessons[lessonIndex];
     const isLastLesson = lessonIndex === lessons.length - 1;
 
@@ -189,10 +192,14 @@ export default function TrainingScreen() {
                 })}
             </View>
 
-            <View style={styles.content}>
+            <ScrollView
+                style={styles.contentScroll}
+                contentContainerStyle={[styles.content, compactLayout && styles.contentCompact]}
+                showsVerticalScrollIndicator={compactLayout}
+            >
                 {activeTab === 'BASICS' ? (
                     <>
-                        <View style={styles.progressRow}>
+                        <View style={[styles.progressRow, compactLayout && styles.progressRowCompact]}>
                             <Text style={styles.progressText}>Étape {lessonIndex + 1} sur {lessons.length}</Text>
                             <View style={styles.navigationButtons}>
                                 {lessonIndex > 0 && (
@@ -201,10 +208,11 @@ export default function TrainingScreen() {
                                     </TouchableOpacity>
                                 )}
                                 <TouchableOpacity
-                                    style={styles.primaryButton}
+                                    style={[styles.primaryButton, !isLastLesson && styles.iconPrimaryButton]}
                                     onPress={() => isLastLesson ? startGuidedGame() : setLessonIndex(index => index + 1)}
+                                    accessibilityLabel={isLastLesson ? 'Lancer la partie pratique' : 'Étape suivante'}
                                 >
-                                    <Text style={styles.primaryButtonText}>{isLastLesson ? 'PARTIE PRATIQUE' : 'SUIVANT'}</Text>
+                                    {isLastLesson && <Text style={styles.primaryButtonText}>PARTIE PRATIQUE</Text>}
                                     <Ionicons name={isLastLesson ? 'play' : 'arrow-forward'} size={18} color="#1A0E2E" />
                                 </TouchableOpacity>
                             </View>
@@ -213,17 +221,17 @@ export default function TrainingScreen() {
                             <View style={[styles.progressFill, { width: `${((lessonIndex + 1) / lessons.length) * 100}%` }]} />
                         </View>
 
-                        <View style={styles.lessonLayout}>
-                            <View style={styles.lessonCard}>
+                        <View style={[styles.lessonLayout, compactLayout && styles.lessonLayoutCompact]}>
+                            <View style={[styles.lessonCard, compactLayout && styles.lessonCardCompact]}>
                                 <Text style={styles.lessonTitle}>{lesson.title}</Text>
                                 <Text style={styles.lessonText}>{lesson.text}</Text>
                             </View>
-                            <View style={styles.illustrationCard}>
-                                <View style={styles.lessonIcon}>
-                                    <Ionicons name={lesson.icon} size={38} color="#FFD700" />
+                            <View style={[styles.illustrationCard, compactLayout && styles.illustrationCardCompact]}>
+                                <View style={[styles.lessonIcon, compactLayout && styles.lessonIconCompact]}>
+                                    <Ionicons name={lesson.icon} size={compactLayout ? 26 : 38} color="#FFD700" />
                                 </View>
-                                <View style={styles.dominoExample}>
-                                    <DominoTile left={lesson.example[0]} right={lesson.example[1]} size={76} orientation="horizontal" animateOnMount={false} disablePressScale pipScale={0.58} />
+                                <View style={[styles.dominoExample, compactLayout && styles.dominoExampleCompact]}>
+                                    <DominoTile left={lesson.example[0]} right={lesson.example[1]} size={exampleDominoSize} orientation="horizontal" animateOnMount={false} disablePressScale pipScale={0.58} />
                                 </View>
                             </View>
                         </View>
@@ -284,7 +292,7 @@ export default function TrainingScreen() {
                         </View>
                     </View>
                 )}
-            </View>
+            </ScrollView>
         </SafeAreaView>
     );
 }
@@ -296,22 +304,31 @@ const styles = StyleSheet.create({
     tabActive: { backgroundColor: '#FFD700', borderColor: '#FFD700' },
     tabText: { color: '#FFF', fontSize: 11, fontWeight: '800', textAlign: 'center' },
     tabTextActive: { color: '#1A0E2E' },
-    content: { flex: 1, padding: 20, paddingTop: 4, gap: 12 },
+    contentScroll: { flex: 1 },
+    content: { flexGrow: 1, padding: 20, paddingTop: 4, gap: 12 },
+    contentCompact: { paddingHorizontal: 14, paddingBottom: 18, gap: 9 },
     progressRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+    progressRowCompact: { minHeight: 38 },
     progressText: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '700' },
     navigationButtons: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     progressTrack: { height: 7, borderRadius: 4, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.14)' },
     progressFill: { height: '100%', borderRadius: 4, backgroundColor: '#FFD700' },
     lessonLayout: { flex: 1, flexDirection: 'row', gap: 14, minHeight: 0 },
+    lessonLayoutCompact: { flex: 0, minHeight: 184, gap: 9 },
     lessonCard: { flex: 1.25, justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.32)', borderRadius: 22, padding: 22, gap: 16 },
+    lessonCardCompact: { borderRadius: 16, padding: 14, gap: 8 },
     illustrationCard: { flex: 0.75, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(27,67,50,0.76)', borderWidth: 1, borderColor: 'rgba(112,214,255,0.3)', borderRadius: 22, padding: 18, gap: 18 },
+    illustrationCardCompact: { borderRadius: 16, padding: 8, gap: 7, overflow: 'hidden' },
     lessonIcon: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,215,0,0.14)' },
+    lessonIconCompact: { width: 40, height: 40, borderRadius: 20 },
     lessonTitle: { color: '#FFF', fontSize: 23, fontWeight: '900' },
     lessonText: { color: 'rgba(255,255,255,0.84)', fontSize: 16, lineHeight: 23 },
     dominoExample: { marginTop: 8, padding: 12, borderRadius: 14, backgroundColor: '#1B4332' },
+    dominoExampleCompact: { marginTop: 0, padding: 5, borderRadius: 9 },
     secondaryButton: { minHeight: 42, paddingHorizontal: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)' },
     secondaryButtonText: { color: '#FFF', fontSize: 13, fontWeight: '900' },
     primaryButton: { minHeight: 42, paddingHorizontal: 16, borderRadius: 14, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFD700' },
+    iconPrimaryButton: { minWidth: 42, paddingHorizontal: 0 },
     primaryButtonText: { color: '#1A0E2E', fontSize: 13, fontWeight: '900' },
     exerciseCard: { flex: 1, padding: 20, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.30)' },
     exerciseHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },

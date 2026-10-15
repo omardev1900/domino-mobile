@@ -294,18 +294,28 @@ export default function HomeScreen() {
             <View style={[styles.header, { paddingTop: insets.top || 20 }, USE_NEW_SIDEBAR && styles.headerCentered]}>
                 {/* Top Left: Help (Visible on all devices) */}
                 <View style={[styles.headerTopLeft, { top: (insets.top || 20) + 12 }]}>
+                    <ShareTextButton
+                        text="Rejoins-moi sur Domino Martiniquais pour une petite partie ! Télécharge le jeu ici : https://play.domino-martinique.online/"
+                        iconOnly
+                        iconSize={22}
+                        iconColor="#FFD700"
+                        buttonStyle={styles.inviteHeaderButton}
+                        wrapperStyle={styles.inviteHeaderWrapper}
+                    />
                     {!USE_NEW_SIDEBAR && (
-                        <TouchableOpacity
-                            style={styles.helpButton}
-                            onPress={() => setShowHelp(true)}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons
-                                name="help-circle-outline"
-                                size={24}
-                                color="#FFD700"
-                            />
-                        </TouchableOpacity>
+                        <>
+                            <TouchableOpacity
+                                style={styles.helpButton}
+                                onPress={() => setShowHelp(true)}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons
+                                    name="help-circle-outline"
+                                    size={24}
+                                    color="#FFD700"
+                                />
+                            </TouchableOpacity>
+                        </>
                     )}
                 </View>
 
@@ -377,7 +387,7 @@ export default function HomeScreen() {
             >
                 <View style={styles.topCardsRow}>
                     {/* 1. Nouveau bloc Actualités - CAROUSEL */}
-                    <Animated.View entering={FadeInUp.delay(200).duration(500)} style={[styles.topCardWrapper, { flex: 1.2 }]}>
+                    <Animated.View entering={FadeInUp.delay(200).duration(500)} style={[styles.topCardWrapper, styles.compactTopCard]}>
                         <TouchableOpacity 
                             style={styles.newsContainerCompact}
                             onPress={() => router.push('/news/history')}
@@ -439,7 +449,7 @@ export default function HomeScreen() {
 
                     {/* 2. Bloc Niveau Cochon */}
                     {user && (
-                        <View style={[styles.topCardWrapper, { flex: 1.2 }]}>
+                        <View style={[styles.topCardWrapper, styles.compactTopCard]}>
                             <LeagueProgressWidget 
                                 points={cochonsGiven} 
                                 onInfoPress={() => router.push('/ligue-cochons')}
@@ -448,51 +458,47 @@ export default function HomeScreen() {
                         </View>
                     )}
 
-                    {/* 3. Entraînement — accès rapide entre le grade et les actions */}
-                    <Animated.View entering={FadeInUp.delay(300).duration(500)} style={[styles.topCardWrapper, { flex: 0.65 }]}>
-                        <PremiumButton
-                            style={styles.trainingHomeButton}
-                            onPress={() => router.push('/training')}
-                            soundName="notify"
-                        >
-                            <LinearGradient
-                                colors={['#70B77E', '#2E7D32']}
-                                style={styles.trainingHomeGradient}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                            >
-                                <Ionicons name="school" size={28} color="#F4FFF3" />
-                                <Text style={styles.trainingHomeText}>S'ENTRAÎNER</Text>
+                    {/* 3. Premium — après Mon Grade */}
+                    <Animated.View entering={FadeInUp.delay(320).duration(500)} style={[styles.topCardWrapper, styles.compactTopCard]}>
+                        <TouchableOpacity style={styles.premiumHomeCard} onPress={() => router.push('/premium' as never)} activeOpacity={0.86}>
+                            <LinearGradient colors={['#6A3C8F', '#36204F']} style={styles.premiumHomeGradient}>
+                                <View style={styles.premiumHomeIcon}>
+                                    <Ionicons name="star" size={22} color="#2D1B4E" />
+                                </View>
+                                <Text style={styles.premiumHomeTitle}>PREMIUM</Text>
+                                <Text style={styles.premiumHomeText}>3 jours gratuits</Text>
+                                <Ionicons name="chevron-forward" size={17} color="#FFD700" />
                             </LinearGradient>
-                        </PremiumButton>
+                        </TouchableOpacity>
                     </Animated.View>
 
-                    {/* 4. Section Action (Inviter + Jouer) */}
-                    <Animated.View entering={FadeInUp.delay(400).duration(500)} style={[styles.topCardWrapper, { flex: 0.4 }]}>
+                    {/* Section Action : S'entraîner + Jouer */}
+                    <Animated.View entering={FadeInUp.delay(400).duration(500)} style={[styles.topCardWrapper, styles.actionsTopCard]}>
                         <View style={{ flex: 1, flexDirection: 'column', gap: 8 }}>
-                            {/* Bouton INVITER (haut) */}
-                            <ShareTextButton 
-                                text="Rejoins-moi sur Domino Martiniquais pour une petite partie ! Télécharge le jeu ici : https://play.domino-martinique.online/"
-                                label="INVITER"
-                                iconSize={24}
-                                iconColor="#1A0E2E"
-                                wrapperStyle={{ flex: 1, alignSelf: 'stretch' }}
-                                buttonStyle={{
+                            {/* Bouton S'ENTRAÎNER (haut) : conserve la taille d'Inviter */}
+                            <PremiumButton
+                                style={{
                                     flex: 1,
                                     width: '100%',
                                     borderRadius: 12,
-                                    backgroundColor: '#42A5F5',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    flexDirection: 'column',
-                                    gap: 2,
+                                    overflow: 'hidden',
                                     elevation: 4,
-                                    shadowColor: '#42A5F5',
+                                    shadowColor: '#4CAF50',
                                     shadowOffset: { width: 0, height: 2 },
                                     shadowOpacity: 0.3,
                                     shadowRadius: 3,
                                 }}
-                            />
+                                onPress={() => router.push('/training')}
+                                soundName="notify"
+                            >
+                                <LinearGradient
+                                    colors={['#70B77E', '#2E7D32']}
+                                    style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 }}
+                                >
+                                    <Ionicons name="school" size={24} color="#F4FFF3" />
+                                    <Text style={{ color: '#F4FFF3', fontSize: 11, fontWeight: '900', letterSpacing: 0.6 }}>S'ENTRAÎNER</Text>
+                                </LinearGradient>
+                            </PremiumButton>
 
                             {/* Bouton JOUER (bas) */}
                             <PremiumButton
@@ -522,21 +528,6 @@ export default function HomeScreen() {
                         </View>
                     </Animated.View>
                 </View>
-
-                <Animated.View entering={FadeInUp.delay(450).duration(500)} style={styles.premiumHomeWrapper}>
-                    <TouchableOpacity style={styles.premiumHomeCard} onPress={() => router.push('/premium' as never)} activeOpacity={0.86}>
-                        <LinearGradient colors={['#6A3C8F', '#36204F']} style={styles.premiumHomeGradient}>
-                            <View style={styles.premiumHomeIcon}>
-                                <Ionicons name="star" size={24} color="#2D1B4E" />
-                            </View>
-                            <View style={styles.premiumHomeCopy}>
-                                <Text style={styles.premiumHomeTitle}>PREMIUM</Text>
-                                <Text style={styles.premiumHomeText}>3 jours gratuits · skins et entraînement avancé</Text>
-                            </View>
-                            <Ionicons name="chevron-forward" size={22} color="#FFD700" />
-                        </LinearGradient>
-                    </TouchableOpacity>
-                </Animated.View>
             </ScrollView>
 
             {/* Help Overlay */}
@@ -650,6 +641,17 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
         borderRadius: 20,
         gap: 6,
+    },
+    inviteHeaderWrapper: { alignItems: 'center' },
+    inviteHeaderButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,215,0,0.1)',
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,215,0,0.4)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     headerLeft: {
         flex: 1,
@@ -976,38 +978,39 @@ const styles = StyleSheet.create({
         gap: 8,
         paddingHorizontal: 10,
         marginTop: 15,
-        marginBottom: 20,
+        marginBottom: 10,
         alignItems: 'stretch',
-        height: 160,
+        height: 132,
     },
-    premiumHomeWrapper: {
-        marginHorizontal: 10,
-        marginBottom: 16,
+    compactTopCard: {
+        flex: 1,
     },
     premiumHomeCard: {
+        flex: 1,
         overflow: 'hidden',
-        borderRadius: 17,
+        borderRadius: 13,
         borderWidth: 1,
         borderColor: 'rgba(255,215,0,0.52)',
     },
     premiumHomeGradient: {
-        minHeight: 70,
-        paddingHorizontal: 14,
-        flexDirection: 'row',
+        flex: 1,
+        paddingHorizontal: 8,
+        paddingVertical: 9,
         alignItems: 'center',
-        gap: 12,
+        justifyContent: 'center',
+        gap: 4,
     },
     premiumHomeIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 34,
+        height: 34,
+        borderRadius: 17,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: '#FFD700',
     },
-    premiumHomeCopy: { flex: 1 },
-    premiumHomeTitle: { color: '#FFD700', fontSize: 16, fontWeight: '900', letterSpacing: 0.9 },
-    premiumHomeText: { marginTop: 2, color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: '600' },
+    premiumHomeTitle: { color: '#FFD700', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
+    premiumHomeText: { color: 'rgba(255,255,255,0.82)', fontSize: 10, fontWeight: '700', textAlign: 'center' },
+    actionsTopCard: { flex: 0.55 },
     sessionNoticeCard: {
         backgroundColor: 'rgba(255,255,255,0.08)',
         borderRadius: 18,
