@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { getAvatarImage, hasAvatarImage } from '../../core/avatars';
 import { StoreItem, SkinConfig } from '../../core/store.types';
-import { resolveDominoSidePalette } from '../../core/skinPalette';
+import { DominoTile } from '../DominoTile';
 
 type StoreItemPreviewProps = {
     item: StoreItem;
@@ -26,45 +26,9 @@ function resolveSkinConfig(item: StoreItem): SkinConfig {
         dominoBackgroundColor: item.skinConfig?.dominoBackgroundColor ?? '#FFFFFF',
         dominoDotColor: item.skinConfig?.dominoDotColor ?? '#000000',
         dominoLineColor: item.skinConfig?.dominoLineColor ?? '#000000',
+        dominoValueBackgroundColors: item.skinConfig?.dominoValueBackgroundColors,
+        dominoValueDotColors: item.skinConfig?.dominoValueDotColors,
     };
-}
-
-function DominoPip({ color }: { color: string }) {
-    return <View style={[styles.pip, { backgroundColor: color }]} />;
-}
-
-function DominoHalf({ skin, value }: { skin: SkinConfig; value: 0 | 5 }) {
-    const palette = resolveDominoSidePalette(value, skin);
-    if (value === 0) {
-        return <View style={[styles.dominoHalf, { backgroundColor: palette.backgroundColor }]} />;
-    }
-
-    return (
-        <View style={[styles.dominoHalf, { backgroundColor: palette.backgroundColor }]}>
-            <View style={[styles.pipSlot, styles.pipTopLeft]}><DominoPip color={palette.dotColor} /></View>
-            <View style={[styles.pipSlot, styles.pipTopRight]}><DominoPip color={palette.dotColor} /></View>
-            <View style={[styles.pipSlot, styles.pipCenter]}><DominoPip color={palette.dotColor} /></View>
-            <View style={[styles.pipSlot, styles.pipBottomLeft]}><DominoPip color={palette.dotColor} /></View>
-            <View style={[styles.pipSlot, styles.pipBottomRight]}><DominoPip color={palette.dotColor} /></View>
-        </View>
-    );
-}
-
-function SingleDominoPreview({ skin }: { skin: SkinConfig }) {
-    return (
-        <View
-            style={[
-                styles.domino,
-                {
-                    backgroundColor: skin.dominoBackgroundColor,
-                },
-            ]}
-        >
-            <DominoHalf skin={skin} value={5} />
-            <View style={[styles.divider, { backgroundColor: skin.dominoLineColor }]} />
-            <DominoHalf skin={skin} value={0} />
-        </View>
-    );
 }
 
 export function StoreItemPreview({ item, height = 100 }: StoreItemPreviewProps) {
@@ -98,7 +62,16 @@ export function StoreItemPreview({ item, height = 100 }: StoreItemPreviewProps) 
         return (
             <View style={[styles.frame, styles.skinFrame, { height, backgroundColor: skin.tableBackgroundColor }]}>
                 <View style={[styles.board, { backgroundColor: skin.boardColor ?? skin.tableBackgroundColor }]}>
-                    <SingleDominoPreview skin={skin} />
+                    <DominoTile
+                        left={5}
+                        right={0}
+                        size={Math.max(30, Math.min(44, height * 0.36))}
+                        orientation="horizontal"
+                        skinConfig={skin}
+                        noMargin
+                        animateOnMount={false}
+                        disablePressScale
+                    />
                 </View>
             </View>
         );
@@ -171,53 +144,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         paddingHorizontal: 4,
-    },
-    domino: {
-        width: '37%',
-        maxWidth: 66,
-        aspectRatio: 2,
-        flexDirection: 'row',
-        alignItems: 'stretch',
-        justifyContent: 'center',
-        borderRadius: 4,
-    },
-    dominoHalf: {
-        flex: 1,
-        position: 'relative',
-    },
-    divider: {
-        width: 2,
-        marginVertical: 6,
-    },
-    pip: {
-        width: 8,
-        height: 8,
-        borderRadius: 8,
-    },
-    pipSlot: {
-        position: 'absolute',
-    },
-    pipTopLeft: {
-        left: '22%',
-        top: '18%',
-    },
-    pipTopRight: {
-        right: '22%',
-        top: '18%',
-    },
-    pipCenter: {
-        left: '50%',
-        top: '50%',
-        marginLeft: -4,
-        marginTop: -4,
-    },
-    pipBottomLeft: {
-        left: '22%',
-        bottom: '18%',
-    },
-    pipBottomRight: {
-        right: '22%',
-        bottom: '18%',
     },
     iconFallback: {
         backgroundColor: 'rgba(255,255,255,0.04)',

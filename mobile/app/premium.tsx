@@ -192,7 +192,6 @@ export default function PremiumScreen() {
                     </ScrollView>
                 </View>
 
-                <Text style={styles.notice}>Les abonnements mensuel et annuel arriveront dans une prochaine mise à jour.</Text>
                 {isAdmin && <TouchableOpacity onPress={() => router.push('/premium-codes' as never)}><Text style={styles.adminLink}>Gérer les codes Premium</Text></TouchableOpacity>}
             </ScrollView>
 

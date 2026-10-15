@@ -1,13 +1,17 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DominoTile } from '../src/components/DominoTile';
+import { TrainingBoardScenario, TrainingExerciseBoard, TrainingExerciseResult } from '../src/features/training/TrainingExerciseBoard';
+import { TrainingExerciseOnboarding } from '../src/features/training/TrainingExerciseOnboarding';
+import { TrainingHub } from '../src/features/training/TrainingHub';
 import { isPremiumActive, premiumService } from '../src/core/services/premium.service';
 
-type TrainingTab = 'BASICS' | 'PRACTICE' | 'EXPERT';
+type TrainingTab = 'HOME' | 'BASICS' | 'PRACTICE' | 'EXPERT';
+type CourseTab = Exclude<TrainingTab, 'HOME'>;
 
 const lessons = [
     {
@@ -47,8 +51,7 @@ type PremiumExercise = {
     bot: string;
     strategy: string;
     prompt: string;
-    options: readonly string[];
-    answer: number;
+    board: TrainingBoardScenario;
     explanation: string;
 };
 
@@ -61,28 +64,81 @@ const premiumExercises: Record<'PRACTICE' | 'EXPERT', PremiumExercise[]> = {
             title: 'Garder une sortie',
             bot: 'Méthode Mapipi',
             strategy: 'Conserver une valeur que tu peux rejouer.',
-            prompt: 'La table est ouverte sur 3 et 6. Tu peux jouer 3|1 ou 6|5. Il te reste 1|4 et 1|6. Quel choix garde le plus de solutions ? ',
-            options: ['Jouer 3|1', 'Jouer 6|5', 'Passer'],
-            answer: 0,
+            prompt: 'La table est ouverte sur 3 et 6. Pose le domino qui garde le plus de solutions pour la suite.',
+            board: { table: [[3, 6]], hand: [[3, 1], [6, 5], [1, 4], [1, 6]], targetIndex: 0, targetSide: 'left' },
             explanation: 'Après 3|1, tu ouvres sur 1 et tu conserves deux réponses : 1|4 et 1|6. Mapipi favorise ce type de continuité.',
         },
         {
             title: 'Se délester',
             bot: 'Méthode Mapipi',
             strategy: 'Sortir les points lourds quand le coup reste sûr.',
-            prompt: 'Tu peux jouer 6|6 ou 6|1. Tes autres dominos couvrent encore le 6. Quel coup allège le mieux ta main ?',
-            options: ['Jouer 6|1', 'Jouer 6|6', 'Attendre un autre tour'],
-            answer: 1,
+            prompt: 'Tes autres dominos couvrent encore le 6. Pose le coup qui allège le mieux ta main.',
+            board: { table: [[6, 4]], hand: [[6, 1], [6, 6], [4, 2]], targetIndex: 1, targetSide: 'left' },
             explanation: 'Le double 6 retire 12 points. Lorsque la suite est assurée, réduire ce risque est le réflexe de Mapipi.',
         },
         {
             title: 'Ne pas ouvrir seul',
             bot: 'Méthode Mapipi',
             strategy: 'Éviter une extrémité sans relais dans sa main.',
-            prompt: 'En jouant 4|2 tu ouvrirais sur 2, mais tu n’as aucun autre 2. En jouant 4|5 tu ouvrirais sur 5, avec deux autres 5 en main. Que joues-tu ?',
-            options: ['4|2', '4|5', 'Passer'],
-            answer: 1,
+            prompt: 'Évite d’ouvrir sur une valeur sans relais : choisis le domino qui laisse des réponses en main.',
+            board: { table: [[4, 3]], hand: [[4, 2], [4, 5], [5, 1], [5, 6]], targetIndex: 1, targetSide: 'left' },
             explanation: 'Ouvrir sur 5 te laisse des réponses. Le moteur Mapipi pénalise les valeurs qui ne disposent d’aucun relais.',
+        },
+        {
+            title: 'Utiliser un double',
+            bot: 'Méthode Mapipi',
+            strategy: 'Poser un double lourd quand il garde une continuité.',
+            prompt: 'Le 2 reste bien couvert dans ta main. Pose le domino qui réduit ton risque de points.',
+            board: { table: [[2, 5]], hand: [[2, 2], [5, 1], [2, 6], [6, 3]], targetIndex: 0, targetSide: 'left' },
+            explanation: 'Le double 2 enlève 4 points tout en laissant le 2 ouvert, valeur que tu peux encore rejouer avec 2|6.',
+        },
+        {
+            title: 'Deux portes ouvertes',
+            bot: 'Méthode Mapipi',
+            strategy: 'Ouvrir sur une valeur avec plusieurs relais.',
+            prompt: 'Choisis le coup qui te laisse plusieurs réponses pour le prochain tour.',
+            board: { table: [[4, 1]], hand: [[4, 5], [1, 3], [5, 2], [5, 6]], targetIndex: 0, targetSide: 'left' },
+            explanation: 'Après 4|5, tu ouvres sur 5 et conserves deux relais : 5|2 et 5|6.',
+        },
+        {
+            title: 'Le lourd assuré',
+            bot: 'Méthode Mapipi',
+            strategy: 'Écarter un gros domino seulement si la suite est couverte.',
+            prompt: 'Le 6 est encore présent dans ta main. Quel coup réduit le plus tes points sans te bloquer ?',
+            board: { table: [[6, 2]], hand: [[6, 6], [6, 3], [2, 1], [3, 5]], targetIndex: 0, targetSide: 'left' },
+            explanation: 'Le double 6 retire 12 points et tu gardes 6|3 pour répondre si le 6 revient sur la table.',
+        },
+        {
+            title: 'Éviter le bout mort',
+            bot: 'Méthode Mapipi',
+            strategy: 'Ne pas ouvrir une valeur qui n’a aucun relais.',
+            prompt: 'Pose le domino qui ne crée pas une extrémité isolée dans ta main.',
+            board: { table: [[1, 4]], hand: [[1, 5], [4, 0], [5, 2], [5, 6]], targetIndex: 0, targetSide: 'left' },
+            explanation: 'Ouvrir sur 5 est préférable : tu as ensuite 5|2 et 5|6. Ouvrir sur 0 ne te laisserait aucune réponse.',
+        },
+        {
+            title: 'Préserver le relais',
+            bot: 'Méthode Mapipi',
+            strategy: 'Choisir la sortie qui prolonge naturellement la main.',
+            prompt: 'Repère la valeur que tu peux immédiatement rejouer après ta pose.',
+            board: { table: [[5, 2]], hand: [[5, 3], [2, 6], [3, 1], [3, 4]], targetIndex: 0, targetSide: 'left' },
+            explanation: 'Avec 5|3, tu gardes deux réponses sur 3 : 3|1 et 3|4. C’est une sortie solide.',
+        },
+        {
+            title: 'Alléger sans fermer',
+            bot: 'Méthode Mapipi',
+            strategy: 'Retirer des points tout en gardant une porte de sortie.',
+            prompt: 'Le 4 reste disponible dans ta main. Pose le domino le plus lourd qui garde cette continuité.',
+            board: { table: [[0, 4]], hand: [[4, 4], [0, 1], [4, 6], [6, 2]], targetIndex: 0, targetSide: 'right' },
+            explanation: 'Le double 4 enlève 8 points et tu gardes 4|6 pour continuer sur 4 si nécessaire.',
+        },
+        {
+            title: 'Préparer la fin',
+            bot: 'Méthode Mapipi',
+            strategy: 'Jouer vers une valeur que ta main peut encore soutenir.',
+            prompt: 'La manche avance : choisis le coup qui te laisse une réponse directe.',
+            board: { table: [[1, 6]], hand: [[1, 3], [6, 0], [3, 5], [5, 2]], targetIndex: 0, targetSide: 'left' },
+            explanation: 'Après 1|3, tu peux immédiatement répondre avec 3|5. Cette continuité évite de subir la table.',
         },
     ],
     EXPERT: [
@@ -90,27 +146,24 @@ const premiumExercises: Record<'PRACTICE' | 'EXPERT', PremiumExercise[]> = {
             title: 'Jouer sa clé',
             bot: 'Méthode Gran-Moun',
             strategy: 'Ouvrir sur une valeur que tu domines.',
-            prompt: 'Tu détiens quatre dominos contenant le 5, contre un seul contenant le 2. Tu peux poser 6|5 ou 6|2. Quelle extrémité choisis-tu ?',
-            options: ['Ouvrir sur 2 avec 6|2', 'Ouvrir sur 5 avec 6|5', 'Choisir au hasard'],
-            answer: 1,
+            prompt: 'Tu domines la valeur 5. Pose le domino qui t’aide à conserver le contrôle de la table.',
+            board: { table: [[6, 1]], hand: [[6, 2], [6, 5], [5, 3], [5, 4]], targetIndex: 1, targetSide: 'left' },
             explanation: 'Gran-Moun privilégie sa valeur dominante : ouvrir sur 5 augmente la probabilité que tu contrôles les prochains coups.',
         },
         {
             title: 'Lire un passage',
             bot: 'Méthode Gran-Moun',
             strategy: 'Exposer une valeur qui a déjà bloqué un adversaire.',
-            prompt: 'Un adversaire a passé alors que les extrémités étaient 1 et 4. Tu peux maintenant ouvrir sur 1 ou sur 6. Quel choix met le plus de pression ?',
-            options: ['Ouvrir sur 1', 'Ouvrir sur 6', 'Le passage ne donne aucune information'],
-            answer: 0,
+            prompt: 'Un adversaire a passé avec le 1 ouvert. Pose le domino qui exploite cette information.',
+            board: { table: [[4, 2]], hand: [[1, 4], [6, 4], [2, 5]], targetIndex: 0, targetSide: 'left' },
             explanation: 'Le passage indique que l’adversaire ne pouvait répondre ni au 1 ni au 4. Gran-Moun réutilise cette information pour le bloquer.',
         },
         {
             title: 'Fin de manche',
             bot: 'Méthode Mèt Kayali',
             strategy: 'Limiter le risque de boudé quand les mains sont courtes.',
-            prompt: 'Il reste peu de dominos. Un coup ouvre sur 0, valeur déjà presque épuisée ; un autre ouvre sur 3, encore bien présente dans ta main. Que privilégier ?',
-            options: ['Ouvrir sur 0', 'Ouvrir sur 3', 'Jouer le domino le plus lourd sans regarder'],
-            answer: 1,
+            prompt: 'Les mains sont courtes : privilégie une sortie encore présente dans ta main pour éviter le boudé.',
+            board: { table: [[6, 2]], hand: [[6, 0], [6, 3], [3, 1], [3, 5]], targetIndex: 1, targetSide: 'left' },
             explanation: 'Mèt Kayali évite les bouts morts et simule le risque de boudé. Ouvrir sur 3 conserve une issue et réduit le blocage subi.',
         },
     ],
@@ -118,10 +171,18 @@ const premiumExercises: Record<'PRACTICE' | 'EXPERT', PremiumExercise[]> = {
 
 export default function TrainingScreen() {
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<TrainingTab>('BASICS');
+    const [activeTab, setActiveTab] = useState<TrainingTab>('HOME');
     const [lessonIndex, setLessonIndex] = useState(0);
     const [exerciseIndex, setExerciseIndex] = useState(0);
-    const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+    const [exerciseResult, setExerciseResult] = useState<TrainingExerciseResult | null>(null);
+    const [exerciseAttempt, setExerciseAttempt] = useState(0);
+    const [showExerciseInfo, setShowExerciseInfo] = useState(false);
+    const [showExerciseResult, setShowExerciseResult] = useState(false);
+    const [showPracticeOnboarding, setShowPracticeOnboarding] = useState(false);
+    const [transitionExerciseNumber, setTransitionExerciseNumber] = useState<number | null>(null);
+    const resultPopupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const exerciseTransition = useRef(new Animated.Value(0)).current;
     const [hasPremium, setHasPremium] = useState(false);
     const { height } = useWindowDimensions();
     const compactLayout = height < 700;
@@ -129,11 +190,18 @@ export default function TrainingScreen() {
     const lesson = lessons[lessonIndex];
     const isLastLesson = lessonIndex === lessons.length - 1;
 
-    const tabs = useMemo(() => [
-        { id: 'BASICS' as const, label: 'Apprendre les bases', icon: 'school-outline' as const, premium: false },
-        { id: 'PRACTICE' as const, label: "S'entraîner", icon: 'fitness-outline' as const, premium: true },
-        { id: 'EXPERT' as const, label: 'Devenir expert', icon: 'trophy-outline' as const, premium: true },
-    ], []);
+    useEffect(() => () => {
+        if (resultPopupTimer.current) clearTimeout(resultPopupTimer.current);
+        if (transitionTimer.current) clearTimeout(transitionTimer.current);
+        exerciseTransition.stopAnimation();
+    }, [exerciseTransition]);
+
+    const clearResultPopupTimer = () => {
+        if (resultPopupTimer.current) {
+            clearTimeout(resultPopupTimer.current);
+            resultPopupTimer.current = null;
+        }
+    };
 
     useFocusEffect(useCallback(() => {
         let active = true;
@@ -143,17 +211,60 @@ export default function TrainingScreen() {
         return () => { active = false; };
     }, []));
 
-    const selectTab = (tab: TrainingTab) => {
-        if (tab !== 'BASICS' && !hasPremium) {
+    const selectTab = (tab: CourseTab) => {
+        if ((tab === 'PRACTICE' || tab === 'EXPERT') && !hasPremium) {
             router.push('/premium' as never);
             return;
         }
         setActiveTab(tab);
+        clearResultPopupTimer();
         setExerciseIndex(0);
-        setSelectedAnswer(null);
+        setExerciseResult(null);
+        setShowExerciseInfo(false);
+        setShowExerciseResult(false);
+        setShowPracticeOnboarding(tab === 'PRACTICE');
     };
 
-    const exercise = activeTab === 'BASICS' ? null : premiumExercises[activeTab][exerciseIndex];
+    const exercise = activeTab === 'PRACTICE' || activeTab === 'EXPERT' ? premiumExercises[activeTab][exerciseIndex] : null;
+
+    const moveToNextExercise = () => {
+        clearResultPopupTimer();
+        const exercises = premiumExercises[activeTab as 'PRACTICE' | 'EXPERT'];
+        const isLastExercise = exerciseIndex === exercises.length - 1;
+        if (activeTab === 'EXPERT' && isLastExercise) {
+            setShowExerciseResult(false);
+            return;
+        }
+
+        const nextIndex = isLastExercise ? 0 : exerciseIndex + 1;
+        if (activeTab === 'PRACTICE' && isLastExercise) setActiveTab('EXPERT');
+        setExerciseIndex(nextIndex);
+        setExerciseResult(null);
+        setShowExerciseResult(false);
+        setShowExerciseInfo(false);
+        if (transitionTimer.current) clearTimeout(transitionTimer.current);
+        exerciseTransition.stopAnimation();
+        transitionTimer.current = setTimeout(() => {
+            setTransitionExerciseNumber(nextIndex + 1);
+            exerciseTransition.setValue(0);
+            Animated.sequence([
+                Animated.timing(exerciseTransition, { toValue: 1, duration: 180, useNativeDriver: true }),
+                Animated.delay(520),
+                Animated.timing(exerciseTransition, { toValue: 0, duration: 260, useNativeDriver: true }),
+            ]).start(({ finished }) => {
+                if (finished) setTransitionExerciseNumber(null);
+            });
+        }, 140);
+    };
+
+    const handleExerciseResult = (result: TrainingExerciseResult) => {
+        setExerciseResult(result);
+        clearResultPopupTimer();
+        resultPopupTimer.current = setTimeout(() => {
+            setShowExerciseResult(true);
+            resultPopupTimer.current = null;
+        }, 1000);
+    };
 
     const startGuidedGame = () => {
         router.push({
@@ -172,26 +283,38 @@ export default function TrainingScreen() {
         });
     };
 
+    const startTableTour = () => {
+        router.push({
+            pathname: '/game/[id]',
+            params: {
+                id: `training-table-${Date.now()}`,
+                mode: 'solo',
+                difficulty: 'TI_MANMAY',
+                gameMode: 'MANCHE',
+                winningCondition: '1',
+                turnDuration: '30',
+                startingHandSize: '7',
+                tableTier: 'DEBUTANT',
+                training: 'table',
+            },
+        });
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <LinearGradient colors={['#102A43', '#1A0E2E']} style={StyleSheet.absoluteFillObject} />
-            <View style={styles.tabs}>
-                {tabs.map(tab => {
-                    const isActive = activeTab === tab.id;
-                    return (
-                        <TouchableOpacity
-                            key={tab.id}
-                            style={[styles.tab, isActive && styles.tabActive]}
-                            onPress={() => selectTab(tab.id)}
-                            activeOpacity={0.8}
-                        >
-                            <Ionicons name={tab.premium && !hasPremium ? 'lock-closed' : tab.icon} size={15} color={isActive ? '#1A0E2E' : '#FFF'} />
-                            <Text style={[styles.tabText, isActive && styles.tabTextActive]} numberOfLines={1}>{tab.label}</Text>
-                        </TouchableOpacity>
-                    );
-                })}
+            {activeTab === 'HOME' ? <TrainingHub
+                onLearnBasics={() => selectTab('BASICS')}
+                onUnderstandTable={startTableTour}
+                onFreeGame={startGuidedGame}
+                onPractice={() => selectTab('PRACTICE')}
+                onExpert={() => selectTab('EXPERT')}
+            /> : <>
+            <View style={styles.courseBar}>
+                <TouchableOpacity style={styles.courseHomeButton} onPress={() => setActiveTab('HOME')} accessibilityLabel="Retour à l'accueil entraînement">
+                    <Ionicons name="arrow-back" size={17} color="#FFF" /><Text style={styles.courseHomeText}>ENTRAÎNEMENT</Text>
+                </TouchableOpacity>
             </View>
-
             <ScrollView
                 style={styles.contentScroll}
                 contentContainerStyle={[styles.content, compactLayout && styles.contentCompact]}
@@ -239,71 +362,73 @@ export default function TrainingScreen() {
                 ) : exercise && (
                     <View style={styles.exerciseCard}>
                         <View style={styles.exerciseHeader}>
-                            <View>
+                            <View style={styles.exerciseTitleGroup}>
+                                <View>
                                 <Text style={styles.exerciseBadge}>{exercise.bot.toUpperCase()}</Text>
                                 <Text style={styles.exerciseTitle}>{exercise.title}</Text>
+                                </View>
                             </View>
-                            <Text style={styles.exerciseProgress}>{exerciseIndex + 1}/{premiumExercises[activeTab].length}</Text>
-                        </View>
-                        <Text style={styles.exerciseStrategy}>{exercise.strategy}</Text>
-                        <Text style={styles.exercisePrompt}>{exercise.prompt}</Text>
-                        <View style={styles.answerList}>
-                            {exercise.options.map((option, index) => {
-                                const isSelected = selectedAnswer === index;
-                                const isCorrect = index === exercise.answer;
-                                return (
-                                    <TouchableOpacity
-                                        key={option}
-                                        disabled={selectedAnswer !== null}
-                                        onPress={() => setSelectedAnswer(index)}
-                                        style={[
-                                            styles.answer,
-                                            isSelected && (isCorrect ? styles.answerCorrect : styles.answerWrong),
-                                            selectedAnswer !== null && isCorrect && styles.answerCorrect,
-                                        ]}
-                                    >
-                                        <Text style={styles.answerText}>{option}</Text>
-                                        {selectedAnswer !== null && isCorrect && <Ionicons name="checkmark" size={19} color="#7EE081" />}
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                        {selectedAnswer !== null && (
-                            <View style={styles.explanation}>
-                                <Text style={styles.explanationTitle}>{selectedAnswer === exercise.answer ? 'Bien joué !' : 'À retenir'}</Text>
-                                <Text style={styles.explanationText}>{exercise.explanation}</Text>
+                            <TouchableOpacity style={styles.exerciseInfoButton} onPress={() => setShowExerciseInfo(true)} accessibilityLabel="Voir l'explication de l'exercice">
+                                <Ionicons name="information-circle-outline" size={16} color="#FFD700" />
+                                <Text style={styles.exerciseInfoText}>INFO</Text>
+                            </TouchableOpacity>
+                            <View style={styles.exerciseHeaderActions}>
+                                <Text style={styles.exerciseProgress}>{exerciseIndex + 1}/{premiumExercises[activeTab as 'PRACTICE' | 'EXPERT'].length}</Text>
+                                <TouchableOpacity style={styles.exerciseNextButton} onPress={moveToNextExercise} accessibilityLabel="Exercice suivant">
+                                    <Text style={styles.exerciseNextText}>SUIVANT</Text>
+                                    <Ionicons name="arrow-forward" size={15} color="#1A0E2E" />
+                                </TouchableOpacity>
                             </View>
-                        )}
-                        <View style={styles.exerciseNavigation}>
-                            <TouchableOpacity
-                                disabled={exerciseIndex === 0}
-                                style={[styles.secondaryButton, exerciseIndex === 0 && styles.invisibleButton]}
-                                onPress={() => { setExerciseIndex(index => index - 1); setSelectedAnswer(null); }}
-                            >
-                                <Text style={styles.secondaryButtonText}>PRÉCÉDENT</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.primaryButton}
-                                onPress={() => { setExerciseIndex(index => (index + 1) % premiumExercises[activeTab].length); setSelectedAnswer(null); }}
-                            >
-                                <Text style={styles.primaryButtonText}>SUIVANT</Text>
-                                <Ionicons name="arrow-forward" size={18} color="#1A0E2E" />
-                            </TouchableOpacity>
                         </View>
+                        <TrainingExerciseBoard scenario={exercise.board} result={exerciseResult} resetToken={exerciseAttempt} onResult={handleExerciseResult} />
                     </View>
                 )}
             </ScrollView>
+            </>}
+            {exercise && (
+                <>
+                    <Modal visible={showExerciseInfo} transparent animationType="fade" onRequestClose={() => setShowExerciseInfo(false)}>
+                        <View style={styles.infoModalOverlay}>
+                            <View style={styles.infoModalCard}>
+                                <View style={styles.trainingModalHeader}><Text style={styles.trainingModalTitle}>{exercise.title}</Text><TouchableOpacity onPress={() => setShowExerciseInfo(false)}><Ionicons name="close" size={23} color="#FFF" /></TouchableOpacity></View>
+                                <Text style={styles.exerciseStrategy}>{exercise.strategy}</Text>
+                                <Text style={styles.trainingModalText}>{exercise.prompt}</Text>
+                            </View>
+                        </View>
+                    </Modal>
+                    <Modal visible={showExerciseResult} transparent animationType="fade" onRequestClose={() => setShowExerciseResult(false)}>
+                        <View style={styles.resultModalOverlay}>
+                            <View style={styles.resultModalCard}>
+                                <Ionicons name={exerciseResult === 'correct' ? 'checkmark-circle' : 'refresh-circle'} size={38} color={exerciseResult === 'correct' ? '#7EE081' : '#FFD700'} />
+                                <Text style={[styles.trainingModalTitle, styles.resultModalTitle]}>{exerciseResult === 'correct' ? 'Bien joué !' : exerciseResult === 'suboptimal' ? 'Jouable, mais…' : 'Coup impossible'}</Text>
+                                <Text style={[styles.trainingModalText, styles.resultModalText]}>{exerciseResult === 'correct' ? exercise.explanation : exerciseResult === 'suboptimal' ? 'Ce domino peut être posé, mais ce n’est pas le meilleur jeu dans cette situation.' : 'Ce domino ne correspond pas à la valeur ouverte de cette extrémité.'}</Text>
+                                <TouchableOpacity style={[styles.trainingModalButton, styles.resultModalButton]} onPress={() => exerciseResult === 'correct' ? moveToNextExercise() : (() => { setExerciseAttempt(attempt => attempt + 1); setExerciseResult(null); setShowExerciseResult(false); })()}>
+                                    <Text style={styles.trainingModalButtonText}>{exerciseResult === 'correct' ? 'CONTINUER' : 'RÉESSAYER'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </Modal>
+                </>
+            )}
+            {transitionExerciseNumber !== null && (
+                <Animated.View pointerEvents="none" style={[styles.exerciseTransitionOverlay, { opacity: exerciseTransition }]}>
+                    <Animated.View style={[styles.exerciseTransitionCard, { transform: [{ scale: exerciseTransition.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] }) }] }]}>
+                        <Ionicons name="sparkles" size={28} color="#FFD700" />
+                        <Text style={styles.exerciseTransitionEyebrow}>NOUVEAU DÉFI</Text>
+                        <Text style={styles.exerciseTransitionTitle}>Exercice {transitionExerciseNumber}</Text>
+                    </Animated.View>
+                </Animated.View>
+            )}
+            {showPracticeOnboarding && <TrainingExerciseOnboarding onComplete={() => setShowPracticeOnboarding(false)} />}
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#1A0E2E' },
-    tabs: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
-    tab: { flex: 1, minHeight: 46, borderRadius: 12, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
-    tabActive: { backgroundColor: '#FFD700', borderColor: '#FFD700' },
-    tabText: { color: '#FFF', fontSize: 11, fontWeight: '800', textAlign: 'center' },
-    tabTextActive: { color: '#1A0E2E' },
+    courseBar: { minHeight: 38, paddingHorizontal: 15, justifyContent: 'center' },
+    courseHomeButton: { alignSelf: 'flex-start', minHeight: 30, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.1)' },
+    courseHomeText: { color: '#FFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
     contentScroll: { flex: 1 },
     content: { flexGrow: 1, padding: 20, paddingTop: 4, gap: 12 },
     contentCompact: { paddingHorizontal: 14, paddingBottom: 18, gap: 9 },
@@ -330,21 +455,40 @@ const styles = StyleSheet.create({
     primaryButton: { minHeight: 42, paddingHorizontal: 16, borderRadius: 14, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFD700' },
     iconPrimaryButton: { minWidth: 42, paddingHorizontal: 0 },
     primaryButtonText: { color: '#1A0E2E', fontSize: 13, fontWeight: '900' },
-    exerciseCard: { flex: 1, padding: 20, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.30)' },
+    exerciseCard: { flex: 1, minHeight: 0, padding: 14, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.30)' },
     exerciseHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+    exerciseTitleGroup: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    exerciseInfoButton: { position: 'absolute', top: 7, left: '50%', minWidth: 64, minHeight: 30, marginLeft: -32, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 15, backgroundColor: 'rgba(255,215,0,0.12)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.45)' },
+    exerciseInfoText: { color: '#FFD700', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+    exerciseHeaderActions: { alignItems: 'flex-end', gap: 5 },
     exerciseBadge: { color: '#FFD700', fontSize: 11, fontWeight: '900', letterSpacing: 0.8 },
-    exerciseTitle: { marginTop: 4, color: '#FFF', fontSize: 23, fontWeight: '900' },
+    exerciseTitle: { marginTop: 2, color: '#FFF', fontSize: 20, fontWeight: '900' },
     exerciseProgress: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '800' },
-    exerciseStrategy: { marginTop: 15, color: '#83D9FF', fontSize: 14, fontWeight: '800' },
-    exercisePrompt: { marginTop: 14, color: 'rgba(255,255,255,0.86)', fontSize: 16, lineHeight: 23 },
+    exerciseNextButton: { minHeight: 31, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 10, backgroundColor: '#FFD700' },
+    exerciseNextText: { color: '#1A0E2E', fontSize: 10, fontWeight: '900' },
+    exerciseStrategy: { marginTop: 10, color: '#83D9FF', fontSize: 14, fontWeight: '800' },
+    exercisePrompt: { color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 18, textAlign: 'center' },
     answerList: { marginTop: 18, gap: 9 },
     answer: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.16)' },
     answerCorrect: { borderColor: '#7EE081', backgroundColor: 'rgba(126,224,129,0.15)' },
     answerWrong: { borderColor: '#FF8A80', backgroundColor: 'rgba(255,138,128,0.12)' },
     answerText: { flex: 1, color: '#FFF', fontSize: 14, fontWeight: '700' },
-    explanation: { marginTop: 15, padding: 14, borderRadius: 13, backgroundColor: 'rgba(112,214,255,0.12)' },
-    explanationTitle: { color: '#83D9FF', fontSize: 14, fontWeight: '900' },
-    explanationText: { marginTop: 4, color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 19 },
-    exerciseNavigation: { marginTop: 'auto', paddingTop: 18, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-    invisibleButton: { opacity: 0 },
+    trainingModalOverlay: { flex: 1, justifyContent: 'center', padding: 22, backgroundColor: 'rgba(0,0,0,0.7)' },
+    trainingModalCard: { padding: 20, borderRadius: 21, backgroundColor: '#2D1B4E', borderWidth: 1, borderColor: 'rgba(255,215,0,0.48)' },
+    resultModalOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.58)' },
+    resultModalCard: { width: '33%', alignItems: 'center', padding: 14, borderRadius: 19, backgroundColor: '#2D1B4E', borderWidth: 1, borderColor: 'rgba(255,215,0,0.55)' },
+    resultModalTitle: { textAlign: 'center' },
+    resultModalText: { textAlign: 'center' },
+    resultModalButton: { marginTop: 20, paddingHorizontal: 12, paddingVertical: 13 },
+    infoModalOverlay: { flex: 1, alignItems: 'flex-start', justifyContent: 'flex-start', paddingTop: 78, paddingLeft: 12 },
+    infoModalCard: { width: '46%', padding: 14, borderRadius: 19, backgroundColor: 'rgba(45,27,78,0.97)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.58)' },
+    trainingModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+    trainingModalTitle: { flex: 1, color: '#FFF', fontSize: 20, fontWeight: '900' },
+    trainingModalText: { marginTop: 12, color: 'rgba(255,255,255,0.82)', fontSize: 14, lineHeight: 20 },
+    trainingModalButton: { minHeight: 45, marginTop: 19, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: '#FFD700' },
+    trainingModalButtonText: { color: '#1A0E2E', fontSize: 12, fontWeight: '900' },
+    exerciseTransitionOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(16,42,67,0.42)' },
+    exerciseTransitionCard: { minWidth: 176, alignItems: 'center', paddingHorizontal: 24, paddingVertical: 19, borderRadius: 22, backgroundColor: '#2D1B4E', borderWidth: 1, borderColor: '#FFD700' },
+    exerciseTransitionEyebrow: { marginTop: 7, color: '#FFD700', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+    exerciseTransitionTitle: { marginTop: 3, color: '#FFF', fontSize: 22, fontWeight: '900' },
 });

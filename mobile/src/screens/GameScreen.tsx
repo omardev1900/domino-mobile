@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
 import { View, StyleSheet, Text, StatusBar, TouchableOpacity, Alert, useWindowDimensions, Image, Platform, Pressable, AppState } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, FadeInLeft, FadeInRight, FadeIn, ZoomIn, FadeOut, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import * as NavigationBar from 'expo-navigation-bar';
 import { GameTable , GameTableRef } from '../components/GameTable';
+import { DominoTile } from '../components/DominoTile';
 import { PlayerHand } from '../components/PlayerHand';
 import { PlayerAvatar } from '../components/PlayerAvatar';
 import { GameHeader } from '../components/game/GameHeader';
@@ -79,7 +81,7 @@ interface GameScreenProps {
     turnDuration?: number;
     startingHandSize?: number;
     tableTier?: string; // TableTier passé depuis solo.tsx / lobby.tsx
-    training?: 'basics';
+    training?: 'basics' | 'table';
 }
 
 const ROUND_RESULT_AUTO_ADVANCE_MS = 3000;
@@ -100,7 +102,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // -- 1. Basal State & Identity --
     const [localPlayerId] = useState<PlayerId>(userId || 'p1');
     const [isSoloMode] = useState(mode === 'solo');
-    const isTrainingMode = training === 'basics';
+    const isTrainingMode = training !== undefined;
     const [startingHandSize] = useState(() => resolveStartingHandSize(propStartingHandSize));
     const [activeTableTier] = useState<TableTier>((propTableTier as TableTier) || 'DEBUTANT');
     const persistenceUserId = authUid || userId;
@@ -2190,6 +2192,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     hiddenDominoId={effectiveHiddenDominoId}
                 />
 
+                {training === 'table' && showTrainingOnboarding && <TrainingTableDominoPreview />}
+                {training === 'table' && showTrainingOnboarding && <View pointerEvents="none" style={styles.trainingChatPreview}><Ionicons name="chatbubble-ellipses" size={19} color="#FFF" /></View>}
+
 
                 {/* QUICK CHAT UI */}
                 {!isGameOver && !isSoloMode && (
@@ -2393,7 +2398,13 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
             {isTrainingMode && showTrainingOnboarding && (
                 <BeginnerOnboarding
+                    variant={training}
                     onComplete={() => {
+                        if (training === 'table') {
+                            setShowTrainingOnboarding(false);
+                            router.push('/training' as never);
+                            return;
+                        }
                         setShowTrainingOnboarding(false);
                         setShowTrainingHint(true);
                     }}
@@ -2402,6 +2413,15 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
         </View>
     );
+}
+
+function TrainingTableDominoPreview() {
+    return <View pointerEvents="none" style={styles.trainingDominoPreview}>
+        <DominoTile left={4} right={4} size={26} orientation="vertical" noMargin animateOnMount={false} disablePressScale />
+        <DominoTile left={4} right={2} size={26} orientation="horizontal" noMargin animateOnMount={false} disablePressScale />
+        <DominoTile left={2} right={5} size={26} orientation="horizontal" noMargin animateOnMount={false} disablePressScale />
+        <DominoTile left={5} right={1} size={26} orientation="horizontal" noMargin animateOnMount={false} disablePressScale />
+    </View>;
 }
 
 const styles = StyleSheet.create({
@@ -2433,6 +2453,8 @@ const styles = StyleSheet.create({
     trainingHintIconText: { color: '#071B33', fontSize: 15, fontWeight: '900' },
     trainingHintText: { flex: 1, color: '#FFF', fontSize: 13, fontWeight: '700', lineHeight: 18 },
     trainingHintClose: { color: '#FFF', fontSize: 25, fontWeight: '300', lineHeight: 25 },
+    trainingDominoPreview: { position: 'absolute', top: '42%', left: '50%', zIndex: 20, flexDirection: 'row', alignItems: 'center', transform: [{ translateX: -78 }] },
+    trainingChatPreview: { position: 'absolute', top: '84%', right: '10%', zIndex: 21, width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: '#5C2DA6', borderWidth: 2, borderColor: '#FFD700' },
     container: {
         flex: 1,
     },

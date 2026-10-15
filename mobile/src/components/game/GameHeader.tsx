@@ -3,7 +3,6 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { EdgeInsets } from 'react-native-safe-area-context';
 import { GameState } from '../../core/types';
-import { WebFullscreenButton } from '../WebFullscreenButton';
 
 export interface GameHeaderProps {
     gameState: GameState | null;
@@ -21,10 +20,6 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
 
     return (
         <View style={[styles.unifiedHeader, { top: Math.max(insets.top, 10) }]} testID="game-header">
-            <WebFullscreenButton
-                style={styles.fullscreenBtn}
-                size={22}
-            />
             <TouchableOpacity
                 onPress={onOpenOptions}
                 activeOpacity={0.7}
@@ -53,13 +48,6 @@ const styles = StyleSheet.create({
         padding: 8,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255,215,0,0.3)',
-    },
-    fullscreenBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0,0,0,0.6)',
         borderColor: 'rgba(255,215,0,0.3)',
     },
 });

@@ -30,7 +30,6 @@ import { useMultiResume } from '@/hooks/useMultiResume';
 import { authService } from '@/core/services/auth.service';
 import { db, auth, setUserActiveRoom } from '@/core/services/firebase';
 import { Sidebar } from '@/components/Sidebar';
-import { WebFullscreenButton } from '@/components/WebFullscreenButton';
 import { USE_NEW_SIDEBAR, SIDEBAR_HIDDEN_ROUTES, SIDEBAR_HIDDEN_PREFIXES } from '@/core/config/navigation.config';
 import { LogService } from '@/core/services/LogService';
 import { AndroidStoreBanner } from '@/components/AndroidStoreBanner';
@@ -276,7 +275,6 @@ export default function RootLayout() {
   const showSidebar = USE_NEW_SIDEBAR &&
     !SIDEBAR_HIDDEN_ROUTES.includes(pathname) &&
     !SIDEBAR_HIDDEN_PREFIXES.some(p => pathname.startsWith(p));
-  const showFullscreenButton = Platform.OS === 'web' && !pathname.startsWith('/game');
 
   return (
     <GestureHandlerRootView
@@ -338,32 +336,6 @@ export default function RootLayout() {
 
           </View>
 
-          {showFullscreenButton && (
-            <View
-              pointerEvents="box-none"
-              style={{
-                position: 'absolute',
-                top: 14,
-                right: showSidebar ? 26 : 86,
-                zIndex: 1000,
-              }}
-            >
-              <WebFullscreenButton
-                style={{
-                  width: 46,
-                  height: 46,
-                  borderRadius: 14,
-                  backgroundColor: 'rgba(8,15,32,0.82)',
-                  borderColor: 'rgba(255,215,0,0.55)',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.28,
-                  shadowRadius: 8,
-                }}
-                size={22}
-              />
-            </View>
-          )}
           {/* ──────────────────────────────────────────────────────────── */}
 
           {/* ── Modal de reprise de partie solo (global, toutes pages) ── */}
