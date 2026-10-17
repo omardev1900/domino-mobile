@@ -11,12 +11,12 @@ const STORE_COLLECTION = 'store_catalog';
 const STORAGE_KEY_GUEST_INVENTORY = '@guest_inventory';
 const IS_DEVELOPMENT = typeof __DEV__ !== 'undefined' && __DEV__;
 
-function mergeDevelopmentPremiumItems(catalog: StoreItem[]): StoreItem[] {
-    if (!IS_DEVELOPMENT) return catalog;
-
-    const premiumItems = STORE_CATALOG.filter(item => item.isPremium);
-    const nonPremiumItems = catalog.filter(item => !premiumItems.some(premium => premium.id === item.id));
-    return [...nonPremiumItems, ...premiumItems];
+/** Keep bundled Premium cosmetics visible while their Firestore record is being rolled out. */
+function mergeBundledPremiumItems(catalog: StoreItem[]): StoreItem[] {
+    const missingPremiumItems = STORE_CATALOG.filter(
+        item => item.isPremium && !catalog.some(catalogItem => catalogItem.id === item.id),
+    );
+    return [...catalog, ...missingPremiumItems];
 }
 
 export class StoreService {
@@ -98,10 +98,10 @@ export class StoreService {
                     isPremium: data.isPremium === true,
                 });
             });
-            return mergeDevelopmentPremiumItems(catalog);
+            return mergeBundledPremiumItems(catalog);
         } catch (error) {
             console.error("Error fetching catalog from Firestore:", error);
-            return mergeDevelopmentPremiumItems([]);
+            return mergeBundledPremiumItems([]);
         }
     }
 

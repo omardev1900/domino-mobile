@@ -67,6 +67,7 @@ import { MatchReward, TableTier } from '../core/economy.types';
 import { TABLE_CONFIGS } from '../core/economy.constants';
 import { SkinConfig, StoreItem } from '../core/store.types';
 import { useInterstitialAd, TestIds, AdMobIds } from '../core/services/AdMobAdapter';
+import { premiumService } from '../core/services/premium.service';
 import { rtdb } from '../core/services/firebase';
 import { ref as rtdbRef, onValue as rtdbOnValue } from 'firebase/database';
 
@@ -81,6 +82,7 @@ interface GameScreenProps {
     turnDuration?: number;
     startingHandSize?: number;
     tableTier?: string; // TableTier passé depuis solo.tsx / lobby.tsx
+    soloBuyInDebited?: boolean;
     training?: 'basics' | 'table';
 }
 
@@ -92,7 +94,7 @@ const COORDINATED_ROUND_RESULT_DISPLAY_MS = 6000;
 const MATCH_REWARD_DELAY_MS = 6000;
 const MATCH_EXIT_AD_FALLBACK_MS = 15000;
 
-export default function GameScreen({ gameId, userId, authUid, mode, difficulty, gameMode, winningCondition, turnDuration, startingHandSize: propStartingHandSize, tableTier: propTableTier, training }: GameScreenProps) {
+export default function GameScreen({ gameId, userId, authUid, mode, difficulty, gameMode, winningCondition, turnDuration, startingHandSize: propStartingHandSize, tableTier: propTableTier, soloBuyInDebited = false, training }: GameScreenProps) {
     const { width, height } = useWindowDimensions();
     const insets = useSafeAreaInsets();
     const isLandscape = width > height;
@@ -163,6 +165,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [overtimeState, setOvertimeState] = useState<number | null>(null);
 
     const hasBeenDebited = useRef(false);
+    const hasSoloBuyInRefunded = useRef(false);
     const [debitFeedback, setDebitFeedback] = useState<string | null>(null);
     const isIntentionalLeave = useRef(false);
     const isLeavingRoom = useRef(false);
@@ -772,6 +775,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [scoreOverlayPhase, setScoreOverlayPhase] = useState<'MANCHE_END' | 'MATCH_END' | null>(null);
     const [showMatchRewardModal, setShowMatchRewardModal] = useState(false);
     const [matchRewardAmount, setMatchRewardAmount] = useState(100);
+    const [hasPremium, setHasPremium] = useState(false);
+    const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
     const [showRoundResult, setShowRoundResult] = useState(false);
     // Snapshot du gameState au moment où la carte résultat est déclenchée.
     // Évite que le contenu change si la phase évolue pendant l'affichage (ex: égalité boudé).
@@ -795,10 +800,22 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const interstitialFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
-        if (Platform.OS !== 'web') {
+        if (premiumStatusResolved && !hasPremium && Platform.OS !== 'web') {
             loadAdMob();
         }
-    }, [loadAdMob]);
+    }, [hasPremium, loadAdMob, premiumStatusResolved]);
+
+    useEffect(() => {
+        let active = true;
+        premiumService.hasActiveAccess(persistenceUserId).then((activeAccess) => {
+            if (active) setHasPremium(activeAccess);
+        }).finally(() => {
+            if (active) setPremiumStatusResolved(true);
+        });
+        return () => {
+            active = false;
+        };
+    }, [persistenceUserId]);
 
     useEffect(() => {
         if (isAdMobClosed) {
@@ -810,12 +827,12 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             interstitialOnCloseRef.current = null;
             isAdVisibleRef.current = false;
             setIsAdVisible(false);
-            if (Platform.OS !== 'web') {
+            if (premiumStatusResolved && !hasPremium && Platform.OS !== 'web') {
                 loadAdMob();
             }
             onClose?.();
         }
-    }, [isAdMobClosed, loadAdMob]);
+    }, [hasPremium, isAdMobClosed, loadAdMob, premiumStatusResolved]);
 
     useEffect(() => () => {
         if (interstitialFallbackRef.current) {
@@ -836,6 +853,38 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         LogService.info('GameScreen', `[QUIT] handleLeaveRoom called. isSoloMode: ${isSoloMode}, gameId: ${gameId}`);
 
         const currentState = gameStateRef.current;
+
+        // Le solo ne possède pas de salle Firebase. La sortie doit donc rester
+        // locale et fiable, même sans réseau ou si la synchronisation du
+        // remboursement échoue.
+        if (isSoloMode) {
+            try {
+                if (gameId) {
+                    await AsyncStorage.removeItem(`@solo_game_state:${gameId}`);
+                }
+
+                const canRefundSoloBuyIn = soloBuyInDebited
+                    && !hasSoloBuyInRefunded.current
+                    && (!currentState || (currentState.mancheNumber === 1 && currentState.mancheHistory.length === 0));
+                if (canRefundSoloBuyIn) {
+                    const tableConfig = TABLE_CONFIGS[activeTableTier];
+                    if (tableConfig?.buyIn > 0) {
+                        await economyService.refundBuyIn(tableConfig.buyIn, persistenceUserId);
+                        hasSoloBuyInRefunded.current = true;
+                        LogService.info('GameScreen', `[SOLO] Buy-in refunded before manche 1: +${tableConfig.buyIn} coins`);
+                    }
+                }
+            } catch (error) {
+                LogService.error('GameScreen', 'Solo leave cleanup failed; continuing home.', error);
+            }
+
+            await AsyncStorage.removeItem('active_roomId').catch(() => undefined);
+            SoundManager.stopMusic();
+            isIntentionalLeave.current = true;
+            requestAnimationFrame(() => router.replace('/home'));
+            return;
+        }
+
         const isActiveMultiplayerSession = !isSoloMode
             && !!gameId
             && !!currentState
@@ -853,9 +902,6 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 ]);
             }
 
-            if (isSoloMode && gameId) {
-                await AsyncStorage.removeItem(`@solo_game_state:${gameId}`);
-            }
             await AsyncStorage.removeItem('active_roomId');
         } catch (error) {
             isLeavingRoom.current = false;
@@ -877,7 +923,10 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         gameId,
         isSoloMode,
         localPlayerId,
+        activeTableTier,
+        persistenceUserId,
         router,
+        soloBuyInDebited,
         usesSystemCoordinator,
     ]);
 
@@ -1163,6 +1212,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                             unlockedFrames: playerEconomyRef.current.unlockedFrames || [],
                             tableTier: activeTableTier,
                             isSoloMode,
+                            isPremium: hasPremium,
                         });
 
                         // ✅ Exécution sécurisée côté serveur (Backend Banker)
@@ -1506,7 +1556,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // Laisser les scores lisibles avant d'afficher le cadeau de fin de match.
     // Uniquement en mode SOLO — en multi la pub interstitielle AdMob est déjà gérée ailleurs.
     useEffect(() => {
-        if (shouldOfferMatchAdReward(Platform.OS, isSoloMode, scoreOverlayPhase)) {
+        if (premiumStatusResolved && !hasPremium && shouldOfferMatchAdReward(Platform.OS, isSoloMode, scoreOverlayPhase)) {
             setMatchRewardAmount(100);
             const timer = setTimeout(() => {
                 setShowMatchRewardModal(true);
@@ -1515,7 +1565,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         } else {
             setShowMatchRewardModal(false);
         }
-    }, [scoreOverlayPhase, isSoloMode]);
+    }, [hasPremium, isSoloMode, premiumStatusResolved, scoreOverlayPhase]);
 
 
     // Compatibilite legacy : l'ancien reset par l'hote renvoie les invites a l'accueil.
@@ -1692,10 +1742,12 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             });
 
             const eco = await economyService.getEconomy();
+            const profile = await authService.refreshUserFromStorage().catch(() => null);
+            const resolvedPlayerName = profile?.displayName?.trim() || playerDisplayName;
 
             const fullState = dealGameSolo(
                 localPlayerId,
-                playerDisplayName,
+                resolvedPlayerName,
                 playerAvatarId as string,
                 botDifficulty,
                 startingHandSize || 7
@@ -1980,7 +2032,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         if (gameState?.phase === 'MATCH_END') {
             // La publicité ne doit jamais recouvrir le dernier domino ni les scores.
             // Elle est différée au geste explicite de sortie du joueur.
-            if (isSoloMode || Platform.OS === 'web' || !isAdMobLoaded) {
+            if (!premiumStatusResolved || hasPremium || isSoloMode || Platform.OS === 'web' || !isAdMobLoaded) {
                 handleLeaveRoom();
                 return;
             }
@@ -2026,7 +2078,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             }
             handleOverlayContinue(); // Continue vers la prochaine manche
         }
-    }, [gameState?.phase, gameState?.mancheNumber, gameState?.roundNumber, isSoloMode, usesSystemCoordinator, handleLeaveRoom, handleOverlayContinue, isAdMobLoaded, showAdMob]);
+    }, [gameState?.phase, gameState?.mancheNumber, gameState?.roundNumber, hasPremium, isSoloMode, usesSystemCoordinator, handleLeaveRoom, handleOverlayContinue, isAdMobLoaded, premiumStatusResolved, showAdMob]);
 
 
 
@@ -2324,7 +2376,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
 
             {/* Popup cadeau de fin de partie */}
-            {Platform.OS !== 'web' && (
+            {!hasPremium && Platform.OS !== 'web' && (
                 <MatchRewardModal
                     visible={showMatchRewardModal}
                     amount={matchRewardAmount}

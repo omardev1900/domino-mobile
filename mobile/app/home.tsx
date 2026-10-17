@@ -32,8 +32,7 @@ import { useRewardedAd, useAppOpenAd, AdMobIds } from '../src/core/services/AdMo
 import { USE_NEW_SIDEBAR } from '../src/core/config/navigation.config';
 import { getLeagueProgress, getMonthlyCochonsFromHistory } from '../src/core/leagueProgress';
 import { PremiumButton } from '../src/components/common/PremiumButton';
-import { ReleaseNotesModal } from '../src/components/ReleaseNotesModal';
-import { useReleaseNotes } from '../src/hooks/useReleaseNotes';
+import { premiumService } from '../src/core/services/premium.service';
 
 let hasShownAppOpenAd = false;
 
@@ -53,7 +52,8 @@ export default function HomeScreen() {
     const [showLowCoinsPrompt, setShowLowCoinsPrompt] = useState(false);
     const [dailyRewardAmount, setDailyRewardAmount] = useState(0);
     const [isProcessingRewardAd, setIsProcessingRewardAd] = useState(false);
-    const releaseNotes = useReleaseNotes();
+    const [hasPremium, setHasPremium] = useState(false);
+    const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
     const { isLoaded: isRewardLoaded, isClosed: isRewardClosed, isEarnedReward, load: loadReward, show: showReward } = useRewardedAd(AdMobIds.REWARDED_FIN_PARTIE);
     const { isLoaded: isAppOpenLoaded, load: loadAppOpen, show: showAppOpen } = useAppOpenAd(AdMobIds.APP_OPEN);
 
@@ -66,15 +66,29 @@ export default function HomeScreen() {
         isProcessingRewardAdRef.current = isProcessingRewardAd;
     }, [isProcessingRewardAd]);
 
+    useFocusEffect(
+        useCallback(() => {
+        let active = true;
+        premiumService.hasActiveAccess().then((activeAccess) => {
+            if (active) setHasPremium(activeAccess);
+        }).finally(() => {
+            if (active) setPremiumStatusResolved(true);
+        });
+        return () => {
+            active = false;
+        };
+        }, [])
+    );
+
     // Initialiser la pub d'ouverture d'app (une seule fois par session)
     useEffect(() => {
-        if (releaseNotes.isReady && !releaseNotes.visible && user && Platform.OS !== 'web' && !hasShownAppOpenAd) {
+        if (premiumStatusResolved && !hasPremium && user && Platform.OS !== 'web' && !hasShownAppOpenAd) {
             loadAppOpen();
         }
-    }, [loadAppOpen, releaseNotes.isReady, releaseNotes.visible, user]);
+    }, [hasPremium, loadAppOpen, premiumStatusResolved, user]);
 
     useEffect(() => {
-        if (releaseNotes.isReady && !releaseNotes.visible && user && isAppOpenLoaded && !hasShownAppOpenAd) {
+        if (premiumStatusResolved && !hasPremium && user && isAppOpenLoaded && !hasShownAppOpenAd) {
             hasShownAppOpenAd = true;
             try {
                 showAppOpen();
@@ -82,10 +96,12 @@ export default function HomeScreen() {
                 console.warn('Erreur affichage pub App Open:', error);
             }
         }
-    }, [isAppOpenLoaded, releaseNotes.isReady, releaseNotes.visible, showAppOpen, user]);
+    }, [hasPremium, isAppOpenLoaded, premiumStatusResolved, showAppOpen, user]);
     useEffect(() => {
-        loadReward();
-    }, [loadReward]);
+        if (premiumStatusResolved && !hasPremium) {
+            loadReward();
+        }
+    }, [hasPremium, loadReward, premiumStatusResolved]);
 
     useEffect(() => {
         if (isRewardClosed) {
@@ -97,9 +113,9 @@ export default function HomeScreen() {
                 dailyClaimTriggerRef.current?.();
             }
             setIsProcessingRewardAd(false);
-            loadReward(); // preload next
+            if (!hasPremium) loadReward(); // preload next only for non-Premium players
         }
-    }, [isRewardClosed, isEarnedReward, loadReward, isProcessingRewardAd]);
+    }, [hasPremium, isRewardClosed, isEarnedReward, loadReward, isProcessingRewardAd]);
 
     // Ref pour l'unsubscribe du listener Firestore — nettoyé au démontage du composant
     const economyListenerRef = useRef<(() => void) | null>(null);
@@ -144,12 +160,6 @@ export default function HomeScreen() {
     useFocusEffect(
         useCallback(() => {
             let cancelled = false;
-
-            if (!releaseNotes.isReady || releaseNotes.visible) {
-                return () => {
-                    cancelled = true;
-                };
-            }
 
             authService.getCurrentUser().then(async u => {
                 if (cancelled) return;
@@ -205,7 +215,7 @@ export default function HomeScreen() {
                 cancelled = true;
 
             };
-        }, [refreshMonthlyLeague, releaseNotes.isReady, releaseNotes.visible])
+        }, [refreshMonthlyLeague])
     );
 
     // Carousel Timer: Alterner les news toutes les 5 secondes
@@ -536,15 +546,6 @@ export default function HomeScreen() {
                 onClose={() => setShowHelp(false)} 
             />
 
-            <ReleaseNotesModal
-                visible={releaseNotes.isReady && releaseNotes.visible}
-                onAcknowledge={() => {
-                    void releaseNotes.acknowledge();
-                }}
-            />
-
-
-
             {/* Welcome Reward Modal — Nouveau joueur */}
             <DailyRewardModal
                 visible={showWelcomeReward}
@@ -553,16 +554,18 @@ export default function HomeScreen() {
                 onClaim={handleClaimWelcomeReward}
                 onWatchAd={handleClaimWelcomeReward} // Même bouton pour récupérer
                 onSkip={handleClaimWelcomeReward} // S'ils skippent, ils récupèrent quand même car c'est un don
+                showAdReward={!hasPremium}
             />
 
             {/* Daily Reward Modal — affiché uniquement si aucun modal de reconnexion */}
             <DailyRewardModal
-                visible={showDailyReward}
+                visible={showDailyReward && premiumStatusResolved}
                 amount={dailyRewardAmount}
                 onClaim={handleClaimDailyReward}
                 onWatchAd={handleWatchAdForReward}
                 onSkip={handleSkipDailyReward}
                 claimTriggerRef={dailyClaimTriggerRef}
+                showAdReward={!hasPremium}
             />
 
             {/* Réserve basse : le bouton ouvre volontairement le flux vidéo unique de la boutique. */}

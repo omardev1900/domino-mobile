@@ -18,6 +18,7 @@ import { TableTier } from '../src/core/economy.types';
 import { EconomyHeader } from '../src/components/EconomyHeader';
 import { BotDifficulty, getFloorLevel, isLevelAllowed } from '../src/core/services/bot.service';
 import { useInterstitialAd, AdMobIds } from '../src/core/services/AdMobAdapter';
+import { premiumService } from '../src/core/services/premium.service';
 
 type Difficulty = BotDifficulty;
 type GameMode = 'MANCHE' | 'SCORE' | 'COCHON' | 'VICTOIRE';
@@ -54,14 +55,16 @@ export default function SoloScreen() {
     const [debitFeedback, setDebitFeedback] = useState<string | null>(null);
     const [uiStep, setUiStep] = useState<'MODE' | 'CONFIG'>('MODE');
     const [pendingGameStart, setPendingGameStart] = useState(false);
+    const [hasPremium, setHasPremium] = useState(false);
+    const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
 
     const { isLoaded: isAdLoaded, isClosed: isAdClosed, load: loadAd, show: showAd } = useInterstitialAd(AdMobIds.INTERSTITIAL_LIGUE);
 
     React.useEffect(() => {
-        if (Platform.OS !== 'web') {
+        if (premiumStatusResolved && !hasPremium && Platform.OS !== 'web') {
             loadAd();
         }
-    }, [loadAd]);
+    }, [hasPremium, loadAd, premiumStatusResolved]);
 
     React.useEffect(() => {
         if (pendingGameStart && isAdClosed) {
@@ -85,6 +88,10 @@ export default function SoloScreen() {
         React.useCallback(() => {
             authService.getCurrentUser().then(u => {
                 setUser(u);
+                setPremiumStatusResolved(false);
+                premiumService.hasActiveAccess(u?.uid).then(setHasPremium).finally(() => {
+                    setPremiumStatusResolved(true);
+                });
                 // Charger le grade du joueur pour calculer le plancher de difficulté
                 economyService.getEconomy().then(eco => {
                     const grade = eco?.leagueGrade ?? null;
@@ -102,7 +109,10 @@ export default function SoloScreen() {
     };
 
     const handleStartGame = async () => {
-        if (isAdLoaded && Platform.OS !== 'web') {
+        // Un accès Premium (y compris l'essai) ne voit jamais d'interstitiel
+        // avant le lancement d'une partie solo. Tant que le statut n'est pas
+        // résolu, on privilégie également le lancement direct.
+        if (premiumStatusResolved && !hasPremium && isAdLoaded && Platform.OS !== 'web') {
             setPendingGameStart(true);
             try {
                 showAd();
@@ -168,6 +178,7 @@ export default function SoloScreen() {
                 turnDuration: turnDuration,
                 startingHandSize: startingHandSize,
                 tableTier: tableTier,  // Passé pour le calcul des récompenses au MATCH_END
+                soloBuyInDebited: 'true',
             }
         });
     };

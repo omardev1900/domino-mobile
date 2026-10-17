@@ -79,8 +79,10 @@ export const POT_DISTRIBUTION = {
     THIRD: 0.00,  // 3ème — perd sa mise
 };
 
-/** Gain fixe en Solo (pas de pot car pas de buy-in PvP) */
-export const SOLO_WIN_FLAT_REWARD = 300; // 🪙
+/** Gain fixe d'une victoire Solo, quelle que soit la difficulté. */
+export const SOLO_WIN_FLAT_REWARD = 250; // 🪙
+/** Le Premium double uniquement la récompense de victoire Solo. */
+export const SOLO_PREMIUM_WIN_FLAT_REWARD = 500; // 🪙
 
 // ─── Cadeau de bienvenue ─────────────────────────────────────────────────────
 
@@ -91,6 +93,12 @@ export const DAILY_REWARD_COINS = 200; // 🎁
 
 /** Coins crédités après visionnage volontaire d'une pub post-match */
 export const AD_REWARD_COINS = 100; // 📺
+
+/** Solde que le joueur conserve toujours apres une mise de table. */
+export const MINIMUM_COIN_RESERVE = 100;
+
+/** Seuil auquel l'application propose la video recompensee de la boutique. */
+export const LOW_COINS_PROMPT_THRESHOLD = 200;
 
 // ─── XP et Niveaux ───────────────────────────────────────────────────────────
 

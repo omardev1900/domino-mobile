@@ -90,6 +90,8 @@ export interface RewardCalculationInput {
     tableTier: TableTier;
     /** Nombre de joueurs dans la partie */
     playerCount: number;
+    /** Accès Premium actif, vérifié côté serveur pour les comptes authentifiés. */
+    isPremium?: boolean;
     /** Nombre de cochons donné à vie AVANT ce match (pour calcul du déblocage) */
     currentCochonsGiven?: number;
     /** Cadres déjà débloqués (pour ne pas redonner la récompense) */

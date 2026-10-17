@@ -163,7 +163,7 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({ visible, onClose }) =>
 
     const renderNouveautes = () => (
         <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-            <Section title="Nouveautés de cette version" icon="✨">
+            <Section title="Nouveautés de cette version" icon="✨" centerTitle>
                 <ReleaseNotesContent />
             </Section>
         </ScrollView>
@@ -255,11 +255,11 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({ visible, onClose }) =>
     );
 };
 
-const Section = ({ title, icon, children }: { title: string, icon: string, children: React.ReactNode }) => (
+const Section = ({ title, icon, children, centerTitle = false }: { title: string, icon: string, children: React.ReactNode, centerTitle?: boolean }) => (
     <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-            <Text style={styles.sectionIcon}>{icon}</Text>
-            <Text style={styles.sectionTitle}>{title}</Text>
+        <View style={[styles.sectionHeader, centerTitle && styles.sectionHeaderCentered]}>
+            <Text style={[styles.sectionIcon, centerTitle && styles.sectionIconCentered]}>{icon}</Text>
+            <Text style={[styles.sectionTitle, centerTitle && styles.sectionTitleCentered]}>{title}</Text>
         </View>
         <View style={styles.sectionBody}>
             {children}
@@ -373,14 +373,24 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         gap: 10,
     },
+    sectionHeaderCentered: {
+        justifyContent: 'center',
+    },
     sectionIcon: {
         fontSize: 22,
+    },
+    sectionIconCentered: {
+        position: 'absolute',
+        left: 0,
     },
     sectionTitle: {
         color: '#FFF',
         fontSize: 16,
         fontWeight: 'bold',
         letterSpacing: 0.5,
+    },
+    sectionTitleCentered: {
+        textAlign: 'center',
     },
     sectionBody: {
         paddingLeft: 4,

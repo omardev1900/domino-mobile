@@ -79,8 +79,10 @@ export const POT_DISTRIBUTION = {
     THIRD: 0.00,  // 3ème — perd sa mise
 };
 
-/** Gain fixe en Solo (pas de pot car pas de buy-in PvP) */
-export const SOLO_WIN_FLAT_REWARD = 300; // 🪙
+/** Gain fixe d'une victoire Solo, quelle que soit la difficulté. */
+export const SOLO_WIN_FLAT_REWARD = 250; // 🪙
+/** Le Premium double uniquement la récompense de victoire Solo. */
+export const SOLO_PREMIUM_WIN_FLAT_REWARD = 500; // 🪙
 
 // ─── Cadeau de bienvenue ─────────────────────────────────────────────────────
 

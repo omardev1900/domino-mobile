@@ -440,6 +440,26 @@ class EconomyService {
         return true;
     }
 
+    /** Rembourse une mise annulée avant le début effectif d'une partie. */
+    async refundBuyIn(buyIn: number, userId?: string, profile?: EconomyProfileInfo): Promise<void> {
+        const current = await this.getEconomy();
+        const updated: PlayerEconomy = { ...current, coins: current.coins + buyIn };
+        this.cached = updated;
+        await this.persistLocal();
+
+        if (userId && !userId.startsWith('guest_')) {
+            try {
+                await this.pushToFirebase(userId, updated, profile);
+            } catch (error) {
+                // Le remboursement est déjà sauvegardé localement : une indisponibilité
+                // réseau ne doit pas empêcher le joueur de quitter le solo.
+                LogService.warn('EconomyService', 'Solo buy-in refund will sync later.', error);
+            }
+        }
+
+        LogService.info('EconomyService', `Buy-in of ${buyIn} coins refunded. New balance: ${updated.coins}`);
+    }
+
     // ─── Cadeau Quotidien & Bienvenue ─────────────────────────────────────────
 
     /**

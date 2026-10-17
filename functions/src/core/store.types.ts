@@ -1,3 +1,5 @@
+import { DominoSide } from './types';
+
 export type StoreItemType = 'SKIN' | 'AVATAR' | 'CURRENCY_PACK' | 'EMOTE';
 export type StoreItemRarity = 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
 
@@ -7,8 +9,10 @@ export interface SkinConfig {
     dominoBackgroundColor: string;
     dominoDotColor: string;
     dominoLineColor: string;
+    /** Optional per-value palette. When absent, legacy skins use one color for every half. */
+    dominoValueBackgroundColors?: Partial<Record<DominoSide, string>>;
+    dominoValueDotColors?: Partial<Record<DominoSide, string>>;
 }
-
 export interface StoreItem {
     id: string;
     name: string;
@@ -29,6 +33,8 @@ export interface StoreItem {
     imageUrl?: string;
     // Configuration for dynamic rendering of skins
     skinConfig?: SkinConfig;
+    /** Reserved for subscriber-only catalogue items. */
+    isPremium?: boolean;
 }
 
 export interface PlayerInventory {

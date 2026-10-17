@@ -38,6 +38,7 @@ import {
     RAKE_PERCENT,
     POT_DISTRIBUTION,
     SOLO_WIN_FLAT_REWARD,
+    SOLO_PREMIUM_WIN_FLAT_REWARD,
     XP_PER_LEVEL_BASE,
     XP_GROWTH_RATE,
     COIN_MULTIPLIER_PER_LEVEL,
@@ -164,6 +165,7 @@ export const RewardEngine = {
             gameMode,
             tableTier,
             playerCount,
+            isPremium = false,
         } = input;
 
         const breakdown: RewardBreakdown[] = [];
@@ -222,13 +224,20 @@ export const RewardEngine = {
         totalXP = totalRoundsPlayed * 20;
 
         if (rank === 1) {
-            // Vainqueur du match
-            potCoins = 300;
+            // En solo, la récompense est fixe et indépendante de la difficulté.
+            // L'accès Premium double ce gain, sans modifier les récompenses multijoueur.
+            potCoins = isSolo
+                ? (isPremium ? SOLO_PREMIUM_WIN_FLAT_REWARD : SOLO_WIN_FLAT_REWARD)
+                : 300;
             totalDiamonds = 1;
 
             breakdown.push({
-                id: 'match_win',
-                label: `🏆 Victoire du Match`,
+                id: isSolo && isPremium ? 'solo_premium_win' : isSolo ? 'solo_win' : 'match_win',
+                label: isSolo && isPremium
+                    ? '🏆 Victoire Solo — Coins ×2 Premium'
+                    : isSolo
+                        ? '🏆 Victoire Solo'
+                        : '🏆 Victoire du Match',
                 coins: potCoins,
                 xp: totalXP,
                 diamonds: totalDiamonds,
@@ -428,8 +437,9 @@ export const RewardEngine = {
         unlockedFrames?: LeagueFrameId[];
         tableTier: TableTier;
         isSoloMode: boolean;
+        isPremium?: boolean;
     }): RewardCalculationInput {
-        const { gameState, localPlayerId, currentLevel, currentXP, currentLeaguePoints, currentCochonsGiven, unlockedFrames, tableTier, isSoloMode } = params;
+        const { gameState, localPlayerId, currentLevel, currentXP, currentLeaguePoints, currentCochonsGiven, unlockedFrames, tableTier, isSoloMode, isPremium = false } = params;
         const getCochonRankingValue = (player: GameState['players'][number]) =>
             gameState.gameMode === 'COCHON'
                 ? (player.totalCochonsInfliges || 0)
@@ -487,6 +497,7 @@ export const RewardEngine = {
             gameMode: isSoloMode ? 'SOLO' : gameState.gameMode,
             tableTier,
             playerCount: isSoloMode ? 1 : gameState.players.length,
+            isPremium,
         };
     },
 };

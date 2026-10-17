@@ -15,7 +15,7 @@ export interface PlayerCardProps {
     showCrown?: boolean;
     showWinBadge?: boolean;
     entering?: any; // Reanimated entry animation
-    isLocalPlayer?: boolean; // If true, displays 'Moi' instead of name
+    isLocalPlayer?: boolean;
 }
 
 export const PlayerCard: React.FC<PlayerCardProps> = ({
@@ -28,7 +28,6 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
     showCrown = false,
     showWinBadge = false,
     entering,
-    isLocalPlayer = false,
 }) => {
     return (
         <Animated.View 
@@ -44,7 +43,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                 {showCrown && <Text style={styles.crown}>👑</Text>}
             </View>
             <Text style={[styles.podiumName, isWinner && styles.podiumNameWinner]} numberOfLines={1}>
-                {isLocalPlayer ? 'Moi' : playerName}
+                {playerName}
             </Text>
             {scoreText !== undefined && (
                 <Text style={[styles.podiumScore, isWinner && styles.podiumScoreWinner]}>

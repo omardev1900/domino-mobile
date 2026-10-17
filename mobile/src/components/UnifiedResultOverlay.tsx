@@ -331,7 +331,7 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
                             <View key={p.id} style={[styles.historyRow, isWinnerRow && styles.historyRowWinner]}>
                                 <Text style={styles.historyRank}>#{idx + 1}</Text>
                                 <Text style={[styles.historyName, isWinnerRow && { color: '#FFD700' }]} numberOfLines={1}>
-                                    {p.id === currentUserId ? 'Moi' : p.name}{isWinnerRow ? ' 👑' : ''}
+                                    {p.id === currentUserId && !isSoloMode ? 'Moi' : p.name}{isWinnerRow ? ' 👑' : ''}
                                 </Text>
                                 <Text style={[styles.historyScore, isWinnerRow && { color: '#FFD700' }]}>
                                     {p.totalRoundWins || 0} V
@@ -351,7 +351,7 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
                         <Text key={p.id}
                             style={[styles.historyCell, { flex: 1, color: p.id === currentUserId ? '#FFD700' : '#FFF' }]}
                             numberOfLines={1}>
-                            {p.id === currentUserId ? 'Moi' : p.name}
+                            {p.id === currentUserId && !isSoloMode ? 'Moi' : p.name}
                         </Text>
                     ))}
                 </View>
@@ -546,7 +546,7 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
                         <Text style={styles.roundHeroCrown}>👑</Text>
                     </View>
                     <Text style={styles.roundHeroName}>
-                        {gameState.players.find(p => p.id === winnerId)?.id === currentUserId
+                        {gameState.players.find(p => p.id === winnerId)?.id === currentUserId && !isSoloMode
                             ? 'Moi'
                             : gameState.players.find(p => p.id === winnerId)?.name}
                     </Text>

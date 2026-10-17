@@ -88,6 +88,8 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
     const [settingsTab, setSettingsTab] = useState<'SOUNDS' | 'SKINS'>('SOUNDS');
     const [showQuitConfirm, setShowQuitConfirm] = useState(false);
     const [codeCopied, setCodeCopied] = useState(false);
+    const [skinPage, setSkinPage] = useState(0);
+    const [skinsViewportWidth, setSkinsViewportWidth] = useState(0);
     const closeHandledRef = useRef(false);
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const isCompactWidth = screenWidth < 380;
@@ -125,6 +127,11 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
     const soloBotDifficulty = isSoloMode
         ? gameState?.players.find((player) => player.status === 'BOT')?.difficulty
         : undefined;
+    const skinPages = ownedSkins.reduce<StoreItem[][]>((pages, skin, index) => {
+        const pageIndex = Math.floor(index / 4);
+        (pages[pageIndex] ??= []).push(skin);
+        return pages;
+    }, []);
 
     return (
         <Modal
@@ -254,7 +261,10 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                                         </PremiumButton>
                                         <PremiumButton
                                             style={[styles.settingsTabButton, settingsTab === 'SKINS' && styles.settingsTabButtonActive]}
-                                            onPress={() => setSettingsTab('SKINS')}
+                                            onPress={() => {
+                                                setSkinPage(0);
+                                                setSettingsTab('SKINS');
+                                            }}
                                             soundName="clack1"
                                         >
                                             <Text style={[styles.settingsTabLabel, settingsTab === 'SKINS' && styles.settingsTabLabelActive]}>🎨 Skins</Text>
@@ -289,34 +299,59 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                                     </>}
 
                                     {settingsTab === 'SKINS' && (
-                                        <ScrollView style={styles.skinsScroll} showsVerticalScrollIndicator={false}>
-                                            <View style={styles.skinsGrid}>
-                                            {ownedSkins.map((skin) => {
-                                                const isEquipped = skin.id === equippedSkinId;
-                                                return (
-                                                    <TouchableOpacity
-                                                        key={skin.id}
-                                                        style={[styles.skinCard, isEquipped && styles.skinCardEquipped]}
-                                                        onPress={() => onEquipSkin(skin)}
-                                                        disabled={isEquipped}
-                                                        activeOpacity={0.8}
+                                        <View>
+                                            <View
+                                                style={styles.skinsPagerViewport}
+                                                onLayout={(event) => setSkinsViewportWidth(event.nativeEvent.layout.width)}
+                                            >
+                                                {skinsViewportWidth > 0 && (
+                                                    <ScrollView
+                                                        horizontal
+                                                        pagingEnabled
+                                                        showsHorizontalScrollIndicator={false}
+                                                        onMomentumScrollEnd={(event) => {
+                                                            setSkinPage(Math.round(event.nativeEvent.contentOffset.x / skinsViewportWidth));
+                                                        }}
                                                     >
-                                                        <View style={styles.skinPreview}>
-                                                            <StoreItemPreview item={skin} height={57} />
-                                                        </View>
-                                                        {isEquipped && (
-                                                            <View style={styles.skinCheck}>
-                                                                <Ionicons name="checkmark" size={14} color="#1A0E2E" />
+                                                        {skinPages.map((skins, pageIndex) => (
+                                                            <View key={`skin-page-${pageIndex}`} style={[styles.skinsPage, { width: skinsViewportWidth }]}>
+                                                                {skins.map((skin) => {
+                                                                    const isEquipped = skin.id === equippedSkinId;
+                                                                    return (
+                                                                        <TouchableOpacity
+                                                                            key={skin.id}
+                                                                            style={[styles.skinCard, isEquipped && styles.skinCardEquipped]}
+                                                                            onPress={() => onEquipSkin(skin)}
+                                                                            disabled={isEquipped}
+                                                                            activeOpacity={0.8}
+                                                                        >
+                                                                            <View style={styles.skinPreview}>
+                                                                                <StoreItemPreview item={skin} height={57} />
+                                                                            </View>
+                                                                            {isEquipped && (
+                                                                                <View style={styles.skinCheck}>
+                                                                                    <Ionicons name="checkmark" size={14} color="#1A0E2E" />
+                                                                                </View>
+                                                                            )}
+                                                                        </TouchableOpacity>
+                                                                    );
+                                                                })}
                                                             </View>
-                                                        )}
-                                                    </TouchableOpacity>
-                                                );
-                                            })}
+                                                        ))}
+                                                    </ScrollView>
+                                                )}
                                             </View>
+                                            {skinPages.length > 1 && (
+                                                <View style={styles.skinPagination}>
+                                                    {skinPages.map((_, index) => (
+                                                        <View key={index} style={[styles.skinPaginationDot, index === skinPage && styles.skinPaginationDotActive]} />
+                                                    ))}
+                                                </View>
+                                            )}
                                             {ownedSkins.length === 0 && (
                                                 <Text style={styles.emptySkinsText}>Aucun skin disponible pour le moment.</Text>
                                             )}
-                                        </ScrollView>
+                                        </View>
                                     )}
                                 </View>
                             )}
@@ -341,7 +376,7 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                                                 ]}
                                                 numberOfLines={1}
                                             >
-                                                {player.id === localPlayerId ? 'Moi' : player.name}
+                                                {player.id === localPlayerId && !isSoloMode ? 'Moi' : player.name}
                                             </Text>
                                         ))}
                                     </View>
@@ -567,14 +602,15 @@ const styles = StyleSheet.create({
     settingsTabLabelActive: {
         color: '#FFD700',
     },
-    skinsScroll: {
-        flexGrow: 0,
-        maxHeight: 250,
+    skinsPagerViewport: {
+        height: 158,
+        overflow: 'hidden',
     },
-    skinsGrid: {
+    skinsPage: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 10,
+        alignContent: 'flex-start',
     },
     skinCard: {
         backgroundColor: 'rgba(255,255,255,0.045)',
@@ -584,7 +620,23 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         padding: 6,
         position: 'relative',
-        width: '48%',
+        width: '47%',
+    },
+    skinPagination: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 6,
+        marginTop: 8,
+    },
+    skinPaginationDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: 'rgba(255,255,255,0.25)',
+    },
+    skinPaginationDotActive: {
+        width: 18,
+        backgroundColor: '#FFD700',
     },
     skinCardEquipped: {
         backgroundColor: 'rgba(255,215,0,0.08)',

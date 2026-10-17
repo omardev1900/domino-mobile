@@ -16,6 +16,7 @@ import { useRewardedAd, AdMobIds } from '../src/core/services/AdMobAdapter';
 import { authService } from '../src/core/services/auth.service';
 import { DailyRewardModal } from '../src/components/DailyRewardModal';
 import { RewardOverlay } from '../src/components/RewardOverlay';
+import { premiumService } from '../src/core/services/premium.service';
 
 type TabType = 'ALL' | 'PREMIUM' | StoreItemType;
 
@@ -31,20 +32,26 @@ export default function StoreScreen() {
     const [processingPurchase, setProcessingPurchase] = useState<string | null>(null);
     const [economyRefresh, setEconomyRefresh] = useState(0);
     const [purchaseSuccessItem, setPurchaseSuccessItem] = useState<{ id: string; name: string } | null>(null);
+    const [hasPremium, setHasPremium] = useState(false);
+    const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
 
     const loadData = async () => {
         try {
-            const [inv, cat, eco] = await Promise.all([
+            setPremiumStatusResolved(false);
+            const [inv, cat, eco, premiumActive] = await Promise.all([
                 storeService.getInventory(),
                 storeService.getCatalog(),
                 economyService.getEconomy(),
+                premiumService.hasActiveAccess(),
             ]);
             setInventory(inv);
             setCatalog(cat);
             setEconomy(eco);
+            setHasPremium(premiumActive);
         } catch (error) {
             console.error('Failed to load store data', error);
         } finally {
+            setPremiumStatusResolved(true);
             setLoading(false);
         }
     };
@@ -77,8 +84,10 @@ export default function StoreScreen() {
     const [showRewardOverlay, setShowRewardOverlay] = useState(false);
 
     useEffect(() => {
-        load();
-    }, [load]);
+        if (premiumStatusResolved && !hasPremium) {
+            load();
+        }
+    }, [hasPremium, load, premiumStatusResolved]);
 
     useEffect(() => {
         if (isClosed) {
@@ -94,9 +103,9 @@ export default function StoreScreen() {
             }
             setPendingStoreAdReward(false);
             setIsProcessingAd(false);
-            load(); // preload next
+            if (!hasPremium) load(); // preload next only for non-Premium players
         }
-    }, [isClosed, isEarnedReward, load, pendingStoreAdReward]);
+    }, [hasPremium, isClosed, isEarnedReward, load, pendingStoreAdReward]);
 
     const handleWatchStoreAd = async () => {
         setIsProcessingAd(true);
@@ -118,21 +127,36 @@ export default function StoreScreen() {
     };
 
     const handlePurchase = async (item: StoreItem) => {
-        const processPurchase = async () => {
+        const isFreeItem = !item.isPremium
+            && item.type !== 'CURRENCY_PACK'
+            && item.priceCoins === 0
+            && item.priceDiamonds === undefined;
+
+        const processPurchase = async (equipImmediately = false) => {
             setProcessingPurchase(item.id);
             const result = await storeService.purchaseItem(item.id);
 
             if (result.success) {
                 setEconomyRefresh(prev => prev + 1);
-                await loadData();
 
-                if (item.type !== 'CURRENCY_PACK') {
+                if (equipImmediately) {
+                    const equipResult = await storeService.equipItem(item.id);
+                    if (!equipResult.success) {
+                        if (Platform.OS === 'web') {
+                            window.alert(equipResult.message || "Impossible d'activer cet objet.");
+                        } else {
+                            Alert.alert('Erreur', equipResult.message || "Impossible d'activer cet objet.");
+                        }
+                    }
+                } else if (item.type !== 'CURRENCY_PACK') {
                     setPurchaseSuccessItem({ id: item.id, name: item.name });
                 } else if (Platform.OS === 'web') {
                     window.alert('Devises ajoutées avec succès !');
                 } else {
                     Alert.alert('Succès', 'Devises ajoutées avec succès !');
                 }
+
+                await loadData();
             } else if (Platform.OS === 'web') {
                 window.alert(result.message || 'Une erreur est survenue.');
             } else {
@@ -141,6 +165,11 @@ export default function StoreScreen() {
 
             setProcessingPurchase(null);
         };
+
+        if (isFreeItem) {
+            await processPurchase(true);
+            return;
+        }
 
         if (Platform.OS === 'web') {
             const confirmed = window.confirm(`Voulez-vous acheter ${item.name} ?`);
@@ -277,6 +306,10 @@ export default function StoreScreen() {
         const canAffordDiamonds = item.priceDiamonds ? (playerEconomy?.diamonds ?? 0) >= item.priceDiamonds : true;
         const canAfford = canAffordCoins && canAffordDiamonds;
         const canTryPremium = item.isPremium && __DEV__;
+        const isFreeItem = !item.isPremium
+            && item.type !== 'CURRENCY_PACK'
+            && item.priceCoins === 0
+            && item.priceDiamonds === undefined;
 
         return (
             <Animated.View entering={FadeIn} key={item.id} style={[styles.card, cardLandscape && styles.cardLandscape, cardLandscape && { width: currentWidth * 0.24 }]}>
@@ -337,7 +370,7 @@ export default function StoreScreen() {
                             onPress={() => onPurchase(item)}
                             disabled={item.isPremium ? !canTryPremium : !canAfford}
                         >
-                            <Text style={styles.buyButtonText}>{canTryPremium ? 'Tester' : item.isPremium ? 'Premium' : 'Acheter'}</Text>
+                            <Text style={styles.buyButtonText}>{isFreeItem ? '+' : canTryPremium ? 'Tester' : item.isPremium ? 'Premium' : 'Acheter'}</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -419,7 +452,7 @@ export default function StoreScreen() {
                 >
                     {filteredCatalog.length > 0 ? (
                         <>
-                            {activeTab === 'ALL' && inventory && economy && (
+                            {activeTab === 'ALL' && !hasPremium && inventory && economy && (
                                 <StoreAdCard playerEconomy={economy} />
                             )}
                             {filteredCatalog.map(item => (

@@ -30,6 +30,7 @@ interface DailyRewardModalProps {
     onWatchAd: () => void;
     onSkip?: () => void;
     claimTriggerRef?: React.MutableRefObject<(() => void) | null>;
+    showAdReward?: boolean;
 }
 
 const CoinParticle = ({ delay, index, screenW }: { delay: number; index: number; screenW: number }) => {
@@ -105,6 +106,7 @@ export const DailyRewardModal: React.FC<DailyRewardModalProps> = ({
     onWatchAd,
     onSkip,
     claimTriggerRef,
+    showAdReward = true,
 }) => {
     const { width, height } = useWindowDimensions();
     const isLandscape = width > height;
@@ -288,7 +290,7 @@ export const DailyRewardModal: React.FC<DailyRewardModalProps> = ({
 
                                 <TouchableOpacity
                                     style={[styles.claimButton, isLandscape && { width: '100%' }, isClaiming && { opacity: 0.7 }]}
-                                    onPress={isClaiming ? undefined : onWatchAd}
+                                    onPress={isClaiming ? undefined : (showAdReward ? onWatchAd : playClaimAnimation)}
                                     activeOpacity={0.85}
                                     disabled={isClaiming}
                                 >
@@ -307,7 +309,9 @@ export const DailyRewardModal: React.FC<DailyRewardModalProps> = ({
                                                     ? `RÉCUPÉRER → +${amount} 🪙`
                                                     : isWelcome 
                                                         ? `RÉCUPÉRER → +${amount} 🪙` 
-                                                        : `📺 VOIR UNE PUB → +${amount} 🪙`}
+                                                    : showAdReward
+                                                        ? `📺 VOIR UNE PUB → +${amount} 🪙`
+                                                        : `RÉCUPÉRER → +${amount} 🪙`}
                                         </Text>
                                     </LinearGradient>
                                 </TouchableOpacity>

@@ -15,6 +15,7 @@ import {
     createGrantPremiumAccess,
     createPremiumCodesCallable,
     createRedeemPremiumCode,
+    isActivePremiumEntitlement,
 } from './premiumAccess';
 
 admin.initializeApp();
@@ -55,6 +56,15 @@ async function processMatchRewardInternal(
 
     const userRef = db.collection('users').doc(uid);
     const userSnap = await userRef.get();
+    // Le client ne décide jamais du multiplicateur Premium : l'entitlement est lu
+    // directement dans Firestore avant le calcul de la récompense.
+    const entitlementSnap = await db.collection('premium_entitlements').doc(uid).get();
+    const hasPremiumAccess = isActivePremiumEntitlement(
+        entitlementSnap.exists
+            ? entitlementSnap.data() as { expiresAt?: admin.firestore.Timestamp }
+            : undefined,
+        Date.now()
+    );
 
     let currentXP = 0;
     let currentLevel = 1;
@@ -83,6 +93,7 @@ async function processMatchRewardInternal(
         currentLevel,
         currentLeaguePoints,
         currentCochonsGiven,
+        isPremium: hasPremiumAccess,
     };
 
     const reward = RewardEngine.calculate(secureInput);

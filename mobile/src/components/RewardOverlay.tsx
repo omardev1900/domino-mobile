@@ -173,6 +173,7 @@ export function RewardOverlay({ visible, reward, isWinner, onContinue, playerNam
     const gradeTheme = reward.newGrade ? getGradeTheme(reward.newGrade) : null;
     const popupScrollMaxHeight = height * (isLandscape ? 0.9 : 0.82);
     const isStandaloneGradeUp = (isGradeUp || (reward.frameCoinsBonus ?? 0) > 0) && (!LEAGUE_FRAMES_ENABLED || !reward.newlyUnlockedFrames || reward.newlyUnlockedFrames.length === 0);
+    const hasPremiumSoloWin = reward.breakdown.some(item => item.id === 'solo_premium_win');
     // displayGrade: grade a afficher dans la modale (newGrade si passage de grade mensuel,
     // sinon previousGrade si c'est juste un passage de palier cochons sans changement de grade)
     const displayGrade = reward.newGrade ?? reward.previousGrade;
@@ -239,6 +240,11 @@ export function RewardOverlay({ visible, reward, isWinner, onContinue, playerNam
 
                     {/* Level Up & Grade Up Banners */}
                     <View style={[styles.bannersContainer, isLandscape && styles.bannersContainerLandscape]}>
+                        {hasPremiumSoloWin && (
+                            <Animated.View entering={ZoomIn.delay(450).duration(650).springify()} style={styles.premiumBonusBanner}>
+                                <Text style={styles.premiumBonusText}>✨ COINS ×2 PREMIUM ✨</Text>
+                            </Animated.View>
+                        )}
                         {isLevelUp && (
                             <Animated.View entering={FadeInDown.delay(600)} style={styles.levelUpBanner}>
                                 <Text style={styles.levelUpText}>⭐ NIV. {reward.newLevel} ! ⭐</Text>
@@ -692,6 +698,26 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 10,
         marginBottom: 5,
+    },
+    premiumBonusBanner: {
+        backgroundColor: 'rgba(156, 39, 176, 0.94)',
+        borderWidth: 1.5,
+        borderColor: '#EA80FC',
+        paddingHorizontal: 16,
+        paddingVertical: 7,
+        borderRadius: 16,
+        marginBottom: 5,
+        shadowColor: '#EA80FC',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.75,
+        shadowRadius: 10,
+        elevation: 7,
+    },
+    premiumBonusText: {
+        color: '#FFFFFF',
+        fontWeight: '900',
+        fontSize: 14,
+        letterSpacing: 1,
     },
     levelUpBanner: {
         backgroundColor: 'rgba(76, 175, 80, 0.9)',
