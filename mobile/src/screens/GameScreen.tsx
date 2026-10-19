@@ -87,6 +87,7 @@ interface GameScreenProps {
 }
 
 const ROUND_RESULT_AUTO_ADVANCE_MS = 3000;
+const SOLO_ROUND_RESULT_AUTO_ADVANCE_MS = 5000;
 const MATCH_RESULT_AUTO_ADVANCE_MS = 5500;
 const RESULT_TRANSITION_FALLBACK_MS = 3000;
 // Doit correspondre au délai du coordinateur terminal serveur.
@@ -1477,12 +1478,23 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             setRoundResultSnapshot(gameState);
             setShowRoundResult(true);
             // Après dismiss du RoundEndFlow → afficher l'écran de score de manche
-            pendingRoundResultTransition.current = () => {
-                setScoreOverlayPhase('MANCHE_END');
-            };
-            // Filet de sécurité : dismiss automatique à 3s si l'auto-advance échoue.
+            const isSpecialMancheOutcome = gameState.mancheResult === 'CHIRE'
+                || gameState.mancheResult === 'COCHON';
+            pendingRoundResultTransition.current = isSpecialMancheOutcome
+                ? () => {
+                    // Chiré et Cochon ont déjà leur propre annonce dans RoundEndFlow.
+                    // Ne pas enchaîner l'ancien MancheEndFlow, qui doublait le visuel.
+                    if (isSoloMode || hasLegacyHostAuthority) handleOverlayContinue();
+                }
+                : () => {
+                    setScoreOverlayPhase('MANCHE_END');
+                };
+            // En solo, laisser cinq secondes de lecture avant de passer à la suite.
             if (!roundResultTimerRef.current) {
-                roundResultTimerRef.current = setTimeout(handleDismissRoundResult, RESULT_TRANSITION_FALLBACK_MS);
+                roundResultTimerRef.current = setTimeout(
+                    handleDismissRoundResult,
+                    isSoloMode ? SOLO_ROUND_RESULT_AUTO_ADVANCE_MS : RESULT_TRANSITION_FALLBACK_MS,
+                );
             }
             return () => {
                 // FIX-TIMER: remettre la ref à null sinon un rerun de l'effet
@@ -1516,7 +1528,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 handleDismissRoundResult,
                 usesSystemCoordinator
                     ? COORDINATED_ROUND_RESULT_DISPLAY_MS
-                    : RESULT_TRANSITION_FALLBACK_MS
+                    : isSoloMode
+                        ? SOLO_ROUND_RESULT_AUTO_ADVANCE_MS
+                        : RESULT_TRANSITION_FALLBACK_MS
             );
             return () => {
                 if (roundResultTimerRef.current) {
@@ -2344,7 +2358,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             )}
 
             {/* ✅ MancheEndFlow — résumé de la manche */}
-            {(showScoreOverlay && gameState?.phase === 'MANCHE_END') && (
+            {(showScoreOverlay && gameState?.phase === 'MANCHE_END' && gameState.mancheResult !== 'CHIRE' && gameState.mancheResult !== 'COCHON') && (
                 <MancheEndFlow
                     gameState={gameState!}
                     visible={true}
@@ -2367,7 +2381,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                         ? MATCH_RESULT_AUTO_ADVANCE_MS
                         : usesSystemCoordinator
                             ? COORDINATED_ROUND_RESULT_DISPLAY_MS
-                            : ROUND_RESULT_AUTO_ADVANCE_MS}
+                                : isSoloMode
+                                    ? SOLO_ROUND_RESULT_AUTO_ADVANCE_MS
+                                    : ROUND_RESULT_AUTO_ADVANCE_MS}
                     localPlayerIndex={(roundResultSnapshot ?? gameState)?.players.findIndex(p => p.id === localPlayerId) ?? 0}
                     isFinalMatch={(roundResultSnapshot ?? gameState)?.phase === 'MATCH_END'}
                 />

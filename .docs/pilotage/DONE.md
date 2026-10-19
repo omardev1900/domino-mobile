@@ -1,5 +1,11 @@
 # Taches terminees
 
+### 2026-10-19
+
+- [x] `UI-MULTI-END-FLOW-01` Carte Trello « Bug affichage fin de round »
+  livree : annonces animees pour Chiré, Cochon, egalite, partie bloquee,
+  round, manche et match, avec un ecran local de previsualisation.
+
 ### 2026-10-12
 
 - [x] `ECON-MIN-COINS-01` Carte Trello « Min de coins » livree : reserve de

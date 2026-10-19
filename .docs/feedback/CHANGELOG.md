@@ -1,5 +1,10 @@
 # Changelog
 
+### 2026-10-19
+
+- Les fins de round, manche et match disposent d'annonces visuelles plus
+  lisibles. Chiré, Cochon, egalite et partie bloquee ont chacune leur animation.
+
 ### 2026-10-12
 
 - Une reserve minimale de 100 coins est maintenant conservee apres une mise.

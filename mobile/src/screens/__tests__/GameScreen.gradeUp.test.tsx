@@ -612,7 +612,7 @@ describe('GameScreen grade-up flow', () => {
 
         await waitFor(() => {
             expect(getLastRoundResultProps().visible).toBe(true);
-            expect(getLastRoundResultProps().autoAdvanceDelay).toBe(3000);
+            expect(getLastRoundResultProps().autoAdvanceDelay).toBe(5000);
         });
 
         await act(async () => {
@@ -689,7 +689,7 @@ describe('GameScreen grade-up flow', () => {
         });
     });
 
-    it('n affiche pas l overlay final de match avant la fin du RoundResultCard quand on sort d une fin de manche', async () => {
+    it('n enchaîne pas le résumé MancheEndFlow après un Cochon déjà annoncé', async () => {
         jest.useFakeTimers();
 
         mockCurrentGameState = {
@@ -715,17 +715,14 @@ describe('GameScreen grade-up flow', () => {
         });
         expect(getLastOverlayProps().showScoreOverlay).toBe(false);
         expect(getLastRoundResultProps().visible).toBe(true);
-        const getLastMancheEndProps = () => mockMancheEndFlow.mock.calls[mockMancheEndFlow.mock.calls.length - 1][0];
-
-        // Après l'animation (13s), le RoundResultCard disparaît et l'overlay de manche s'affiche
+        // Après cinq secondes, le résultat spécial passe directement à la suite.
         await act(async () => {
-            jest.advanceTimersByTime(3100);
+            jest.advanceTimersByTime(5100);
             await Promise.resolve();
         });
 
-        // MancheEndFlow doit être affiché (mocké) pour MANCHE_END
-        expect(mockMancheEndFlow).toHaveBeenCalled();
-        expect(getLastMancheEndProps().visible).toBe(true);
+        expect(mockMancheEndFlow).not.toHaveBeenCalled();
+        expect(mockHandleOverlayContinue).toHaveBeenCalledTimes(1);
 
         // -- Partie 2 : MATCH_END --
         // Maintenant on simule que le joueur clique sur "Continuer" de la manche

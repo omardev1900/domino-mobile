@@ -240,7 +240,8 @@ export default function RootLayout() {
       pathname === '/store' ||
       pathname === '/collection' ||
       pathname === '/debug-ligue' ||
-      pathname === '/debug-level';
+      pathname === '/debug-level' ||
+      pathname === '/debug-end-flow';
     if (shouldStaySilent) {
       SoundManager.stopMusic();
       return;

@@ -260,12 +260,20 @@ export default function ProfileScreen() {
                             </Text>
                         )}
                         {__DEV__ && (
-                            <TouchableOpacity
-                                style={styles.devButton}
-                                onPress={() => router.push('/debug-ligue' as any)}
-                            >
-                                <Text style={styles.devButtonText}>🛠 Debug Ligue des Cochons</Text>
-                            </TouchableOpacity>
+                            <>
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    onPress={() => router.push('/debug-ligue' as any)}
+                                >
+                                    <Text style={styles.devButtonText}>🛠 Debug Ligue des Cochons</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    onPress={() => router.push('/debug-end-flow' as any)}
+                                >
+                                    <Text style={styles.devButtonText}>🛠 Prévisualiser les fins de jeu</Text>
+                                </TouchableOpacity>
+                            </>
                         )}
                     </View>
                 </ScrollView>

@@ -5,6 +5,7 @@ import SoundManager from '../../../core/audio/SoundManager';
 import { RoundEndBanner } from './RoundEndBanner';
 import { PlayerRevealBlock } from './PlayerRevealBlock';
 import { WinnerHighlight } from './WinnerHighlight';
+import { MancheOutcomeAnnouncement } from './MancheOutcomeAnnouncement';
 
 interface RoundEndFlowProps {
     gameState: GameState;
@@ -42,7 +43,16 @@ export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, 
         return gameState.players.find(p => p.id === gameState.firstPlayerOfRound) ?? null;
     })();
 
+    const isSpecialMancheOutcome = gameState.phase === 'MANCHE_END'
+        && (gameState.mancheResult === 'CHIRE' || gameState.mancheResult === 'COCHON');
     const isTie = winner === null;
+    const usesOutcomeAnnouncement = (
+        isSpecialMancheOutcome
+        || gameState.phase === 'PARTIE_END'
+        || (gameState.phase === 'MANCHE_END' && !isSpecialMancheOutcome)
+        || gameState.phase === 'BOUDE'
+        || gameState.phase === 'MATCH_END'
+    );
 
     useEffect(() => {
         const timeouts: ReturnType<typeof setTimeout>[] = [];
@@ -134,8 +144,7 @@ export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, 
     return (
         <View style={[StyleSheet.absoluteFillObject, { zIndex: 1000, elevation: 1000 }]} pointerEvents="box-none">
             
-            {/* TEMPORAIRE : Masqué pour test de l'affichage sans bannière */}
-            <RoundEndBanner isBoude={isBoude} visible={false} />
+            <RoundEndBanner isBoude={isBoude} visible={!usesOutcomeAnnouncement && phase !== 'dimming'} />
 
             {/* Players */}
             {localPlayer && localPlayer.hand.length > 0 && (
@@ -166,19 +175,33 @@ export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, 
                 />
             )}
 
-            <WinnerHighlight 
-                winner={winner} 
-                isTie={isTie} 
-                isBoude={isBoude}
-                localPlayerId={localPlayerId}
-                visible={phase !== 'dimming'}
-                onContinue={handleContinuePress}
-                isHost={isHost}
-                autoAdvanceDelay={autoAdvanceDelay}
-                localPlayerIndex={localPlayerIndex}
-                compact={isFinalMatch}
-                origin={winnerOrigin}
-            />
+            {usesOutcomeAnnouncement ? (
+                <MancheOutcomeAnnouncement
+                    gameState={gameState}
+                    winner={winner}
+                    isTie={isTie}
+                    visible={phase !== 'dimming'}
+                    localPlayerId={localPlayerId}
+                    onContinue={handleContinuePress}
+                    isHost={isHost}
+                    autoAdvanceDelay={autoAdvanceDelay}
+                    localPlayerIndex={localPlayerIndex}
+                />
+            ) : (
+                <WinnerHighlight
+                    winner={winner}
+                    isTie={isTie}
+                    isBoude={isBoude}
+                    localPlayerId={localPlayerId}
+                    visible={phase !== 'dimming'}
+                    onContinue={handleContinuePress}
+                    isHost={isHost}
+                    autoAdvanceDelay={autoAdvanceDelay}
+                    localPlayerIndex={localPlayerIndex}
+                    compact={isFinalMatch}
+                    origin={winnerOrigin}
+                />
+            )}
         </View>
     );
 };
