@@ -1,5 +1,6 @@
 # Taches actives
 
+- [ ] `WEB-PREMIUM-SALES-01` En cours - Carte Trello « [Web] Vente de recharges et abonnements Premium » : parcours de paiement web, confirmation serveur, codes et abonnements securises.
 - [ ] `UI-IN-GAME-SKINS-01` En cours - Carte Trello « Modifier skin du jeu lors
   d'une partie » : separer les reglages en onglets Sons et Skins, lister les
   skins possedes et les equiper immediatement pendant une partie.
