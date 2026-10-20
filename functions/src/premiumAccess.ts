@@ -7,7 +7,7 @@ import { enforceCallableRateLimit } from './callableRateLimit';
 export const PREMIUM_TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1_000;
 export const PREMIUM_ACTIVATION_COINS = 1_000;
 
-export type PremiumSource = 'TRIAL' | 'ADMIN_GRANT' | 'PROMO_CODE';
+export type PremiumSource = 'TRIAL' | 'ADMIN_GRANT' | 'PROMO_CODE' | 'PURCHASE_CODE' | 'SUBSCRIPTION';
 
 interface PremiumEntitlementData {
     source?: PremiumSource;
@@ -21,6 +21,7 @@ interface PremiumCodeData {
     expiresAt?: admin.firestore.Timestamp;
     maxRedemptions?: number;
     redemptionCount?: number;
+    bonusCoins?: number;
 }
 
 type EconomyData = { coins?: number };
@@ -50,6 +51,11 @@ export const normalizePremiumCode = (code: string): string =>
 
 export const hashPremiumCode = (code: string): string =>
     createHash('sha256').update(normalizePremiumCode(code)).digest('hex');
+
+export const resolvePremiumCodeBonus = (code: PremiumCodeData): number =>
+    typeof code.bonusCoins === 'number' && Number.isInteger(code.bonusCoins) && code.bonusCoins >= 0
+        ? code.bonusCoins
+        : PREMIUM_ACTIVATION_COINS;
 
 const createPremiumCodeValue = (): string => {
     const value = randomBytes(8).toString('hex').toUpperCase();
@@ -186,10 +192,11 @@ export async function redeemPremiumCode(
         const existing = entitlementSnapshot.exists
             ? entitlementSnapshot.data() as PremiumEntitlementData
             : undefined;
+        const bonusCoins = resolvePremiumCodeBonus(code);
         const startsAt = Math.max(now, toMillis(existing?.expiresAt) ?? 0);
         const expiresAt = startsAt + code.durationDays * 24 * 60 * 60 * 1_000;
         transaction.set(entitlementRef, {
-            source: 'PROMO_CODE' satisfies PremiumSource,
+            source: code.bonusCoins === undefined ? 'PROMO_CODE' satisfies PremiumSource : 'PURCHASE_CODE' satisfies PremiumSource,
             startsAt: admin.firestore.Timestamp.fromMillis(startsAt),
             expiresAt: admin.firestore.Timestamp.fromMillis(expiresAt),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -204,16 +211,16 @@ export async function redeemPremiumCode(
             codeHash,
             redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
             userId: uid,
-            bonusCoins: PREMIUM_ACTIVATION_COINS,
+            bonusCoins,
         });
         const currentEconomy = (userSnapshot.data()?.economy ?? {}) as EconomyData;
         transaction.set(userRef, {
             economy: {
                 ...currentEconomy,
-                coins: (typeof currentEconomy.coins === 'number' ? currentEconomy.coins : 0) + PREMIUM_ACTIVATION_COINS,
+                coins: (typeof currentEconomy.coins === 'number' ? currentEconomy.coins : 0) + bonusCoins,
             },
         }, { merge: true });
-        return { expiresAt, bonusCoins: PREMIUM_ACTIVATION_COINS };
+        return { expiresAt, bonusCoins };
     });
 }
 

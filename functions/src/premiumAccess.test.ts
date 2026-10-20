@@ -8,6 +8,7 @@ import {
     normalizePremiumCode,
     PREMIUM_ACTIVATION_COINS,
     PREMIUM_TRIAL_DURATION_MS,
+    resolvePremiumCodeBonus,
 } from './premiumAccess';
 
 const now = 1_700_000_000_000;
@@ -43,5 +44,10 @@ describe('premium code policy', () => {
     it('normalizes a code before persisting its identifier', () => {
         assert.equal(normalizePremiumCode(' dm-ab12-cd34 '), 'DMAB12CD34');
         assert.equal(hashPremiumCode('dm-ab12-cd34'), hashPremiumCode('DMAB12CD34'));
+    });
+
+    it('preserves the paid recharge bonus while keeping legacy admin codes compatible', () => {
+        assert.equal(resolvePremiumCodeBonus({ bonusCoins: 700 }), 700);
+        assert.equal(resolvePremiumCodeBonus({}), PREMIUM_ACTIVATION_COINS);
     });
 });
