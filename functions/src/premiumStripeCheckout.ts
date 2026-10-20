@@ -41,6 +41,13 @@ export function buildStripeCheckoutForm(
     return form;
 }
 
+export function requireSubscriptionEmail(product: PremiumSaleProduct, email: string | undefined): string | undefined {
+    if (product.kind === 'SUBSCRIPTION' && !email) {
+        throw new Error('Un e-mail de compte Domino est requis pour un abonnement.');
+    }
+    return email;
+}
+
 function applyCors(req: functions.https.Request, res: functions.Response<any>): boolean {
     const origin = req.headers.origin;
     if (origin === WEB_APP_ORIGIN || (origin !== undefined && LOCAL_WEB_ORIGIN.test(origin))) {
@@ -69,9 +76,14 @@ export const createStripeCheckout = (db: admin.firestore.Firestore) =>
 
             let input: CheckoutInput;
             let product: PremiumSaleProduct;
+            let accountUid: string | null = null;
             try {
                 input = checkoutInputSchema.parse(req.body);
                 product = getPremiumSaleProduct(input.productId);
+                const email = requireSubscriptionEmail(product, input.email);
+                if (product.kind === 'SUBSCRIPTION' && email) {
+                    accountUid = (await admin.auth().getUserByEmail(email)).uid;
+                }
             } catch (error) {
                 const message = error instanceof ZodError || error instanceof Error
                     ? 'Offre ou e-mail invalide.'
@@ -90,6 +102,7 @@ export const createStripeCheckout = (db: admin.firestore.Firestore) =>
                 coins: product.coins,
                 provider: 'STRIPE',
                 email: input.email ?? null,
+                accountUid,
                 status: 'CHECKOUT_CREATED',
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),

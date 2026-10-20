@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { getPremiumSaleProduct } from './premiumSalesCatalog';
-import { buildStripeCheckoutForm } from './premiumStripeCheckout';
+import { buildStripeCheckoutForm, requireSubscriptionEmail } from './premiumStripeCheckout';
 
 describe('Stripe Checkout form', () => {
     it('uses server-side prices for a recharge and never a client-provided amount', () => {
@@ -21,5 +21,14 @@ describe('Stripe Checkout form', () => {
         assert.equal(form.get('mode'), 'subscription');
         assert.equal(form.get('line_items[0][price_data][recurring][interval]'), 'year');
         assert.equal(form.get('customer_email'), 'joueur@example.com');
+    });
+
+    it('requires an account email before an abonnement can start', () => {
+        assert.throws(() => requireSubscriptionEmail(getPremiumSaleProduct('premium_subscription_monthly'), undefined));
+        assert.equal(
+            requireSubscriptionEmail(getPremiumSaleProduct('premium_subscription_monthly'), 'joueur@example.com'),
+            'joueur@example.com',
+        );
+        assert.equal(requireSubscriptionEmail(getPremiumSaleProduct('premium_recharge_3d'), undefined), undefined);
     });
 });
