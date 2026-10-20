@@ -17,6 +17,7 @@ import {
     createRedeemPremiumCode,
     isActivePremiumEntitlement,
 } from './premiumAccess';
+import { createStripeCheckout } from './premiumStripeCheckout';
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -26,6 +27,7 @@ export const activatePremiumTrial = createActivatePremiumTrial(db);
 export const grantPremiumAccess = createGrantPremiumAccess(db);
 export const createPremiumCodes = createPremiumCodesCallable(db);
 export const redeemPremiumCode = createRedeemPremiumCode(db);
+export const createPremiumStripeCheckout = createStripeCheckout(db);
 
 const LOCAL_WEB_ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
