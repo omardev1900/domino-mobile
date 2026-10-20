@@ -29,6 +29,17 @@ const STORAGE_KEY_SESSION = '@user_session_active';
 
 class AuthService {
     private currentUser: PlayerProfile | null = null;
+    private profileListeners = new Set<(profile: PlayerProfile) => void>();
+
+    subscribeToProfileUpdates(listener: (profile: PlayerProfile) => void): () => void {
+        this.profileListeners.add(listener);
+        if (this.currentUser) listener(this.currentUser);
+        return () => this.profileListeners.delete(listener);
+    }
+
+    private notifyProfileUpdated(profile: PlayerProfile): void {
+        this.profileListeners.forEach(listener => listener(profile));
+    }
 
     /**
      * Send password reset email
@@ -188,6 +199,7 @@ class AuthService {
         try {
             await AsyncStorage.setItem(STORAGE_KEY_SESSION, 'true');
             this.currentUser = { ...user };
+            this.notifyProfileUpdated(this.currentUser);
             LogService.info('AuthService', `Session activated for: ${user.uid} (${user.displayName})`);
         } catch (error) {
             LogService.error('AuthService', 'Failed to activate session', error);
@@ -353,6 +365,7 @@ class AuthService {
 
         // 2. Update memory state immediately
         this.currentUser = { ...user, ...profileUpdates };
+        this.notifyProfileUpdated(this.currentUser);
 
         try {
             // 3. Persist Firebase Profile

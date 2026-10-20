@@ -5,12 +5,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { EconomyHeader } from '../src/components/EconomyHeader';
 import { PurchaseSuccessModal } from '../src/components/PurchaseSuccessModal';
 import { StoreItemPreview } from '../src/components/store/StoreItemPreview';
+import { SkinPreviewModal } from '../src/components/store/SkinPreviewModal';
 import { economyService } from '../src/core/services/economy.service';
-import { storeService } from '../src/core/services/store.service';
+import { getAccessibleInventory, storeService } from '../src/core/services/store.service';
 import { StoreItem, StoreItemType, PlayerInventory } from '../src/core/store.types';
 import { useRewardedAd, AdMobIds } from '../src/core/services/AdMobAdapter';
 import { authService } from '../src/core/services/auth.service';
@@ -21,6 +23,8 @@ import { premiumService } from '../src/core/services/premium.service';
 type TabType = 'ALL' | 'PREMIUM' | StoreItemType;
 
 export default function StoreScreen() {
+    const router = useRouter();
+    const { tab } = useLocalSearchParams<{ tab?: string }>();
     const { width, height } = useWindowDimensions();
     const isLandscape = width > height;
 
@@ -34,6 +38,7 @@ export default function StoreScreen() {
     const [purchaseSuccessItem, setPurchaseSuccessItem] = useState<{ id: string; name: string } | null>(null);
     const [hasPremium, setHasPremium] = useState(false);
     const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
+    const [previewedSkin, setPreviewedSkin] = useState<StoreItem | null>(null);
 
     const loadData = async () => {
         try {
@@ -44,8 +49,9 @@ export default function StoreScreen() {
                 economyService.getEconomy(),
                 premiumService.hasActiveAccess(),
             ]);
-            setInventory(inv);
-            setCatalog(cat);
+            const visibleCatalog = premiumActive ? cat : cat.filter(item => !item.isPremium);
+            setInventory(getAccessibleInventory(inv, cat, premiumActive));
+            setCatalog(visibleCatalog);
             setEconomy(eco);
             setHasPremium(premiumActive);
         } catch (error) {
@@ -73,10 +79,10 @@ export default function StoreScreen() {
         if (types.includes('SKIN')) tabs.push({ id: 'SKIN', label: 'Skins', icon: 'color-palette' });
         if (types.includes('CURRENCY_PACK')) tabs.push({ id: 'CURRENCY_PACK', label: 'Devises', icon: 'diamond' });
         if (types.includes('EMOTE')) tabs.push({ id: 'EMOTE', label: 'Emotions', icon: 'happy' });
-        if (catalog.some(item => item.isPremium)) tabs.push({ id: 'PREMIUM', label: 'Premium', icon: 'star' });
+        if (hasPremium && catalog.some(item => item.isPremium)) tabs.push({ id: 'PREMIUM', label: 'Premium', icon: 'star' });
 
         return tabs;
-    }, [catalog]);
+    }, [catalog, hasPremium]);
 
     const { isLoaded, isClosed, isEarnedReward, error: rewardError, load, show } = useRewardedAd(AdMobIds.REWARDED_FIN_PARTIE);
     const [pendingStoreAdReward, setPendingStoreAdReward] = useState(false);
@@ -88,6 +94,14 @@ export default function StoreScreen() {
             load();
         }
     }, [hasPremium, load, premiumStatusResolved]);
+
+    useEffect(() => {
+        if (!hasPremium && activeTab === 'PREMIUM') setActiveTab('ALL');
+    }, [activeTab, hasPremium]);
+
+    useEffect(() => {
+        if (tab === 'PREMIUM' && hasPremium) setActiveTab('PREMIUM');
+    }, [hasPremium, tab]);
 
     useEffect(() => {
         if (isClosed) {
@@ -190,6 +204,10 @@ export default function StoreScreen() {
     };
 
     const handleEquip = async (itemId: string) => {
+        if (itemId === 'skin_premium_atelier') {
+            router.push('/premium-workshop' as never);
+            return;
+        }
         setProcessingPurchase(itemId);
         const result = await storeService.equipItem(itemId);
 
@@ -305,7 +323,6 @@ export default function StoreScreen() {
         const canAffordCoins = item.priceCoins ? (playerEconomy?.coins ?? 0) >= item.priceCoins : true;
         const canAffordDiamonds = item.priceDiamonds ? (playerEconomy?.diamonds ?? 0) >= item.priceDiamonds : true;
         const canAfford = canAffordCoins && canAffordDiamonds;
-        const canTryPremium = item.isPremium && __DEV__;
         const isFreeItem = !item.isPremium
             && item.type !== 'CURRENCY_PACK'
             && item.priceCoins === 0
@@ -319,9 +336,16 @@ export default function StoreScreen() {
                         <Text style={styles.cardRarity}>{item.isPremium ? 'PREMIUM' : item.rarity}</Text>
                     </View>
 
-                    <View style={styles.cardImagePlaceholder}>
+                    <TouchableOpacity
+                        style={styles.cardImagePlaceholder}
+                        activeOpacity={item.type === 'SKIN' ? 0.78 : 1}
+                        onPress={() => item.type === 'SKIN' && setPreviewedSkin(item)}
+                        disabled={item.type !== 'SKIN'}
+                        accessibilityLabel={item.type === 'SKIN' ? `Prévisualiser ${item.name}` : undefined}
+                    >
                         <StoreItemPreview item={item} height={100} />
-                    </View>
+                        {item.type === 'SKIN' && <View style={styles.previewBadge}><Ionicons name="expand-outline" size={15} color="#FFF" /></View>}
+                    </TouchableOpacity>
 
                     <View style={styles.descriptionRow}>
                         <Text style={styles.cardDescription} numberOfLines={isExpanded ? undefined : 2}>
@@ -338,13 +362,11 @@ export default function StoreScreen() {
                 <View style={styles.cardFooter}>
                     {!isOwned ? (
                         <View style={styles.priceContainer}>
-                            {item.isPremium ? (
-                                <Text style={[styles.priceText, styles.premiumText]}>{canTryPremium ? 'TEST DEV' : 'PREMIUM'}</Text>
-                            ) : null}
-                            {!item.isPremium && item.priceCoins !== undefined && item.priceCoins > 0 ? (
+                            {item.isPremium ? <Text style={[styles.priceText, styles.premiumText]}>PREMIUM</Text> : null}
+                            {item.priceCoins !== undefined && item.priceCoins > 0 ? (
                                 <Text style={styles.priceText}>🪙 {item.priceCoins}</Text>
                             ) : null}
-                            {!item.isPremium && item.priceDiamonds !== undefined && item.priceDiamonds > 0 ? (
+                            {item.priceDiamonds !== undefined && item.priceDiamonds > 0 ? (
                                 <Text style={[styles.priceText, { color: '#60DCFF' }]}>💎 {item.priceDiamonds}</Text>
                             ) : null}
                             {!item.isPremium && item.priceCoins === 0 && item.priceDiamonds === undefined ? (
@@ -366,11 +388,11 @@ export default function StoreScreen() {
                         </TouchableOpacity>
                     ) : (
                         <TouchableOpacity
-                            style={[styles.buyButton, (item.isPremium ? !canTryPremium : !canAfford) && { opacity: 0.5 }]}
+                            style={[styles.buyButton, !canAfford && { opacity: 0.5 }]}
                             onPress={() => onPurchase(item)}
-                            disabled={item.isPremium ? !canTryPremium : !canAfford}
+                            disabled={!canAfford}
                         >
-                            <Text style={styles.buyButtonText}>{isFreeItem ? '+' : canTryPremium ? 'Tester' : item.isPremium ? 'Premium' : 'Acheter'}</Text>
+                            <Text style={styles.buyButtonText}>{isFreeItem ? '+' : 'Acheter'}</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -413,6 +435,7 @@ export default function StoreScreen() {
                 onClose={() => setPurchaseSuccessItem(null)}
                 onEquip={() => purchaseSuccessItem && handleEquip(purchaseSuccessItem.id)}
             />
+            <SkinPreviewModal item={previewedSkin} visible={previewedSkin !== null} onClose={() => setPreviewedSkin(null)} />
 
             <RewardOverlay
                 visible={showRewardOverlay}
@@ -571,6 +594,18 @@ const styles = StyleSheet.create({
     cardImagePlaceholder: {
         height: 100,
         marginBottom: 8,
+        position: 'relative',
+    },
+    previewBadge: {
+        position: 'absolute',
+        top: 7,
+        right: 7,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: 'rgba(0,0,0,0.58)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     cardDescription: {
         color: 'rgba(255,255,255,0.7)',

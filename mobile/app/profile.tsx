@@ -25,6 +25,8 @@ import { LEAGUE_LABELS, LEAGUE_ICONS, LEAGUE_GRADE_COLORS } from '../src/core/ec
 import { LeagueGrade } from '../src/core/economy.types';
 import { statsService } from '../src/core/services/stats.service';
 import { getLeagueProgress, getMonthlyCochonsFromHistory } from '../src/core/leagueProgress';
+import { premiumService } from '../src/core/services/premium.service';
+import { getAccessibleInventory, storeService } from '../src/core/services/store.service';
 export default function ProfileScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -38,6 +40,8 @@ export default function ProfileScreen() {
     const [isEditingAvatar, setIsEditingAvatar] = useState(false);
     const [cochonsGiven, setCochonsGiven] = useState(0);
     const [myLeagueGrade, setMyLeagueGrade] = useState<LeagueGrade | null>(null);
+    const [profileAvatarOptions, setProfileAvatarOptions] = useState<string[]>(AVAILABLE_AVATARS);
+    const [ownedPremiumAvatarIds, setOwnedPremiumAvatarIds] = useState<Set<string>>(new Set());
 
     const [isLoading, setIsLoading] = useState(false);
     const nameInputRef = useRef<TextInput>(null);
@@ -58,13 +62,48 @@ export default function ProfileScreen() {
         // Always refresh from storage to get latest data
         const currentUser = await authService.refreshUserFromStorage();
         if (currentUser) {
+            const [catalog, hasPremium, inventory] = await Promise.all([
+                storeService.getCatalog(),
+                premiumService.hasActiveAccess(currentUser.uid),
+                storeService.getInventory(currentUser.uid),
+            ]);
+            const accessibleInventory = getAccessibleInventory(inventory, catalog, hasPremium);
+            const ownedPremiumAvatars = catalog.filter(item =>
+                item.isPremium
+                && item.type === 'AVATAR'
+                && accessibleInventory.ownedItems.includes(item.id),
+            );
+            const premiumAvatarIds = new Set(ownedPremiumAvatars.flatMap(item => [item.id, item.assetId]));
+            setOwnedPremiumAvatarIds(premiumAvatarIds);
+            setProfileAvatarOptions([...new Set([
+                ...AVAILABLE_AVATARS,
+                ...ownedPremiumAvatars.map(item => item.assetId || item.id),
+            ])]);
             console.log('[Profile] User loaded:', {
                 uid: currentUser.uid,
                 displayName: currentUser.displayName,
                 avatarId: currentUser.avatarId,
                 avatarUrl: currentUser.avatarUrl
             });
-            setUser(currentUser);
+            const currentAvatar = currentUser.avatarUrl || currentUser.avatarId;
+            const isExpiredPremiumAvatar = !hasPremium && catalog.some(item =>
+                item.isPremium
+                && item.type === 'AVATAR'
+                && (item.id === currentAvatar || item.assetId === currentAvatar),
+            );
+            const visibleUser = isExpiredPremiumAvatar
+                ? { ...currentUser, avatarId: 'avatar_default', avatarUrl: 'avatar_default' }
+                : currentUser;
+
+            if (isExpiredPremiumAvatar) {
+                try {
+                    await authService.updateProfile({ photoURL: 'avatar_default' });
+                } catch (error) {
+                    console.error('[Profile] Unable to persist expired Premium avatar reset:', error);
+                }
+            }
+
+            setUser(visibleUser);
             setDisplayName(currentUser.displayName || '');
 
             // Try to get email from current user profile
@@ -73,10 +112,10 @@ export default function ProfileScreen() {
             }
 
             // Set avatar from avatarUrl (which is the source of truth for remote) or avatarId (local)
-            const currentAvatar = currentUser.avatarUrl || currentUser.avatarId;
             if (currentAvatar) {
-                console.log('[Profile] Setting avatar:', currentAvatar);
-                setSelectedAvatar(currentAvatar);
+                const visibleAvatar = isExpiredPremiumAvatar ? 'avatar_default' : currentAvatar;
+                console.log('[Profile] Setting avatar:', visibleAvatar);
+                setSelectedAvatar(visibleAvatar);
             } else {
                 // Default to default avatar if none exist
                 console.log('[Profile] Using default avatar, none found');
@@ -96,17 +135,24 @@ export default function ProfileScreen() {
     };
 
     const handleAvatarSelect = async (avatarId: string) => {
+        const previousAvatar = selectedAvatar;
         setSelectedAvatar(avatarId);
         // Auto-save avatar selection immediately.
         // On n'envoie PAS le displayName ici : ça évite qu'un pseudo historique
         // non conforme (ex: caractères spéciaux venus d'un SSO) bloque le changement d'avatar.
         try {
             console.log('[Profile] Auto-saving avatar:', avatarId);
-            await authService.updateProfile({ photoURL: avatarId });
+            if (ownedPremiumAvatarIds.has(avatarId)) {
+                const result = await storeService.equipItem(avatarId);
+                if (!result.success) throw new Error(result.message);
+            } else {
+                await authService.updateProfile({ photoURL: avatarId });
+            }
             console.log('[Profile] Avatar auto-saved successfully');
             setLastSaved(new Date());
         } catch (error) {
             console.error('[Profile] Error auto-saving avatar:', error);
+            setSelectedAvatar(previousAvatar);
         }
     };
 
@@ -116,7 +162,7 @@ export default function ProfileScreen() {
 
             {/* Image Avatars - Compact grid for left side */}
             <View style={styles.avatarGridCompact}>
-                {AVAILABLE_AVATARS.map((avatarId) => (
+                {profileAvatarOptions.map((avatarId) => (
                     <TouchableOpacity
                         key={avatarId}
                         style={[
@@ -202,7 +248,8 @@ export default function ProfileScreen() {
                                 <Image
                                     source={getAvatarImage(selectedAvatar || 'avatar_default')}
                                     style={styles.avatarCircleImage}
-                                    contentFit="cover"
+                                    contentFit="contain"
+                                    contentPosition="center"
                                     cachePolicy="memory-disk"
                                 />
                             </View>
@@ -321,9 +368,9 @@ const styles = StyleSheet.create({
     },
     // ─── Profile Info ───
     avatarCircle: {
-        width: 86,
-        height: 86,
-        borderRadius: 43,
+        width: 116,
+        height: 116,
+        borderRadius: 58,
         backgroundColor: 'rgba(255,215,0,0.2)',
         justifyContent: 'center',
         alignItems: 'center',
@@ -338,16 +385,15 @@ const styles = StyleSheet.create({
     avatarCircleBorder: {
         width: '100%',
         height: '100%',
-        borderRadius: 43,
+        borderRadius: 58,
         overflow: 'hidden',
         borderWidth: 3,
         borderColor: '#FFD700',
+        backgroundColor: 'rgba(0,0,0,0.16)',
     },
     avatarCircleImage: {
-        width: 86 * 1.6,
-        height: 86 * 1.6,
-        position: 'absolute',
-        top: -(86 * 1.6 - 86) * 0.25,
+        width: '100%',
+        height: '100%',
     },
     avatarEditButton: {
         position: 'absolute',

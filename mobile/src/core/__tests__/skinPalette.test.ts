@@ -29,4 +29,20 @@ describe('resolveDominoSidePalette', () => {
             dotColor: '#FFFFFF',
         });
     });
+
+    it('keeps the Premium cosmetics catalogued as subscriber-only items', () => {
+        const premiumIds = [
+            'skin_premium_spectrum',
+            'skin_premium_madras',
+            'skin_premium_or_royal',
+            'skin_premium_nuit_caraibe',
+            'avatar_premium_cochon_dore',
+            'avatar_premium_reine_domino',
+            'avatar_premium_champion_madras',
+        ];
+
+        expect(STORE_CATALOG.filter(item => premiumIds.includes(item.id))).toEqual(
+            expect.arrayContaining(premiumIds.map(id => expect.objectContaining({ id, isPremium: true }))),
+        );
+    });
 });

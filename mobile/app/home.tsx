@@ -32,7 +32,7 @@ import { useRewardedAd, useAppOpenAd, AdMobIds } from '../src/core/services/AdMo
 import { USE_NEW_SIDEBAR } from '../src/core/config/navigation.config';
 import { getLeagueProgress, getMonthlyCochonsFromHistory } from '../src/core/leagueProgress';
 import { PremiumButton } from '../src/components/common/PremiumButton';
-import { premiumService } from '../src/core/services/premium.service';
+import { PremiumEntitlement, premiumService } from '../src/core/services/premium.service';
 
 let hasShownAppOpenAd = false;
 
@@ -53,6 +53,7 @@ export default function HomeScreen() {
     const [dailyRewardAmount, setDailyRewardAmount] = useState(0);
     const [isProcessingRewardAd, setIsProcessingRewardAd] = useState(false);
     const [hasPremium, setHasPremium] = useState(false);
+    const [premiumEntitlement, setPremiumEntitlement] = useState<PremiumEntitlement | null>(null);
     const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
     const { isLoaded: isRewardLoaded, isClosed: isRewardClosed, isEarnedReward, load: loadReward, show: showReward } = useRewardedAd(AdMobIds.REWARDED_FIN_PARTIE);
     const { isLoaded: isAppOpenLoaded, load: loadAppOpen, show: showAppOpen } = useAppOpenAd(AdMobIds.APP_OPEN);
@@ -69,8 +70,11 @@ export default function HomeScreen() {
     useFocusEffect(
         useCallback(() => {
         let active = true;
-        premiumService.hasActiveAccess().then((activeAccess) => {
-            if (active) setHasPremium(activeAccess);
+        premiumService.getEntitlement().then((entitlement) => {
+            if (active) {
+                setPremiumEntitlement(entitlement);
+                setHasPremium(Boolean(entitlement && entitlement.expiresAt.getTime() > Date.now()));
+            }
         }).finally(() => {
             if (active) setPremiumStatusResolved(true);
         });
@@ -130,6 +134,7 @@ export default function HomeScreen() {
     // Lance le listener temps réel une seule fois au montage.
     // Firestore est la source de vérité : le callback met à jour le state local sans jamais écrire dans Firestore.
     useEffect(() => {
+        const unsubscribeProfile = authService.subscribeToProfileUpdates(profile => setUser(profile));
         authService.getCurrentUser().then(u => {
             setUser(u);
             if (u && !u.uid.startsWith('guest_')) {
@@ -148,6 +153,7 @@ export default function HomeScreen() {
         });
 
         return () => {
+            unsubscribeProfile();
             economyListenerRef.current?.();
             economyListenerRef.current = null;
         };
@@ -376,7 +382,7 @@ export default function HomeScreen() {
                                 },
                             ]}>
                                 <Image
-                                    source={getAvatarImage(user?.avatarUrl)}
+                                    source={getAvatarImage(user?.avatarUrl || user?.avatarId || 'avatar_default')}
                                     style={styles.avatarImage}
                                     contentFit="cover"
                                     cachePolicy="memory-disk"
@@ -475,8 +481,8 @@ export default function HomeScreen() {
                                 <View style={styles.premiumHomeIcon}>
                                     <Ionicons name="star" size={22} color="#2D1B4E" />
                                 </View>
-                                <Text style={styles.premiumHomeTitle}>PREMIUM</Text>
-                                <Text style={styles.premiumHomeText}>3 jours gratuits</Text>
+                                <Text style={styles.premiumHomeTitle}>{hasPremium ? 'PREMIUM ACTIF' : 'PREMIUM'}</Text>
+                                <Text style={styles.premiumHomeText}>{hasPremium && premiumEntitlement ? `Jusqu’au ${new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).format(premiumEntitlement.expiresAt)}` : '3 jours gratuits'}</Text>
                                 <Ionicons name="chevron-forward" size={17} color="#FFD700" />
                             </LinearGradient>
                         </TouchableOpacity>

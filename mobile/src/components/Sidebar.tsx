@@ -61,6 +61,9 @@ export const Sidebar: React.FC = () => {
 
     // Charger profil + grade au montage
     useEffect(() => {
+        const unsubscribeProfile = authService.subscribeToProfileUpdates(profile => {
+            setAvatarId(profile.avatarId || profile.avatarUrl || 'avatar_default');
+        });
         authService.getCurrentUser().then(u => {
             if (!u) return;
             setAvatarId(u.avatarId || u.avatarUrl || 'avatar_default');
@@ -69,6 +72,7 @@ export const Sidebar: React.FC = () => {
             const monthlyCochons = getMonthlyCochonsFromHistory(stats.matchHistory);
             setLeagueGrade(getLeagueProgress(monthlyCochons).grade);
         });
+        return unsubscribeProfile;
     }, []);
 
     const gradeColor = leagueGrade

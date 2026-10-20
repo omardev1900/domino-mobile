@@ -28,6 +28,9 @@ export const AVATAR_IMAGES = {
     Spark_2: require('@/assets/images/avatars/bot/Spark_2.png'),
     Atlas_3: require('@/assets/images/avatars/bot/Atlas_3.png'),
     Zenith_4: require('@/assets/images/avatars/bot/Zenith_4.png'),
+    avatar_premium_cochon_dore: require('@/assets/images/avatars/premium/avatar_premium_cochon_dore.jpg'),
+    avatar_premium_reine_domino: require('@/assets/images/avatars/premium/avatar_premium_reine_domino.jpg'),
+    avatar_premium_champion_madras: require('@/assets/images/avatars/premium/avatar_premium_champion_madras.jpg'),
 } as const;
 
 export type AvatarId = keyof typeof AVATAR_IMAGES;

@@ -47,4 +47,6 @@ export interface PlayerInventory {
         skin: string;   // ID of the equipped domino skin
         // roomBg?: string; // Future: ID of the equipped room background
     };
+    /** Five Premium workshop designs at most; stored with the player, never as images. */
+    customPremiumSkins?: { id: string; name: string; skinConfig: SkinConfig; buttonColor: string; updatedAt: number }[];
 }
