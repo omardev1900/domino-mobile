@@ -80,9 +80,9 @@ class PremiumService {
         return result.data;
     }
 
-    async createCodes(count: number, durationDays = 30): Promise<CreatedPremiumCodes> {
-        const create = httpsCallable<{ count: number; durationDays: number }, CreatedPremiumCodes>(gameFunctions, 'createPremiumCodes');
-        const result = await create({ count, durationDays });
+    async createCodes(count: number, durationDays: 3 | 7 | 14 | 30, redeemBy: number): Promise<CreatedPremiumCodes> {
+        const create = httpsCallable<{ count: number; durationDays: number; redeemBy: number }, CreatedPremiumCodes>(gameFunctions, 'createPremiumCodes');
+        const result = await create({ count, durationDays, redeemBy });
         return result.data;
     }
 }

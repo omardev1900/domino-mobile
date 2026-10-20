@@ -26,6 +26,7 @@ export interface GameOptionsMenuProps {
     onToggleSfx: () => void;
     isVibrationEnabled: boolean;
     onToggleVibration: () => void;
+    canChangeSkins?: boolean;
     ownedSkins?: StoreItem[];
     equippedSkinId?: string;
     onEquipSkin?: (skin: StoreItem) => void;
@@ -79,6 +80,7 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
     onToggleSfx,
     isVibrationEnabled,
     onToggleVibration,
+    canChangeSkins = false,
     ownedSkins = [],
     equippedSkinId,
     onEquipSkin = () => undefined,
@@ -259,7 +261,7 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                                         >
                                             <Text style={[styles.settingsTabLabel, settingsTab === 'SOUNDS' && styles.settingsTabLabelActive]}>🔊 Sons</Text>
                                         </PremiumButton>
-                                        <PremiumButton
+                                        {canChangeSkins && <PremiumButton
                                             style={[styles.settingsTabButton, settingsTab === 'SKINS' && styles.settingsTabButtonActive]}
                                             onPress={() => {
                                                 setSkinPage(0);
@@ -268,7 +270,7 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                                             soundName="clack1"
                                         >
                                             <Text style={[styles.settingsTabLabel, settingsTab === 'SKINS' && styles.settingsTabLabelActive]}>🎨 Skins</Text>
-                                        </PremiumButton>
+                                        </PremiumButton>}
                                     </View>
 
                                     {settingsTab === 'SOUNDS' && <>
@@ -298,7 +300,7 @@ export const GameOptionsMenu: React.FC<GameOptionsMenuProps> = ({
                                     />
                                     </>}
 
-                                    {settingsTab === 'SKINS' && (
+                                    {canChangeSkins && settingsTab === 'SKINS' && (
                                         <View>
                                             <View
                                                 style={styles.skinsPagerViewport}

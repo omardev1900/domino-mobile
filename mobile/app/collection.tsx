@@ -8,7 +8,8 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { StoreItemPreview } from '../src/components/store/StoreItemPreview';
-import { storeService } from '../src/core/services/store.service';
+import { getAccessibleInventory, storeService } from '../src/core/services/store.service';
+import { premiumService } from '../src/core/services/premium.service';
 import { StoreItem, StoreItemType, PlayerInventory } from '../src/core/store.types';
 
 type TabType = 'ALL' | StoreItemType;
@@ -26,13 +27,15 @@ export default function CollectionScreen() {
 
     const loadData = async () => {
         try {
-            const [inv, cat] = await Promise.all([
+            const [inv, cat, hasPremium] = await Promise.all([
                 storeService.getInventory(),
                 storeService.getCatalog(),
+                premiumService.hasActiveAccess(),
             ]);
-            setInventory(inv);
+            const accessibleInventory = getAccessibleInventory(inv, cat, hasPremium);
+            setInventory(accessibleInventory);
             setOwnedItems(
-                cat.filter(item => item.type !== 'CURRENCY_PACK' && inv.ownedItems.includes(item.id))
+                cat.filter(item => item.type !== 'CURRENCY_PACK' && accessibleInventory.ownedItems.includes(item.id))
             );
         } catch (error) {
             console.error('Failed to load collection data', error);

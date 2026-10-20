@@ -33,6 +33,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { USE_NEW_SIDEBAR, SIDEBAR_HIDDEN_ROUTES, SIDEBAR_HIDDEN_PREFIXES } from '@/core/config/navigation.config';
 import { LogService } from '@/core/services/LogService';
 import { AndroidStoreBanner } from '@/components/AndroidStoreBanner';
+import { PremiumExpiryModal } from '@/components/PremiumExpiryModal';
 import { lastActivityService } from '@/core/services/lastActivity.service';
 
 // Keep the native splash screen visible while we fetch resources
@@ -373,6 +374,7 @@ export default function RootLayout() {
           )}
 
           <NetworkStatusBanner status={networkStatus} onRetry={() => void retryNetwork()} />
+          {isAuthenticated && <PremiumExpiryModal />}
 
           <StatusBar hidden={true} />
         </LinearGradient>

@@ -13,10 +13,45 @@ const IS_DEVELOPMENT = typeof __DEV__ !== 'undefined' && __DEV__;
 
 /** Keep bundled Premium cosmetics visible while their Firestore record is being rolled out. */
 function mergeBundledPremiumItems(catalog: StoreItem[]): StoreItem[] {
-    const missingPremiumItems = STORE_CATALOG.filter(
-        item => item.isPremium && !catalog.some(catalogItem => catalogItem.id === item.id),
+    const bundledPremiumById = new Map(
+        STORE_CATALOG.filter(item => item.isPremium).map(item => [item.id, item]),
     );
-    return [...catalog, ...missingPremiumItems];
+    // Les tarifs et palettes Premium embarqués font autorité pendant le
+    // déploiement Firestore, afin que tous les clients appliquent la même offre.
+    const merged = catalog.map(item => bundledPremiumById.get(item.id) ?? item);
+    const missingPremiumItems = [...bundledPremiumById.values()].filter(
+        item => !catalog.some(catalogItem => catalogItem.id === item.id),
+    );
+    return [...merged, ...missingPremiumItems];
+}
+
+/**
+ * Premium cosmetics remain in the player's inventory so they return after a
+ * renewed subscription, but cannot be displayed or equipped while access is
+ * inactive.
+ */
+export function getAccessibleInventory(
+    inventory: PlayerInventory,
+    catalog: StoreItem[],
+    hasPremium: boolean,
+): PlayerInventory {
+    if (hasPremium) return inventory;
+
+    const premiumItemIds = new Set(catalog.filter(item => item.isPremium).map(item => item.id));
+    const accessibleInventory = structuredClone(inventory);
+    accessibleInventory.ownedItems = accessibleInventory.ownedItems.filter(itemId => !premiumItemIds.has(itemId));
+
+    if (premiumItemIds.has(accessibleInventory.equipped.avatar)) {
+        accessibleInventory.equipped.avatar = DEFAULT_INVENTORY.equipped.avatar;
+    }
+    if (premiumItemIds.has(accessibleInventory.equipped.skin)) {
+        accessibleInventory.equipped.skin = DEFAULT_INVENTORY.equipped.skin;
+    }
+    if (accessibleInventory.equipped.skin.startsWith('custom_premium_')) {
+        accessibleInventory.equipped.skin = DEFAULT_INVENTORY.equipped.skin;
+    }
+
+    return accessibleInventory;
 }
 
 export class StoreService {
@@ -121,6 +156,10 @@ export class StoreService {
         const item = catalog.find(i => i.id === itemId);
         if (!item) return { success: false, message: "Item introuvable" };
 
+        if (item.isPremium && !IS_DEVELOPMENT && !(await premiumService.hasActiveAccess(userId))) {
+            return { success: false, message: 'Cet objet est réservé aux abonnés Premium.' };
+        }
+
         const inventory = await this.getInventory();
         if (!inventory.ownedItems.includes(itemId)) {
             return { success: false, message: "Vous ne possédez pas cet objet." };
@@ -141,6 +180,67 @@ export class StoreService {
 
         await this.saveInventory(newInventory, userId);
         return { success: true };
+    }
+
+    async savePremiumCustomSkin(
+        design: { id?: string; name: string; skinConfig: StoreItem['skinConfig']; buttonColor: string },
+        userId?: string,
+    ): Promise<{ success: boolean; id?: string; message?: string }> {
+        if (!design.skinConfig || !(await premiumService.hasActiveAccess(userId))) {
+            return { success: false, message: 'L’Atelier est réservé aux membres Premium actifs.' };
+        }
+        const inventory = await this.getInventory(userId);
+        if (!inventory.ownedItems.includes('skin_premium_atelier')) {
+            return { success: false, message: 'Achète d’abord l’Atelier Premium.' };
+        }
+        const designs = inventory.customPremiumSkins ?? [];
+        const id = design.id ?? `custom_premium_${Date.now()}`;
+        const exists = designs.some(item => item.id === id);
+        if (!exists && designs.length >= 5) {
+            return { success: false, message: 'Tu peux enregistrer jusqu’à cinq créations.' };
+        }
+        const nextDesign = { id, name: design.name.trim() || `Création ${designs.length + 1}`, skinConfig: design.skinConfig, buttonColor: design.buttonColor, updatedAt: Date.now() };
+        const nextInventory = structuredClone(inventory);
+        nextInventory.customPremiumSkins = exists
+            ? designs.map(item => item.id === id ? nextDesign : item)
+            : [...designs, nextDesign];
+        nextInventory.equipped.skin = id;
+        await this.saveInventory(nextInventory, userId);
+        return { success: true, id };
+    }
+
+    async equipPremiumCustomSkin(id: string, userId?: string): Promise<{ success: boolean; message?: string }> {
+        if (!(await premiumService.hasActiveAccess(userId))) return { success: false, message: 'Cet objet est réservé aux abonnés Premium.' };
+        const inventory = await this.getInventory(userId);
+        if (!(inventory.customPremiumSkins ?? []).some(item => item.id === id)) return { success: false, message: 'Création introuvable.' };
+        const nextInventory = structuredClone(inventory);
+        nextInventory.equipped.skin = id;
+        await this.saveInventory(nextInventory, userId);
+        return { success: true };
+    }
+
+    /** Reset active Premium cosmetics when an entitlement expires, without deleting ownership. */
+    async removeExpiredPremiumEquipment(userId?: string): Promise<void> {
+        if (await premiumService.hasActiveAccess(userId)) return;
+
+        const [catalog, inventory] = await Promise.all([
+            this.getCatalog(),
+            this.getInventory(userId),
+        ]);
+        const accessibleInventory = getAccessibleInventory(inventory, catalog, false);
+        const resetInventory = {
+            ...accessibleInventory,
+            ownedItems: inventory.ownedItems,
+        };
+        const equipmentChanged = resetInventory.equipped.avatar !== inventory.equipped.avatar
+            || resetInventory.equipped.skin !== inventory.equipped.skin;
+
+        if (!equipmentChanged) return;
+
+        await this.saveInventory(resetInventory, userId);
+        if (resetInventory.equipped.avatar !== inventory.equipped.avatar) {
+            await authService.updateProfile({ photoURL: 'avatar_default' });
+        }
     }
 
     /**
@@ -166,17 +266,17 @@ export class StoreService {
         // 2. Check funds
         const economy = await economyService.getEconomy();
 
-        if (!item.isPremium && item.priceCoins && economy.coins < item.priceCoins) {
+        if (item.priceCoins && economy.coins < item.priceCoins) {
             return { success: false, message: "Fonds insuffisants (Coins)." };
         }
-        if (!item.isPremium && item.priceDiamonds && economy.diamonds < item.priceDiamonds) {
+        if (item.priceDiamonds && economy.diamonds < item.priceDiamonds) {
             return { success: false, message: "Fonds insuffisants (Diamants)." };
         }
 
         // 3. Deduct funds
         const updatedEconomy = { ...economy };
-        if (!item.isPremium && item.priceCoins) updatedEconomy.coins -= item.priceCoins;
-        if (!item.isPremium && item.priceDiamonds) updatedEconomy.diamonds -= item.priceDiamonds;
+        if (item.priceCoins) updatedEconomy.coins -= item.priceCoins;
+        if (item.priceDiamonds) updatedEconomy.diamonds -= item.priceDiamonds;
 
         const currentUserId = userId || (await authService.getCurrentUser())?.uid;
 

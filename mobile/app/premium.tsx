@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Modal, Platfo
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { isPremiumActive, PremiumEntitlement, premiumService } from '../src/core/services/premium.service';
 import { LogService } from '../src/core/services/LogService';
 
@@ -80,6 +80,7 @@ function PremiumCelebration({ expiresAt, onComplete }: { expiresAt: Date; onComp
 
 export default function PremiumScreen() {
     const router = useRouter();
+    const { openCode } = useLocalSearchParams<{ openCode?: string }>();
     const { width } = useWindowDimensions();
     const cardWidth = Math.min(330, Math.max(245, width * 0.76));
     const [entitlement, setEntitlement] = useState<PremiumEntitlement | null>(null);
@@ -103,6 +104,10 @@ export default function PremiumScreen() {
     }, []);
 
     useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+
+    useEffect(() => {
+        if (openCode === 'true') setShowCodeModal(true);
+    }, [openCode]);
 
     const handleTrial = async () => {
         setProcessing('trial');
@@ -135,7 +140,17 @@ export default function PremiumScreen() {
             const result = await premiumService.redeemCode(code);
             setCode('');
             setShowCodeModal(false);
-            setEntitlement(await premiumService.getEntitlement());
+            // La Function est la source d'autorité et vient de confirmer l'activation.
+            // Ne pas attendre une seconde lecture Firestore : sur réseau dégradé elle
+            // peut arriver tardivement, laissant le joueur croire que rien ne s'est passé.
+            setEntitlement(previous => ({
+                source: 'PROMO_CODE',
+                expiresAt: new Date(result.expiresAt),
+                ...(previous?.trialUsedAt ? { trialUsedAt: previous.trialUsedAt } : {}),
+            }));
+            void premiumService.getEntitlement().then(serverEntitlement => {
+                if (serverEntitlement) setEntitlement(serverEntitlement);
+            });
             Alert.alert('Premium activé', `Ton accès est actif jusqu’au ${formatDate(new Date(result.expiresAt))}.`);
         } catch (error) {
             LogService.warn('Premium', 'Code Premium refusé.', error);
@@ -146,6 +161,7 @@ export default function PremiumScreen() {
     };
 
     const premiumActive = isPremiumActive(entitlement);
+    const trialAlreadyUsed = Boolean(entitlement?.trialUsedAt);
 
     return (
         <SafeAreaView style={styles.container}>
@@ -171,16 +187,16 @@ export default function PremiumScreen() {
                         {loading ? <ActivityIndicator color="#FFD700" /> : premiumActive ? (
                             <><Ionicons name="checkmark-circle" size={34} color="#7EE081" /><View style={styles.offerCopy}><Text style={styles.activeTitle}>Premium actif</Text><Text style={styles.activeText}>Jusqu’au {formatDate(entitlement!.expiresAt)}.</Text></View></>
                         ) : (
-                            <><View style={styles.offerCopy}><Text style={styles.trialEyebrow}>DÉCOUVRIR PREMIUM</Text><Text style={styles.trialTitle}>3 jours gratuits</Text><Text style={styles.trialText}>Sans carte bancaire.</Text></View>
-                            <TouchableOpacity style={[styles.trialButton, processing !== null && styles.disabled]} onPress={confirmTrial} disabled={processing !== null}>{processing === 'trial' ? <ActivityIndicator color="#24143F" /> : <Text style={styles.trialButtonText}>ESSAYER</Text>}</TouchableOpacity></>
+                            <><View style={styles.offerCopy}><Text style={styles.trialEyebrow}>{trialAlreadyUsed ? 'PREMIUM EXPIRÉ' : 'DÉCOUVRIR PREMIUM'}</Text><Text style={styles.trialTitle}>{trialAlreadyUsed ? 'Un code ?' : '3 jours gratuits'}</Text><Text style={styles.trialText}>{trialAlreadyUsed ? 'Réactive Premium avec un code.' : 'Sans carte bancaire.'}</Text></View>
+                            <TouchableOpacity style={[styles.trialButton, processing !== null && styles.disabled]} onPress={trialAlreadyUsed ? () => setShowCodeModal(true) : confirmTrial} disabled={processing !== null}>{processing === 'trial' ? <ActivityIndicator color="#24143F" /> : <Text style={styles.trialButtonText}>{trialAlreadyUsed ? 'CODE' : 'ESSAYER'}</Text>}</TouchableOpacity></>
                         )}
                     </View>
 
-                    <TouchableOpacity style={[styles.offerCard, styles.codeTrigger, { width: Math.min(220, Math.max(170, width * 0.52)) }]} onPress={() => setShowCodeModal(true)}>
-                        <View style={styles.codeTriggerIcon}><Ionicons name="key-outline" size={22} color="#FFD700" /></View>
+                    <TouchableOpacity style={[styles.offerCard, styles.codeTrigger, { width: Math.min(220, Math.max(170, width * 0.52)) }]} onPress={() => premiumActive ? router.push('/store?tab=PREMIUM' as never) : setShowCodeModal(true)}>
+                        <View style={styles.codeTriggerIcon}><Ionicons name={premiumActive ? 'storefront-outline' : 'key-outline'} size={22} color="#FFD700" /></View>
                         <View style={styles.codeTriggerCopy}>
-                            <Text style={styles.codeTriggerText}>Vous avez un code ?</Text>
-                            <Text style={styles.codeTriggerHint}>L’activer</Text>
+                            <Text style={styles.codeTriggerText}>{premiumActive ? 'Boutique Premium' : 'Vous avez un code ?'}</Text>
+                            <Text style={styles.codeTriggerHint}>{premiumActive ? 'Découvrir les offres' : 'L’activer'}</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={19} color="#FFD700" />
                     </TouchableOpacity>

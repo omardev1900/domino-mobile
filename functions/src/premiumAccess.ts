@@ -29,7 +29,8 @@ const grantInputSchema = z.object({
 
 const createCodesInputSchema = z.object({
     count: z.number().int().min(1).max(100).default(1),
-    durationDays: z.number().int().min(1).max(365).default(30),
+    durationDays: z.union([z.literal(3), z.literal(7), z.literal(14), z.literal(30)]).default(30),
+    redeemBy: z.number().int().positive(),
 });
 
 const redeemCodeInputSchema = z.object({
@@ -126,6 +127,9 @@ export async function createPremiumCodes(
     if (!adminSnapshot.exists) {
         throw new functions.https.HttpsError('permission-denied', 'Réservé aux administrateurs.');
     }
+    if (input.redeemBy <= Date.now()) {
+        throw new functions.https.HttpsError('invalid-argument', 'La date limite doit être dans le futur.');
+    }
 
     const codes = Array.from({ length: input.count }, createPremiumCodeValue);
     const batch = db.batch();
@@ -133,6 +137,7 @@ export async function createPremiumCodes(
         batch.set(db.collection('premium_codes').doc(hashPremiumCode(code)), {
             active: true,
             durationDays: input.durationDays,
+            expiresAt: admin.firestore.Timestamp.fromMillis(input.redeemBy),
             maxRedemptions: 1,
             redemptionCount: 0,
             createdBy,
@@ -186,6 +191,8 @@ export async function redeemPremiumCode(
         }, { merge: true });
         transaction.update(codeRef, {
             redemptionCount: admin.firestore.FieldValue.increment(1),
+            redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+            redeemedBy: uid,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         transaction.set(redemptionRef, {

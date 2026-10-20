@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,11 +8,26 @@ import { premiumService } from '../src/core/services/premium.service';
 import { LogService } from '../src/core/services/LogService';
 
 const QUANTITIES = [1, 5, 10] as const;
+const DURATIONS = [3, 7, 14, 30] as const;
+
+const parseRedeemBy = (value: string): number | null => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+    if (!match) return null;
+    const [, year, month, day] = match;
+    const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 23, 59, 59, 999));
+    return date.getUTCFullYear() === Number(year)
+        && date.getUTCMonth() === Number(month) - 1
+        && date.getUTCDate() === Number(day)
+        ? date.getTime()
+        : null;
+};
 
 export default function PremiumCodesScreen() {
     const router = useRouter();
     const [authorized, setAuthorized] = useState<boolean | null>(null);
     const [quantity, setQuantity] = useState<number>(1);
+    const [durationDays, setDurationDays] = useState<3 | 7 | 14 | 30>(30);
+    const [redeemBy, setRedeemBy] = useState('');
     const [creating, setCreating] = useState(false);
     const [codes, setCodes] = useState<string[]>([]);
 
@@ -21,9 +36,14 @@ export default function PremiumCodesScreen() {
     }, []));
 
     const createCodes = async () => {
+        const redeemByTimestamp = parseRedeemBy(redeemBy);
+        if (!redeemByTimestamp || redeemByTimestamp <= Date.now()) {
+            Alert.alert('Date requise', 'Saisis une date limite future au format AAAA-MM-JJ.');
+            return;
+        }
         setCreating(true);
         try {
-            const result = await premiumService.createCodes(quantity, 30);
+            const result = await premiumService.createCodes(quantity, durationDays, redeemByTimestamp);
             setCodes(result.codes);
         } catch (error) {
             LogService.warn('Premium', 'Création de codes refusée.', error);
@@ -51,7 +71,7 @@ export default function PremiumCodesScreen() {
                 </View>
             ) : (
                 <ScrollView contentContainerStyle={styles.content}>
-                    <Text style={styles.intro}>Crée des codes à usage unique. Chaque code donne 30 jours Premium et ne peut être affiché qu’une seule fois.</Text>
+                    <Text style={styles.intro}>Crée des codes à usage unique pour les vendre ou les offrir. Ils ne sont affichés qu’une seule fois et doivent être activés avant leur date limite.</Text>
                     <Text style={styles.label}>Nombre de codes</Text>
                     <View style={styles.quantities}>
                         {QUANTITIES.map(value => (
@@ -60,8 +80,26 @@ export default function PremiumCodesScreen() {
                             </TouchableOpacity>
                         ))}
                     </View>
+                    <Text style={styles.label}>Durée Premium</Text>
+                    <View style={styles.durations}>
+                        {DURATIONS.map(value => (
+                            <TouchableOpacity key={value} style={[styles.duration, durationDays === value && styles.quantitySelected]} onPress={() => setDurationDays(value)}>
+                                <Text style={[styles.durationText, durationDays === value && styles.quantityTextSelected]}>{value} j</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                    <Text style={styles.label}>Date limite d’activation</Text>
+                    <TextInput
+                        value={redeemBy}
+                        onChangeText={setRedeemBy}
+                        placeholder="AAAA-MM-JJ"
+                        placeholderTextColor="rgba(255,255,255,0.42)"
+                        autoCapitalize="none"
+                        keyboardType="numbers-and-punctuation"
+                        style={styles.dateInput}
+                    />
                     <TouchableOpacity style={[styles.createButton, creating && styles.disabled]} disabled={creating} onPress={createCodes}>
-                        {creating ? <ActivityIndicator color="#251640" /> : <Text style={styles.createText}>GÉNÉRER {quantity} CODE{quantity > 1 ? 'S' : ''}</Text>}
+                        {creating ? <ActivityIndicator color="#251640" /> : <Text style={styles.createText}>GÉNÉRER {quantity} CODE{quantity > 1 ? 'S' : ''} · {durationDays} J</Text>}
                     </TouchableOpacity>
                     {codes.length > 0 && (
                         <View style={styles.results}>
@@ -88,10 +126,14 @@ const styles = StyleSheet.create({
     intro: { color: 'rgba(255,255,255,0.8)', lineHeight: 21, fontSize: 14 },
     label: { marginTop: 6, color: '#FFD700', fontSize: 13, fontWeight: '900' },
     quantities: { flexDirection: 'row', gap: 10 },
+    durations: { flexDirection: 'row', gap: 8 },
     quantity: { flex: 1, minHeight: 50, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
     quantitySelected: { backgroundColor: '#FFD700', borderColor: '#FFD700' },
     quantityText: { color: '#FFF', fontSize: 17, fontWeight: '900' },
     quantityTextSelected: { color: '#251640' },
+    duration: { flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
+    durationText: { color: '#FFF', fontSize: 13, fontWeight: '900' },
+    dateInput: { minHeight: 48, borderRadius: 12, paddingHorizontal: 14, color: '#FFF', fontSize: 15, fontWeight: '700', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
     createButton: { minHeight: 50, marginTop: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#FFD700' },
     createText: { color: '#251640', fontSize: 13, fontWeight: '900' },
     disabled: { opacity: 0.6 },
