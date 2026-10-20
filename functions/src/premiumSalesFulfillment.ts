@@ -1,4 +1,7 @@
+import * as admin from 'firebase-admin';
 import { createHmac } from 'node:crypto';
+import { hashPremiumCode } from './premiumAccess';
+import { getPremiumSaleProduct } from './premiumSalesCatalog';
 
 const RECHARGE_CODE_EXPIRY_DAYS = 90;
 
@@ -14,4 +17,62 @@ export function derivePaidRechargeCode(saleId: string, codeSecret: string): stri
 
 export function paidRechargeExpiryAt(now = Date.now()): number {
     return now + RECHARGE_CODE_EXPIRY_DAYS * 24 * 60 * 60 * 1_000;
+}
+
+type SaleData = { kind?: string; productId?: string; status?: string };
+
+export async function fulfillPaidRecharge(
+    db: admin.firestore.Firestore,
+    saleId: string,
+    stripeEventId: string,
+    codeSecret: string,
+    now = Date.now(),
+): Promise<{ code: string; alreadyFulfilled: boolean }> {
+    const saleRef = db.collection('premium_sales').doc(saleId);
+    const eventRef = db.collection('premium_payment_events').doc(stripeEventId);
+    const code = derivePaidRechargeCode(saleId, codeSecret);
+    const codeRef = db.collection('premium_codes').doc(hashPremiumCode(code));
+
+    return db.runTransaction(async transaction => {
+        const [saleSnapshot, eventSnapshot] = await Promise.all([
+            transaction.get(saleRef),
+            transaction.get(eventRef),
+        ]);
+        const sale = saleSnapshot.exists ? saleSnapshot.data() as SaleData : undefined;
+        if (!sale || sale.kind !== 'RECHARGE' || !sale.productId) {
+            throw new Error('Vente de recharge introuvable.');
+        }
+        if (eventSnapshot.exists || sale.status === 'PAID') {
+            return { code, alreadyFulfilled: true };
+        }
+        const product = getPremiumSaleProduct(sale.productId);
+        if (product.kind !== 'RECHARGE') {
+            throw new Error('Le produit de la vente ne correspond pas à une recharge.');
+        }
+
+        transaction.set(codeRef, {
+            active: true,
+            durationDays: product.durationDays,
+            bonusCoins: product.coins,
+            expiresAt: admin.firestore.Timestamp.fromMillis(paidRechargeExpiryAt(now)),
+            maxRedemptions: 1,
+            redemptionCount: 0,
+            source: 'STRIPE',
+            saleId,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        transaction.set(eventRef, {
+            saleId,
+            provider: 'STRIPE',
+            type: 'RECHARGE_PAID',
+            processedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        transaction.update(saleRef, {
+            status: 'PAID',
+            stripeEventId,
+            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return { code, alreadyFulfilled: false };
+    });
 }

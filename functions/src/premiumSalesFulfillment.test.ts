@@ -14,4 +14,8 @@ describe('paid recharge fulfillment', () => {
         const now = 1_700_000_000_000;
         assert.equal(paidRechargeExpiryAt(now), now + 90 * 24 * 60 * 60 * 1_000);
     });
+
+    it('keeps the original product bonus out of the generated code value', () => {
+        assert.equal(/300/.test(derivePaidRechargeCode('sale_300_coins', 'secret')), false);
+    });
 });
