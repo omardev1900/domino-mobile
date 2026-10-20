@@ -13,17 +13,24 @@ export interface BotProfile {
 
 export const LOCAL_BOTS_FALLBACK: Record<BotDifficulty, BotProfile[]> = {
     'TI_MANMAY': [
-        { id: 'bot_ti_1', name: 'Ti-Sonson', avatarId: 'avatar_ti_sonson', difficulty: 'TI_MANMAY' }
+        { id: 'bot_ti_1', name: 'Ti-Sonson', avatarId: 'Chip_1', difficulty: 'TI_MANMAY' },
+        { id: 'bot_ti_2', name: 'Man-Yaya', avatarId: 'Spark_2', difficulty: 'TI_MANMAY' },
+        { id: 'bot_ti_3', name: 'Koko', avatarId: 'avatar_01', difficulty: 'TI_MANMAY' },
     ],
     'MAPIPI': [
-        { id: 'bot_mapipi_1', name: 'Dédé', avatarId: 'avatar_dede', difficulty: 'MAPIPI' }
+        { id: 'bot_mapipi_1', name: 'Dédé', avatarId: 'Atlas_3', difficulty: 'MAPIPI' },
+        { id: 'bot_mapipi_2', name: 'Maxime', avatarId: 'Zenith_4', difficulty: 'MAPIPI' },
+        { id: 'bot_mapipi_3', name: 'Mélina', avatarId: 'avatar_04', difficulty: 'MAPIPI' },
     ],
     'GRAN_MOUN': [
-        { id: 'bot_gran_1', name: 'Tonton-Léon', avatarId: 'avatar_tonton_leon', difficulty: 'GRAN_MOUN' }
+        { id: 'bot_gran_1', name: 'Tonton-Léon', avatarId: 'avatar_05', difficulty: 'GRAN_MOUN' },
+        { id: 'bot_gran_2', name: 'Eudorge', avatarId: 'avatar_06', difficulty: 'GRAN_MOUN' },
+        { id: 'bot_gran_3', name: 'Man Cécile', avatarId: 'avatar_07', difficulty: 'GRAN_MOUN' },
     ],
     'METKAYALI': [
-        { id: 'bot_mk_1', name: 'Man-Diab', avatarId: 'avatar_bot_07', difficulty: 'METKAYALI' },
-        { id: 'bot_mk_2', name: 'Papa-Zombi', avatarId: 'avatar_bot_08', difficulty: 'METKAYALI' },
+        { id: 'bot_mk_1', name: 'Man-Diab', avatarId: 'avatar_08', difficulty: 'METKAYALI' },
+        { id: 'bot_mk_2', name: 'Papa-Zombi', avatarId: 'avatar_09', difficulty: 'METKAYALI' },
+        { id: 'bot_mk_3', name: 'Sybille', avatarId: 'avatar_10', difficulty: 'METKAYALI' },
     ],
 };
 
@@ -32,12 +39,9 @@ class BotService {
         const localPool = LOCAL_BOTS_FALLBACK[level];
         if (!localPool || localPool.length === 0) return [];
 
-        // Certains niveaux ne définissent qu'un bot local. Dupliquer son profil
-        // est préférable à bloquer le lancement de la partie en attendant Firestore.
-        return Array.from({ length: count }, (_, index) => ({
-            ...localPool[index % localPool.length],
-            id: `${localPool[index % localPool.length].id}_${index + 1}`,
-        }));
+        // Chaque niveau possède plusieurs adversaires locaux, ce qui permet de
+        // démarrer hors ligne sans jamais dupliquer un nom dans la même partie.
+        return this.getRandomBots(localPool, count);
     }
 
     async getBotsForLevel(level: BotDifficulty, count: number = 2): Promise<BotProfile[]> {

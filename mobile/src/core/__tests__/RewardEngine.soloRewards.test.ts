@@ -47,4 +47,17 @@ describe('RewardEngine — récompenses Solo', () => {
             expect.objectContaining({ id: 'solo_premium_win', coins: SOLO_PREMIUM_WIN_FLAT_REWARD }),
         ]));
     });
+
+    it('double aussi le gain d une victoire Premium hors solo', () => {
+        const reward = RewardEngine.calculate({
+            ...makeSoloInput(true),
+            gameMode: 'SCORE',
+            playerCount: 3,
+        });
+
+        expect(reward.coinsEarned).toBe(600);
+        expect(reward.breakdown).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: 'premium_match_win', coins: 600 }),
+        ]));
+    });
 });

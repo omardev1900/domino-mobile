@@ -5,6 +5,7 @@ import { LeagueFrameId, MatchReward, TableTier } from './core/economy.types';
 import { RewardEngine } from './core/RewardEngine';
 import { hasTransitionFingerprint, TransitionFingerprint } from './gameCoordinator';
 import { GameRoom, PlayerProfile } from './gameCore/types';
+import { isActivePremiumEntitlement } from './premiumAccess';
 
 type DocumentData = Record<string, unknown>;
 
@@ -63,7 +64,8 @@ export const buildPlayerFinalization = (
     uid: string,
     userData: DocumentData,
     finalizationId: string,
-    now: number
+    now: number,
+    isPremium = false,
 ): PlayerFinalization => {
     const state = room.gameState;
     if (!state || state.phase !== 'MATCH_END') {
@@ -85,6 +87,7 @@ export const buildPlayerFinalization = (
         unlockedFrames,
         tableTier: resolveTableTier(room.buyIn),
         isSoloMode: false,
+        isPremium,
     });
     const reward = RewardEngine.calculate(rewardInput);
     const newUnlockedFrames = [...new Set([
@@ -188,7 +191,9 @@ export const finalizeCoordinatedMatch = async (
 
         const participantIds = getMatchParticipantIds(room);
         const userRefs = participantIds.map(uid => db.collection('users').doc(uid));
+        const entitlementRefs = participantIds.map(uid => db.collection('premium_entitlements').doc(uid));
         const userSnapshots = await Promise.all(userRefs.map(ref => transaction.get(ref)));
+        const entitlementSnapshots = await Promise.all(entitlementRefs.map(ref => transaction.get(ref)));
         const now = Date.now();
         const rewards: Record<string, MatchReward> = {};
 
@@ -196,7 +201,12 @@ export const finalizeCoordinatedMatch = async (
             const userData = userSnapshots[index].exists
                 ? userSnapshots[index].data() as DocumentData
                 : {};
-            const finalized = buildPlayerFinalization(room, uid, userData, finalizationId, now);
+            const entitlement = entitlementSnapshots[index];
+            const isPremium = isActivePremiumEntitlement(
+                entitlement.exists ? entitlement.data() as any : undefined,
+                now,
+            );
+            const finalized = buildPlayerFinalization(room, uid, userData, finalizationId, now, isPremium);
             rewards[uid] = finalized.reward;
             const userUpdate: DocumentData = {
                 economy: finalized.economy,

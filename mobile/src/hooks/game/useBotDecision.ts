@@ -31,6 +31,12 @@ export const useBotDecision = ({
     const canActionRef = useRef(canAction);
     useEffect(() => { canActionRef.current = canAction; });
 
+    // Une décision IA peut être en cours au moment où le joueur ouvre les
+    // options. Conserver la pause dans une ref évite qu'elle soit envoyée à
+    // la fin de ce calcul malgré le cleanup du timer React.
+    const isPausedRef = useRef(isPaused);
+    isPausedRef.current = isPaused;
+
     // Garder le state frais
     const gameStateRef = useRef(gameState);
     useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
@@ -113,7 +119,7 @@ export const useBotDecision = ({
         };
 
         const runAttempt = async (attempt: number) => {
-            if (isCancelled) return;
+            if (isCancelled || isPausedRef.current) return;
 
             const freshState = gameStateRef.current;
             if (!freshState) return;
@@ -177,6 +183,10 @@ export const useBotDecision = ({
                     sideToPlay = fallbackDecision.side as 'left' | 'right' | 'start';
                 }
             }
+
+            // Le menu Options ou une autre pause a pu être ouvert pendant le
+            // calcul de l'IA : ne jamais jouer un coup en arrière-plan.
+            if (isCancelled || isPausedRef.current) return;
 
             const command: ActionCommand = tileToPlay
                 ? {

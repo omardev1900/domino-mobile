@@ -101,7 +101,7 @@ export const MancheEndFlow: React.FC<MancheEndFlowProps> = ({
         <View style={styles.container} pointerEvents="box-none">
             <Animated.View style={styles.content} entering={reducedMotion ? undefined : FadeIn.duration(400)}>
                 {/* Header Animé */}
-                <Animated.View entering={reducedMotion ? undefined : ZoomIn.duration(400).springify().damping(14)} style={styles.titlePill}>
+                <Animated.View entering={reducedMotion ? undefined : ZoomIn.duration(260)} style={styles.titlePill}>
                     <Text style={[styles.titleMain, mancheResult === 'CHIRE' && styles.titleChire, mancheResult === 'COCHON' && styles.titleCochon]}>
                         {titleMain}
                     </Text>
@@ -110,7 +110,7 @@ export const MancheEndFlow: React.FC<MancheEndFlowProps> = ({
 
                 {/* Avatar du vainqueur (si existant et différent de Chiré/Cochon) */}
                 {winner && mancheResult !== 'CHIRE' && (
-                    <Animated.View entering={reducedMotion ? undefined : FadeInUp.delay(200).duration(400).springify()} style={[styles.heroContainer, isCompact && { marginTop: 20 }]}>
+                    <Animated.View entering={reducedMotion ? undefined : FadeInUp.delay(200).duration(320)} style={[styles.heroContainer, isCompact && { marginTop: 20 }]}>
                         <View style={styles.avatarWrapper}>
                             <Image
                                 source={getAvatarImage((winner.avatarId as AvatarId) || 'avatar_default')}

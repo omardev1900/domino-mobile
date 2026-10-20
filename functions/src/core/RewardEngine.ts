@@ -225,16 +225,19 @@ export const RewardEngine = {
 
         if (rank === 1) {
             // En solo, la récompense est fixe et indépendante de la difficulté.
-            // L'accès Premium double ce gain, sans modifier les récompenses multijoueur.
-            potCoins = isSolo
-                ? (isPremium ? SOLO_PREMIUM_WIN_FLAT_REWARD : SOLO_WIN_FLAT_REWARD)
-                : 300;
+            // Premium double toute récompense de victoire, quel que soit le mode.
+            const baseWinReward = isSolo ? SOLO_WIN_FLAT_REWARD : 300;
+            potCoins = isSolo && isPremium
+                ? SOLO_PREMIUM_WIN_FLAT_REWARD
+                : isPremium
+                    ? baseWinReward * 2
+                    : baseWinReward;
             totalDiamonds = 1;
 
             breakdown.push({
-                id: isSolo && isPremium ? 'solo_premium_win' : isSolo ? 'solo_win' : 'match_win',
-                label: isSolo && isPremium
-                    ? '🏆 Victoire Solo — Coins ×2 Premium'
+                id: isPremium ? (isSolo ? 'solo_premium_win' : 'premium_match_win') : isSolo ? 'solo_win' : 'match_win',
+                label: isPremium
+                    ? `🏆 Victoire${isSolo ? ' Solo' : ''} — Coins ×2 Premium`
                     : isSolo
                         ? '🏆 Victoire Solo'
                         : '🏆 Victoire du Match',

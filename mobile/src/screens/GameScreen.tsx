@@ -59,7 +59,7 @@ import { useRoundBanner } from '../hooks/game/useRoundBanner';
 import { statsService } from '../core/services/stats.service';
 import { getMonthlyCochonsFromHistory } from '../core/leagueProgress';
 import { economyService } from '../core/services/economy.service';
-import { storeService } from '../core/services/store.service';
+import { getAccessibleInventory, storeService } from '../core/services/store.service';
 import { botService } from '../core/services/bot.service';
 import { LogService } from '../core/services/LogService';
 import { RewardEngine } from '../core/RewardEngine';
@@ -1084,6 +1084,28 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [showRewardOverlay, setShowRewardOverlay] = useState(false);
     const playerEconomyRef = useRef<{ level: number; xp: number; leaguePoints: number; cochonsGiven?: number; unlockedFrames?: any[]; leagueGrade?: string | null }>({ level: 1, xp: 0, leaguePoints: 0 });
 
+    useEffect(() => authService.subscribeToProfileUpdates(profile => {
+        setPlayerAvatarId(profile.avatarUrl || profile.avatarId || 'avatar_default');
+    }), []);
+
+    // Une partie solo est une copie locale persistée du joueur. Sans cette
+    // synchronisation, elle conserve l'avatar présent au moment du premier deal
+    // (ou dans une sauvegarde) même après une modification de profil.
+    useEffect(() => {
+        if (!isSoloMode || !gameState || !playerAvatarId) return;
+        setGameState(current => {
+            if (!current) return current;
+            const localPlayer = current.players.find(player => player.id === localPlayerId);
+            if (!localPlayer || localPlayer.avatarId === playerAvatarId) return current;
+            return {
+                ...current,
+                players: current.players.map(player => player.id === localPlayerId
+                    ? { ...player, avatarId: playerAvatarId as AvatarId }
+                    : player),
+            };
+        });
+    }, [gameState, isSoloMode, localPlayerId, playerAvatarId, setGameState]);
+
     // Une nouvelle donne ne doit pas reprendre l'ordre d'une main précédente.
     useEffect(() => {
         setManualHandOrderIds([]);
@@ -1140,6 +1162,10 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             }
             return;
         }
+        // Attendre le statut Premium avant tout calcul local de secours. Sans
+        // cela, une fin de partie très rapide pouvait créditer le tarif normal
+        // alors que l'entitlement était encore en cours de lecture.
+        if (gameState?.phase === 'MATCH_END' && !premiumStatusResolved) return;
         if (gameState?.phase === 'MATCH_END' && !statsRecordedRef.current) {
             const localPlayer = gameState.players.find(p => p.id === localPlayerId);
             if (localPlayer) {
@@ -1278,7 +1304,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             setMatchReward(null); // Reset pour la prochaine partie
             setShowRewardOverlay(false);
         }
-    }, [gameState?.phase, isTrainingMode, localPlayerId, isSoloMode, persistenceUserId, usesSystemCoordinator, roomData?.finalization?.id]);
+    }, [gameState?.phase, isTrainingMode, localPlayerId, isSoloMode, persistenceUserId, premiumStatusResolved, usesSystemCoordinator, roomData?.finalization?.id]);
 
     useEffect(() => {
         if (Platform.OS === 'web' && !showScoreOverlay && !showRoomInfo && !isPaused) {
@@ -1318,15 +1344,28 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
                 // Load cosmetics like skin for both solo and multiplayer
                 try {
-                    const inventory = await storeService.getInventory();
-                    const catalog = await storeService.getCatalog();
-                    const skinItems = catalog.filter(item => item.type === 'SKIN' && inventory.ownedItems.includes(item.id));
+                    const [inventory, catalog, premiumActive] = await Promise.all([
+                        storeService.getInventory(),
+                        storeService.getCatalog(),
+                        premiumService.hasActiveAccess(persistenceUserId),
+                    ]);
+                    const accessibleInventory = getAccessibleInventory(inventory, catalog, premiumActive);
+                    const skinItems = [
+                        ...catalog.filter(item => item.type === 'SKIN' && accessibleInventory.ownedItems.includes(item.id)),
+                        ...(premiumActive ? (accessibleInventory.customPremiumSkins ?? []).map(design => ({
+                            id: design.id, name: design.name, description: 'Création Atelier Premium', type: 'SKIN' as const,
+                            rarity: 'LEGENDARY' as const, assetId: 'premium_workshop', isPremium: true, skinConfig: design.skinConfig,
+                        })) : []),
+                    ];
                     setOwnedSkins(skinItems);
-                    if (inventory?.equipped?.skin) {
-                        const skinIdToLoad = inventory.equipped.skin;
+                    if (inventory.equipped.avatar !== accessibleInventory.equipped.avatar) {
+                        setPlayerAvatarId('avatar_default');
+                    }
+                    if (accessibleInventory.equipped.skin) {
+                        const skinIdToLoad = accessibleInventory.equipped.skin;
                         setPlayerSkinId(skinIdToLoad);
 
-                        const equippedSkinItem = catalog.find(item => item.id === skinIdToLoad);
+                        const equippedSkinItem = skinItems.find(item => item.id === skinIdToLoad);
                         if (equippedSkinItem && equippedSkinItem.skinConfig) {
                             setPlayerSkinConfig(equippedSkinItem.skinConfig);
                         }
@@ -2232,10 +2271,13 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                         await SettingsManager.setVibrationEnabled(newState);
                         setIsVibrationEnabled(newState);
                     }}
+                    canChangeSkins={hasPremium}
                     ownedSkins={ownedSkins}
                     equippedSkinId={playerSkinId}
                     onEquipSkin={async (skin) => {
-                        const result = await storeService.equipItem(skin.id);
+                        const result = skin.id.startsWith('custom_premium_')
+                            ? await storeService.equipPremiumCustomSkin(skin.id)
+                            : await storeService.equipItem(skin.id);
                         if (!result.success) {
                             Alert.alert('Skin indisponible', result.message ?? 'Impossible d’activer ce skin.');
                             return;

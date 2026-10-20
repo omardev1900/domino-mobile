@@ -30,6 +30,11 @@ export const useAutoPass = ({
     const gameStateRef = useRef(gameState);
     useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
 
+    // Les options mettent aussi en pause les passages automatiques déjà
+    // programmés, y compris si le timeout a été créé juste avant l'ouverture.
+    const isPausedRef = useRef(isPaused);
+    isPausedRef.current = isPaused;
+
     useEffect(() => {
         if (!gameState || gameState.phase !== 'PLAYING' || isPaused) {
             return;
@@ -72,7 +77,7 @@ export const useAutoPass = ({
 
         const timer = setTimeout(() => {
             const freshState = gameStateRef.current;
-            if (freshState && freshState.turnId === capturedTurnId) {
+            if (!isPausedRef.current && freshState && freshState.turnId === capturedTurnId) {
                 dispatchRef.current({
                     type: 'PASS_TURN',
                     playerId: currentPlayerId
@@ -99,7 +104,7 @@ export const useAutoPass = ({
         const watchdogTimer = setTimeout(() => {
             const freshState = gameStateRef.current;
             // Si on est toujours sur le même tour boudé après 5 secondes, c'est un blocage
-            if (freshState && freshState.turnId === capturedTurnId && freshState.boudePlayerId === capturedPlayerId) {
+            if (!isPausedRef.current && freshState && freshState.turnId === capturedTurnId && freshState.boudePlayerId === capturedPlayerId) {
                 console.warn(`[Watchdog] Blocage boudé détecté pour ${capturedPlayerId} au tour ${capturedTurnId}. Forçage PASS_TURN.`);
                 dispatchRef.current({
                     type: 'PASS_TURN',

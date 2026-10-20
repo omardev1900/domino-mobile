@@ -45,6 +45,21 @@ describe('matchFinalizer', () => {
         assert.equal(finalized.economy.coins, 50 + finalized.reward.coinsEarned);
     });
 
+    it('double les coins du vainqueur quand son entitlement Premium est actif', () => {
+        const normal = buildPlayerFinalization(finalRoom(), 'p1', {
+            economy: { coins: 50, xp: 0, level: 1, diamonds: 0, leaguePoints: 0 },
+            stats: { gamesPlayed: 2, gamesWon: 1, matchHistory: [] },
+        }, 'match:final-room:30:1:3', Date.UTC(2026, 6, 23));
+        const premium = buildPlayerFinalization(finalRoom(), 'p1', {
+            economy: { coins: 50, xp: 0, level: 1, diamonds: 0, leaguePoints: 0 },
+            stats: { gamesPlayed: 2, gamesWon: 1, matchHistory: [] },
+        }, 'match:final-room:30:1:3', Date.UTC(2026, 6, 23), true);
+
+        assert.equal(normal.reward.coinsEarned, 300);
+        assert.equal(premium.reward.coinsEarned, 600);
+        assert.equal(premium.economy.coins, 650);
+    });
+
     it('classe toujours le joueur ayant abandonne comme perdant', () => {
         const finalized = buildPlayerFinalization(finalRoom(), 'p2', {
             economy: { coins: 20, level: 1 },

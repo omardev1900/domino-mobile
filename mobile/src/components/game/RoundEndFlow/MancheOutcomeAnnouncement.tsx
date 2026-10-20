@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, {
     FadeIn,
     FadeInDown,
@@ -48,6 +48,9 @@ export const MancheOutcomeAnnouncement: React.FC<MancheOutcomeAnnouncementProps>
     localPlayerIndex = 0,
 }) => {
     const reducedMotion = useReducedMotion();
+    // Les spring/scale superposés provoquent un scintillement des calques élevés
+    // sur certains GPU Android. L'entrée reste fluide mais déterministe.
+    const useAnimatedPulse = !reducedMotion && Platform.OS !== 'android';
     const pulse = useSharedValue(1);
     const result = gameState.mancheResult;
     const giver = useMemo(
@@ -66,7 +69,7 @@ export const MancheOutcomeAnnouncement: React.FC<MancheOutcomeAnnouncementProps>
         else if (result === 'COCHON') SoundManager.playSound('applause');
         else if (gameState.phase === 'BOUDE' || isTie) SoundManager.playSound('notify');
         else SoundManager.playSound(gameState.phase === 'MANCHE_END' ? 'mancheEnd' : 'roundEnd');
-        if (!reducedMotion) {
+        if (useAnimatedPulse) {
             pulse.value = withRepeat(
                 withSequence(withTiming(1.12, { duration: 420 }), withTiming(1, { duration: 420 })),
                 4,
@@ -76,7 +79,7 @@ export const MancheOutcomeAnnouncement: React.FC<MancheOutcomeAnnouncementProps>
         return () => {
             pulse.value = 1;
         };
-    }, [gameState.phase, isTie, pulse, reducedMotion, result, visible]);
+    }, [gameState.phase, isTie, pulse, result, useAnimatedPulse, visible]);
 
     useEffect(() => {
         if (!visible || !isHost || autoAdvanceDelay <= 0) return;
@@ -105,7 +108,7 @@ export const MancheOutcomeAnnouncement: React.FC<MancheOutcomeAnnouncementProps>
     if (result === 'CHIRE') {
         return (
             <Animated.View entering={FadeIn.duration(180)} style={styles.container} pointerEvents="none">
-                <Animated.View entering={reducedMotion ? undefined : ZoomIn.springify().damping(11)} style={[styles.card, styles.chireCard, pulseStyle]}>
+                <Animated.View entering={reducedMotion ? undefined : ZoomIn.duration(240)} style={[styles.card, styles.chireCard, pulseStyle]}>
                     <Text style={styles.chireBolt}>⚡</Text>
                     <Text style={styles.chireTitle}>CHIRÉ !</Text>
                     <Text style={styles.subtitle}>Manche annulée</Text>
@@ -121,7 +124,7 @@ export const MancheOutcomeAnnouncement: React.FC<MancheOutcomeAnnouncementProps>
             : 'Personne ne gagne ce round.';
         return (
             <Animated.View entering={FadeIn.duration(180)} style={styles.container} pointerEvents="none">
-                <Animated.View entering={reducedMotion ? undefined : ZoomIn.springify().damping(11)} style={[styles.card, winner ? styles.blockedWinnerCard : styles.tieCard, pulseStyle]}>
+                <Animated.View entering={reducedMotion ? undefined : ZoomIn.duration(240)} style={[styles.card, winner ? styles.blockedWinnerCard : styles.tieCard, pulseStyle]}>
                     <Text style={styles.genericIcon}>{winner ? '🚫' : '⚖️'}</Text>
                     <Text style={styles.genericTitle}>{winner ? 'PARTIE BLOQUÉE' : 'ÉGALITÉ !'}</Text>
                     {winner && <PlayerBadge player={winner} label={winner.id === localPlayerId ? 'Vous' : winner.name} />}
@@ -142,7 +145,7 @@ export const MancheOutcomeAnnouncement: React.FC<MancheOutcomeAnnouncementProps>
             : isMatchEnd ? 'Résultat du match' : 'Résultat du round';
         return (
             <Animated.View entering={FadeIn.duration(180)} style={styles.container} pointerEvents="none">
-                <Animated.View entering={reducedMotion ? undefined : ZoomIn.springify().damping(11)} style={[styles.card, isMatchEnd ? styles.matchCard : styles.victoryCard, pulseStyle]}>
+                <Animated.View entering={reducedMotion ? undefined : ZoomIn.duration(240)} style={[styles.card, isMatchEnd ? styles.matchCard : styles.victoryCard, pulseStyle]}>
                     <Text style={styles.genericIcon}>{isMatchEnd || isManche ? '🏆' : '✨'}</Text>
                     <Text style={styles.genericTitle}>{label}</Text>
                     {winner && <PlayerBadge player={winner} label={winner.id === localPlayerId ? 'Vous' : winner.name} />}
@@ -157,7 +160,7 @@ export const MancheOutcomeAnnouncement: React.FC<MancheOutcomeAnnouncementProps>
 
     return (
         <Animated.View entering={FadeIn.duration(180)} style={styles.container} pointerEvents="none">
-            <Animated.View entering={reducedMotion ? undefined : ZoomIn.springify().damping(11)} style={[styles.card, styles.cochonCard, pulseStyle]}>
+            <Animated.View entering={reducedMotion ? undefined : ZoomIn.duration(240)} style={[styles.card, styles.cochonCard, pulseStyle]}>
                 <Text style={styles.cochonIcon}>🐷</Text>
                 <Text style={styles.cochonTitle}>{label}</Text>
                 <View style={styles.avatars}>
@@ -185,7 +188,7 @@ export const MancheOutcomeAnnouncement: React.FC<MancheOutcomeAnnouncementProps>
 const PlayerBadge: React.FC<{ player: Player; label: string; delay?: number; isRecipient?: boolean }> = ({ player, label, delay = 0, isRecipient = false }) => {
     const reducedMotion = useReducedMotion();
     return (
-        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(delay).springify()} style={styles.badge}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(delay).duration(220)} style={styles.badge}>
             <ExpoImage source={getAvatarImage((player.avatarId as AvatarId) || 'avatar_default')} style={[styles.avatar, isRecipient && styles.recipientAvatar]} contentFit="cover" />
             <Text numberOfLines={1} style={styles.badgeName}>{label}</Text>
         </Animated.View>

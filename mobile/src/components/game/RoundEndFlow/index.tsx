@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { GameState, Player, Domino } from '../../../core/types';
 import SoundManager from '../../../core/audio/SoundManager';
@@ -117,7 +117,11 @@ export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, 
         }
     }, [countsCompleted, phase, winner, totalPlayersWithDominoes]);
 
-    const handleContinuePress = () => {
+    // Cette callback est passée à l'annonce finale, qui démarre son propre
+    // compte à rebours. Sans mémoïsation, chaque rendu du plateau recréait la
+    // fonction et réarmait ce compte à rebours : l'annonce pouvait alors
+    // rester affichée indéfiniment pendant une partie solo.
+    const handleContinuePress = useCallback(() => {
         if (phase === 'counting') {
             // Skip : afficher les totaux immédiatement
             setSkipCountingNow(true);
@@ -130,7 +134,7 @@ export const RoundEndFlow: React.FC<RoundEndFlowProps> = ({ gameState, visible, 
             // Phase reveal ou result : fermer directement
             onDismiss();
         }
-    };
+    }, [onDismiss, phase]);
 
     if (!visible || phase === 'idle') return null;
 
