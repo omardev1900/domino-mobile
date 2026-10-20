@@ -1,6 +1,31 @@
 # Changelog
 
+### 2026-10-20
+
+- Deux skins Premium à palette par valeur rejoignent la boutique : Terre Ambrée
+  (plateau #A6674C) et Jardin Nocturne (plateau #18391E). L'aperçu de skin
+  utilise désormais des tuiles plus grandes.
+
+- Les cosmétiques Premium sont désormais des achats uniques en coins : 1 000
+  coins pour les avatars et skins multicolores, 500 coins pour les autres skins.
+
+- L'accueil affiche l'expiration d'un Premium actif ; l'accès au code est
+  remplacé par un raccourci vers la Boutique Premium. Les annonces de fin de
+  round et de manche sont stabilisées sur Android.
+
 ### 2026-10-19
+
+- Les offres Premium ne sont visibles et utilisables que pendant un accès
+  Premium actif. À la fin de l’essai, l’application explique la désactivation
+  et propose directement d’activer un code Premium. Le changement de skin en
+  pleine partie est désormais réservé aux membres Premium.
+
+- Les codes Premium ont une date limite d’activation et donnent accès à 7, 14
+  ou 30 jours Premium. Les changements d’avatar se reflètent désormais sans
+  attendre dans l’accueil, le menu et une partie en cours.
+
+- La boutique Premium propose maintenant trois nouveaux styles de dominos
+  (Madras, Or Royal et Nuit Caraïbe) et trois avatars exclusifs.
 
 - Les fins de round, manche et match disposent d'annonces visuelles plus
   lisibles. Chiré, Cochon, egalite et partie bloquee ont chacune leur animation.

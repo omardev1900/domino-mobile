@@ -1,6 +1,24 @@
 # Taches terminees
 
+### 2026-10-20
+
+- [x] `PREMIUM-STORE-02` Deux variantes Premium à palettes colorées par valeur
+  ajoutées (Terre Ambrée et Jardin Nocturne), avec aperçu agrandi. Version APK
+  2.1.1 / versionCode 31 préparée.
+
 ### 2026-10-19
+
+- [x] `PREMIUM-ACCESS-02` Boutique Premium reservee aux membres actifs ; a
+  l'expiration d'un essai, les cosmetiques actifs sont retires sans effacer
+  leur propriete, l'avatar de profil est reinitialise et une popup dirige vers
+  l'activation d'un code. Le changement de skin pendant une partie est reserve
+  aux membres Premium. Les codes sont emis avec une date limite d'activation et
+  une duree de 7, 14 ou 30 jours ; la mise a jour d'avatar est instantanee dans
+  l'accueil, le menu et une partie ouverte.
+
+- [x] `PREMIUM-STORE-01` Carte Trello « Boutique Premium : enrichir les offres »
+  livree : trois skins et trois avatars Premium cosmetiques ajoutes, sans
+  avantage de jeu. Les avatars locaux optimises pesent 244 Ko au total.
 
 - [x] `UI-MULTI-END-FLOW-01` Carte Trello « Bug affichage fin de round »
   livree : annonces animees pour Chiré, Cochon, egalite, partie bloquee,
