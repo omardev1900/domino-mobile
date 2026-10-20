@@ -1,5 +1,6 @@
 import { resolveDominoSidePalette } from '../skinPalette';
 import { STORE_CATALOG } from '../store.constants';
+import { hasAvatarImage } from '../avatars';
 
 describe('resolveDominoSidePalette', () => {
     it('keeps a legacy skin on its single background and dot colors', () => {
@@ -44,5 +45,12 @@ describe('resolveDominoSidePalette', () => {
         expect(STORE_CATALOG.filter(item => premiumIds.includes(item.id))).toEqual(
             expect.arrayContaining(premiumIds.map(id => expect.objectContaining({ id, isPremium: true }))),
         );
+    });
+
+    it('embeds an image for every Premium avatar sold in the shop', () => {
+        const premiumAvatars = STORE_CATALOG.filter(item => item.isPremium && item.type === 'AVATAR');
+
+        expect(premiumAvatars).toHaveLength(3);
+        premiumAvatars.forEach(item => expect(hasAvatarImage(item.assetId)).toBe(true));
     });
 });

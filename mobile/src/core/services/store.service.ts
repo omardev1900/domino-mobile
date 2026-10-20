@@ -6,6 +6,7 @@ import { economyService } from './economy.service';
 import { authService } from './auth.service';
 import { DEFAULT_INVENTORY, STORE_CATALOG } from '../store.constants';
 import { premiumService } from './premium.service';
+import { hasAvatarImage } from '../avatars';
 
 const STORE_COLLECTION = 'store_catalog';
 const STORAGE_KEY_GUEST_INVENTORY = '@guest_inventory';
@@ -153,7 +154,10 @@ export class StoreService {
      */
     async equipItem(itemId: string, userId?: string): Promise<{ success: boolean; message?: string }> {
         const catalog = await this.getCatalog();
-        const item = catalog.find(i => i.id === itemId);
+        // Les écrans de profil manipulent l'assetId pour afficher l'avatar,
+        // tandis que la boutique utilise l'id de l'article. Accepter les deux
+        // formes évite qu'un avatar Premium déjà acheté devienne inutilisable.
+        const item = catalog.find(i => i.id === itemId || (i.type === 'AVATAR' && i.assetId === itemId));
         if (!item) return { success: false, message: "Item introuvable" };
 
         if (item.isPremium && !IS_DEVELOPMENT && !(await premiumService.hasActiveAccess(userId))) {
@@ -161,16 +165,20 @@ export class StoreService {
         }
 
         const inventory = await this.getInventory();
-        if (!inventory.ownedItems.includes(itemId)) {
+        if (!inventory.ownedItems.includes(item.id)) {
             return { success: false, message: "Vous ne possédez pas cet objet." };
         }
 
         // Apply equipment mapping
         const newInventory = structuredClone(inventory);
         if (item.type === 'AVATAR') {
-            newInventory.equipped.avatar = itemId;
-            // Sync with global auth profile to update everywhere. Prefer imageUrl if available (remote), fallback to assetId (local string)
-            const photoToSync = item.imageUrl ? item.imageUrl : item.assetId;
+            newInventory.equipped.avatar = item.id;
+            // Les assets locaux doivent être prioritaires : une imageUrl
+            // historique dans Firestore peut être invalide dans l'APK et
+            // produisait alors un avatar gris/noir.
+            const photoToSync = item.assetId && hasAvatarImage(item.assetId)
+                ? item.assetId
+                : (item.imageUrl || item.assetId);
             await authService.updateProfile({ photoURL: photoToSync });
         } else if (item.type === 'SKIN') {
             newInventory.equipped.skin = itemId;

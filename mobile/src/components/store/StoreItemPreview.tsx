@@ -16,6 +16,9 @@ const DEFAULT_TABLE_COLOR = '#105B3A';
 const DEFAULT_BOARD_COLOR = '#1B5E20';
 
 function resolveAvatarKey(item: StoreItem) {
+    // Les avatars Premium sont embarqués dans l'APK. Une ancienne imageUrl
+    // Firestore (vide, obsolète ou inaccessible) ne doit jamais les masquer.
+    if (item.assetId && hasAvatarImage(item.assetId)) return item.assetId;
     return item.imageUrl || item.assetId || item.id;
 }
 
