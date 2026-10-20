@@ -128,7 +128,10 @@ export class StoreService {
                     priceCoins: data.priceCoins,
                     priceDiamonds: data.priceDiamonds,
                     rewards: data.rewards,
-                    assetId: data.assetId || 'default',
+                    // Un avatar administré peut ne posséder qu'une image Storage.
+                    // Ne pas injecter l'asset "default" : l'aperçu choisirait alors
+                    // la silhouette noire au lieu de cette image distante valide.
+                    assetId: typeof data.assetId === 'string' ? data.assetId : '',
                     imageUrl: data.imageUrl,
                     skinConfig: data.skinConfig,
                     isPremium: data.isPremium === true,
@@ -173,12 +176,12 @@ export class StoreService {
         const newInventory = structuredClone(inventory);
         if (item.type === 'AVATAR') {
             newInventory.equipped.avatar = item.id;
-            // Les assets locaux doivent être prioritaires : une imageUrl
-            // historique dans Firestore peut être invalide dans l'APK et
-            // produisait alors un avatar gris/noir.
-            const photoToSync = item.assetId && hasAvatarImage(item.assetId)
+            // Les avatars Premium sont embarqués pour être disponibles hors
+            // ligne. Les avatars classiques de la boutique, eux, utilisent
+            // leur image Storage (sinon un assetId vide tombait sur default).
+            const photoToSync = item.isPremium && item.assetId && hasAvatarImage(item.assetId)
                 ? item.assetId
-                : (item.imageUrl || item.assetId);
+                : (item.imageUrl || item.assetId || item.id);
             await authService.updateProfile({ photoURL: photoToSync });
         } else if (item.type === 'SKIN') {
             newInventory.equipped.skin = itemId;
