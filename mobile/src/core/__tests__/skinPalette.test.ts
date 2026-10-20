@@ -1,6 +1,6 @@
 import { resolveDominoSidePalette } from '../skinPalette';
 import { STORE_CATALOG } from '../store.constants';
-import { hasAvatarImage } from '../avatars';
+import { getAvatarImage, hasAvatarImage } from '../avatars';
 
 describe('resolveDominoSidePalette', () => {
     it('keeps a legacy skin on its single background and dot colors', () => {
@@ -52,5 +52,11 @@ describe('resolveDominoSidePalette', () => {
 
         expect(premiumAvatars).toHaveLength(3);
         premiumAvatars.forEach(item => expect(hasAvatarImage(item.assetId)).toBe(true));
+    });
+
+    it('replaces unavailable legacy Storage avatars with bundled images', () => {
+        expect(hasAvatarImage('pig_mask')).toBe(true);
+        expect(getAvatarImage('https://firebasestorage.googleapis.com/v0/b/domino-martinique-v1.firebasestorage.app/o/avatars%2Fcochon_masquee.jpg?alt=media'))
+            .toBe(getAvatarImage('avatar_02'));
     });
 });

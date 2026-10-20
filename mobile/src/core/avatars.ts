@@ -38,6 +38,30 @@ export type AvatarId = keyof typeof AVATAR_IMAGES;
 const AVATAR_ALIASES: Record<string, AvatarId> = {
     default: 'avatar_default',
     default_asset: 'avatar_default',
+    // Les cinq avatars historiques étaient uniquement hébergés sur Storage.
+    // Ils possèdent maintenant un équivalent embarqué, afin de ne plus afficher
+    // une silhouette noire lorsqu'une ancienne URL Storage a expiré ou a été supprimée.
+    pig_mask: 'avatar_02',
+    king: 'avatar_10',
+    legend_gold: 'avatar_16',
+    mystery: 'avatar_17',
+};
+
+const LEGACY_STORAGE_AVATAR_FALLBACKS: Record<string, AvatarId> = {
+    'avatars/classic.jpg': 'avatar_default',
+    'avatars/cochon_masquee.jpg': 'avatar_02',
+    'avatars/roi_domino.jpg': 'avatar_10',
+    'avatars/legende_doree.jpg': 'avatar_16',
+    'avatars/soldat_mystere.jpg': 'avatar_17',
+};
+
+const getLegacyStorageAvatarFallback = (avatarUrl: string): AvatarId | undefined => {
+    try {
+        const path = decodeURIComponent(new URL(avatarUrl).pathname);
+        return Object.entries(LEGACY_STORAGE_AVATAR_FALLBACKS).find(([filePath]) => path.endsWith(`/${filePath}`))?.[1];
+    } catch {
+        return undefined;
+    }
 };
 
 // List of available avatar IDs for selection
@@ -86,6 +110,10 @@ export const getAvatarImage = (
 
     // URL distante : vérifier le domaine avant d'utiliser
     if (avatarId.startsWith('http://') || avatarId.startsWith('https://')) {
+        // Les objets Storage historiques ne sont plus disponibles (404). Ce
+        // fallback couvre aussi les profils qui avaient déjà l'ancienne URL.
+        const legacyFallback = getLegacyStorageAvatarFallback(avatarId);
+        if (legacyFallback) return AVATAR_IMAGES[legacyFallback];
         if (!allowRemoteAvatar) {
             return AVATAR_IMAGES.avatar_default;
         }
