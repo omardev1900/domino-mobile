@@ -6,6 +6,7 @@ import {
     hashPremiumCode,
     isActivePremiumEntitlement,
     normalizePremiumCode,
+    PREMIUM_ACTIVATION_COINS,
     PREMIUM_TRIAL_DURATION_MS,
 } from './premiumAccess';
 
@@ -35,6 +36,10 @@ describe('premium access policy', () => {
 });
 
 describe('premium code policy', () => {
+    it('awards 1,000 coins for each code activation or renewal', () => {
+        assert.equal(PREMIUM_ACTIVATION_COINS, 1_000);
+    });
+
     it('normalizes a code before persisting its identifier', () => {
         assert.equal(normalizePremiumCode(' dm-ab12-cd34 '), 'DMAB12CD34');
         assert.equal(hashPremiumCode('dm-ab12-cd34'), hashPremiumCode('DMAB12CD34'));

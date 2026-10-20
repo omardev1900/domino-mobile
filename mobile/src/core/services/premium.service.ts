@@ -23,6 +23,7 @@ interface PremiumEntitlementDocument {
 
 interface PremiumActivationResult {
     expiresAt: number;
+    bonusCoins?: number;
 }
 
 const toPremiumEntitlement = (data: PremiumEntitlementDocument | undefined): PremiumEntitlement | null => {

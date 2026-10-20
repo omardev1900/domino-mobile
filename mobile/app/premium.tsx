@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { isPremiumActive, PremiumEntitlement, premiumService } from '../src/core/services/premium.service';
+import { economyService } from '../src/core/services/economy.service';
 import { LogService } from '../src/core/services/LogService';
 
 const BENEFIT_TITLES = [
@@ -37,7 +38,7 @@ const friendlyError = (error: unknown): string => {
     return 'Une erreur est survenue. Vérifie ta connexion puis réessaie.';
 };
 
-function PremiumCelebration({ expiresAt, onComplete }: { expiresAt: Date; onComplete: () => void }) {
+function PremiumCelebration({ expiresAt, bonusCoins = 0, isRenewal = false, onComplete }: { expiresAt: Date; bonusCoins?: number; isRenewal?: boolean; onComplete: () => void }) {
     const progress = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
@@ -70,8 +71,9 @@ function PremiumCelebration({ expiresAt, onComplete }: { expiresAt: Date; onComp
                 </View>
                 <Animated.View style={[styles.celebrationCard, { opacity: panelOpacity, transform: [{ scale: panelScale }] }]}>
                     <Ionicons name="sparkles" size={46} color="#FFD700" />
-                    <Text style={styles.celebrationTitle}>Bienvenue Premium !</Text>
+                    <Text style={styles.celebrationTitle}>{isRenewal ? 'Premium renouvelé !' : 'Bienvenue Premium !'}</Text>
                     <Text style={styles.celebrationText}>Ton accès est actif jusqu’au {formatDate(expiresAt)}.</Text>
+                    {bonusCoins > 0 && <Text style={styles.celebrationBonus}>+{bonusCoins.toLocaleString('fr-FR')} 🪙 coins Premium</Text>}
                 </Animated.View>
             </View>
         </Modal>
@@ -90,7 +92,7 @@ export default function PremiumScreen() {
     const [code, setCode] = useState('');
     const [showCodeModal, setShowCodeModal] = useState(false);
     const [showTrialConfirmation, setShowTrialConfirmation] = useState(false);
-    const [celebrationExpiresAt, setCelebrationExpiresAt] = useState<Date | null>(null);
+    const [celebration, setCelebration] = useState<{ expiresAt: Date; bonusCoins: number; isRenewal: boolean } | null>(null);
 
     const refresh = useCallback(async () => {
         setLoading(true);
@@ -114,7 +116,7 @@ export default function PremiumScreen() {
         try {
             const result = await premiumService.activateTrial();
             setEntitlement(await premiumService.getEntitlement());
-            setCelebrationExpiresAt(new Date(result.expiresAt));
+            setCelebration({ expiresAt: new Date(result.expiresAt), bonusCoins: 0, isRenewal: false });
         } catch (error) {
             LogService.warn('Premium', 'Activation de l’essai refusée.', error);
             Alert.alert('Essai indisponible', friendlyError(error));
@@ -137,6 +139,7 @@ export default function PremiumScreen() {
         }
         setProcessing('code');
         try {
+            const isRenewal = premiumActive;
             const result = await premiumService.redeemCode(code);
             setCode('');
             setShowCodeModal(false);
@@ -151,7 +154,13 @@ export default function PremiumScreen() {
             void premiumService.getEntitlement().then(serverEntitlement => {
                 if (serverEntitlement) setEntitlement(serverEntitlement);
             });
-            Alert.alert('Premium activé', `Ton accès est actif jusqu’au ${formatDate(new Date(result.expiresAt))}.`);
+            const currentUser = await authService.getCurrentUser();
+            if (currentUser?.uid) await economyService.syncFromFirebase(currentUser.uid);
+            setCelebration({
+                expiresAt: new Date(result.expiresAt),
+                bonusCoins: result.bonusCoins ?? 0,
+                isRenewal,
+            });
         } catch (error) {
             LogService.warn('Premium', 'Code Premium refusé.', error);
             Alert.alert('Code refusé', friendlyError(error));
@@ -238,7 +247,7 @@ export default function PremiumScreen() {
                     </View>
                 </View>
             </Modal>
-            {celebrationExpiresAt && <PremiumCelebration expiresAt={celebrationExpiresAt} onComplete={() => setCelebrationExpiresAt(null)} />}
+            {celebration && <PremiumCelebration {...celebration} onComplete={() => setCelebration(null)} />}
         </SafeAreaView>
     );
 }
@@ -295,4 +304,5 @@ const styles = StyleSheet.create({
     celebrationCard: { width: '82%', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 26, borderRadius: 24, backgroundColor: '#2D1B4E', borderWidth: 2, borderColor: '#FFD700' },
     celebrationTitle: { marginTop: 11, color: '#FFF', fontSize: 25, fontWeight: '900', textAlign: 'center' },
     celebrationText: { marginTop: 9, color: 'rgba(255,255,255,0.8)', fontSize: 14, lineHeight: 20, textAlign: 'center' },
+    celebrationBonus: { marginTop: 10, color: '#FFD700', fontSize: 18, fontWeight: '900', textAlign: 'center' },
 });

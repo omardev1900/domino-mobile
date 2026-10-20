@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,11 +16,10 @@ import { getAccessibleInventory, storeService } from '../src/core/services/store
 import { StoreItem, StoreItemType, PlayerInventory } from '../src/core/store.types';
 import { useRewardedAd, AdMobIds } from '../src/core/services/AdMobAdapter';
 import { authService } from '../src/core/services/auth.service';
-import { DailyRewardModal } from '../src/components/DailyRewardModal';
 import { RewardOverlay } from '../src/components/RewardOverlay';
 import { premiumService } from '../src/core/services/premium.service';
 
-type TabType = 'ALL' | 'PREMIUM' | StoreItemType;
+type TabType = 'PREMIUM' | StoreItemType;
 
 export default function StoreScreen() {
     const router = useRouter();
@@ -28,7 +27,7 @@ export default function StoreScreen() {
     const { width, height } = useWindowDimensions();
     const isLandscape = width > height;
 
-    const [activeTab, setActiveTab] = useState<TabType>('ALL');
+    const [activeTab, setActiveTab] = useState<TabType>('AVATAR');
     const [inventory, setInventory] = useState<PlayerInventory | null>(null);
     const [catalog, setCatalog] = useState<StoreItem[]>([]);
     const [economy, setEconomy] = useState<any>(null);
@@ -71,16 +70,15 @@ export default function StoreScreen() {
 
     const dynamicTabs = useMemo(() => {
         const types = Array.from(new Set(catalog.map(item => item.type)));
-        const tabs: { id: TabType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-            { id: 'ALL', label: 'À la une', icon: 'star' },
-        ];
+        const tabs: { id: TabType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [];
 
+        // Premium est l'accès principal des abonnés : il apparaît avant les
+        // catégories générales, sans conserver l'ancienne section « À la une ».
+        if (hasPremium && catalog.some(item => item.isPremium)) tabs.push({ id: 'PREMIUM', label: 'Premium', icon: 'star' });
         if (types.includes('AVATAR')) tabs.push({ id: 'AVATAR', label: 'Avatars', icon: 'person' });
         if (types.includes('SKIN')) tabs.push({ id: 'SKIN', label: 'Skins', icon: 'color-palette' });
         if (types.includes('CURRENCY_PACK')) tabs.push({ id: 'CURRENCY_PACK', label: 'Devises', icon: 'diamond' });
         if (types.includes('EMOTE')) tabs.push({ id: 'EMOTE', label: 'Emotions', icon: 'happy' });
-        if (hasPremium && catalog.some(item => item.isPremium)) tabs.push({ id: 'PREMIUM', label: 'Premium', icon: 'star' });
-
         return tabs;
     }, [catalog, hasPremium]);
 
@@ -96,8 +94,10 @@ export default function StoreScreen() {
     }, [hasPremium, load, premiumStatusResolved]);
 
     useEffect(() => {
-        if (!hasPremium && activeTab === 'PREMIUM') setActiveTab('ALL');
-    }, [activeTab, hasPremium]);
+        if (!dynamicTabs.some(tab => tab.id === activeTab)) {
+            setActiveTab(dynamicTabs[0]?.id ?? 'AVATAR');
+        }
+    }, [activeTab, dynamicTabs]);
 
     useEffect(() => {
         if (tab === 'PREMIUM' && hasPremium) setActiveTab('PREMIUM');
@@ -223,11 +223,9 @@ export default function StoreScreen() {
         setProcessingPurchase(null);
     };
 
-    const filteredCatalog = activeTab === 'ALL'
-        ? catalog
-        : activeTab === 'PREMIUM'
-            ? catalog.filter(item => item.isPremium)
-            : catalog.filter(item => item.type === activeTab);
+    const filteredCatalog = activeTab === 'PREMIUM'
+        ? catalog.filter(item => item.isPremium)
+        : catalog.filter(item => item.type === activeTab);
 
     const StoreAdCard = ({ playerEconomy }: { playerEconomy: any }) => {
         const { width: currentWidth, height: currentHeight } = useWindowDimensions();
@@ -465,37 +463,39 @@ export default function StoreScreen() {
                     <ActivityIndicator size="large" color="#FFD700" />
                 </View>
             ) : (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={[styles.catalogGrid, isLandscape && styles.catalogGridLandscape]}
-                    snapToInterval={width * 0.24 + 16}
-                    decelerationRate="fast"
-                >
-                    {filteredCatalog.length > 0 ? (
-                        <>
-                            {activeTab === 'ALL' && !hasPremium && inventory && economy && (
-                                <StoreAdCard playerEconomy={economy} />
-                            )}
-                            {filteredCatalog.map(item => (
-                            inventory ? (
-                                <StoreItemCard
-                                    key={item.id}
-                                    item={item}
-                                    inventory={inventory}
-                                    playerEconomy={economy}
-                                    onPurchase={handlePurchase}
-                                    onEquip={handleEquip}
-                                    isProcessing={processingPurchase === item.id}
-                                />
-                            ) : null
-                            ))}
-                        </>
-                    ) : (
-                        <Text style={styles.emptyText}>Aucun article dans cette catégorie pour le moment.</Text>
+                <>
+                    {activeTab === 'CURRENCY_PACK' && !hasPremium && inventory && economy && (
+                        <StoreAdCard playerEconomy={economy} />
                     )}
-                </ScrollView>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={[styles.catalogGrid, isLandscape && styles.catalogGridLandscape]}
+                        snapToInterval={width * 0.24 + 16}
+                        decelerationRate="fast"
+                    >
+                        {filteredCatalog.length > 0 ? (
+                            <>
+                                {filteredCatalog.map(item => (
+                                inventory ? (
+                                    <StoreItemCard
+                                        key={item.id}
+                                        item={item}
+                                        inventory={inventory}
+                                        playerEconomy={economy}
+                                        onPurchase={handlePurchase}
+                                        onEquip={handleEquip}
+                                        isProcessing={processingPurchase === item.id}
+                                    />
+                                ) : null
+                                ))}
+                            </>
+                        ) : (
+                            <Text style={styles.emptyText}>Aucun article dans cette catégorie pour le moment.</Text>
+                        )}
+                    </ScrollView>
+                </>
             )}
         </SafeAreaView>
     );

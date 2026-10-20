@@ -5,6 +5,7 @@ import { z, ZodError } from 'zod';
 import { enforceCallableRateLimit } from './callableRateLimit';
 
 export const PREMIUM_TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1_000;
+export const PREMIUM_ACTIVATION_COINS = 1_000;
 
 export type PremiumSource = 'TRIAL' | 'ADMIN_GRANT' | 'PROMO_CODE';
 
@@ -21,6 +22,8 @@ interface PremiumCodeData {
     maxRedemptions?: number;
     redemptionCount?: number;
 }
+
+type EconomyData = { coins?: number };
 
 const grantInputSchema = z.object({
     userId: z.string().min(1).max(128),
@@ -155,17 +158,19 @@ export async function redeemPremiumCode(
     uid: string,
     rawCode: string,
     now = Date.now(),
-): Promise<{ expiresAt: number }> {
+): Promise<{ expiresAt: number; bonusCoins: number }> {
     const codeHash = hashPremiumCode(rawCode);
     const codeRef = db.collection('premium_codes').doc(codeHash);
     const entitlementRef = db.collection('premium_entitlements').doc(uid);
     const redemptionRef = db.collection('premium_code_redemptions').doc(`${uid}_${codeHash}`);
+    const userRef = db.collection('users').doc(uid);
 
     return db.runTransaction(async transaction => {
-        const [codeSnapshot, entitlementSnapshot, redemptionSnapshot] = await Promise.all([
+        const [codeSnapshot, entitlementSnapshot, redemptionSnapshot, userSnapshot] = await Promise.all([
             transaction.get(codeRef),
             transaction.get(entitlementRef),
             transaction.get(redemptionRef),
+            transaction.get(userRef),
         ]);
         const code = codeSnapshot.exists ? codeSnapshot.data() as PremiumCodeData : undefined;
         if (!code || code.active !== true || !code.durationDays || !code.maxRedemptions) {
@@ -199,8 +204,16 @@ export async function redeemPremiumCode(
             codeHash,
             redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
             userId: uid,
+            bonusCoins: PREMIUM_ACTIVATION_COINS,
         });
-        return { expiresAt };
+        const currentEconomy = (userSnapshot.data()?.economy ?? {}) as EconomyData;
+        transaction.set(userRef, {
+            economy: {
+                ...currentEconomy,
+                coins: (typeof currentEconomy.coins === 'number' ? currentEconomy.coins : 0) + PREMIUM_ACTIVATION_COINS,
+            },
+        }, { merge: true });
+        return { expiresAt, bonusCoins: PREMIUM_ACTIVATION_COINS };
     });
 }
 
