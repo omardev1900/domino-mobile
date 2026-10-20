@@ -10,13 +10,22 @@ const premiumCodeSecret = defineSecret('PREMIUM_CODE_SECRET');
 type StripeEvent = {
     id?: string;
     type?: string;
-    data?: { object?: { client_reference_id?: string; metadata?: { saleId?: string }; payment_status?: string } };
+    data?: { object?: { client_reference_id?: string; metadata?: { saleId?: string }; payment_status?: string; subscription?: string } };
 };
 
 export function getPaidRechargeSaleId(event: StripeEvent): string | null {
     if (event.type !== 'checkout.session.completed' || event.data?.object?.payment_status !== 'paid') return null;
     const saleId = event.data.object.metadata?.saleId ?? event.data.object.client_reference_id;
     return typeof saleId === 'string' && saleId.length > 0 ? saleId : null;
+}
+
+export function getStartedSubscription(event: StripeEvent): { saleId: string; subscriptionId: string } | null {
+    if (event.type !== 'checkout.session.completed' || event.data?.object?.payment_status !== 'paid') return null;
+    const saleId = event.data.object.metadata?.saleId ?? event.data.object.client_reference_id;
+    const subscriptionId = event.data.object.subscription;
+    return typeof saleId === 'string' && saleId.length > 0 && typeof subscriptionId === 'string' && subscriptionId.length > 0
+        ? { saleId, subscriptionId }
+        : null;
 }
 
 export const createStripeWebhook = (db: admin.firestore.Firestore) =>
@@ -50,10 +59,20 @@ export const createStripeWebhook = (db: admin.firestore.Firestore) =>
 
             try {
                 const saleSnapshot = await db.collection('premium_sales').doc(saleId).get();
-                if (saleSnapshot.data()?.kind !== 'RECHARGE') {
-                    res.status(200).send('Subscription event recorded separately');
+                const sale = saleSnapshot.data();
+                if (sale?.kind === 'SUBSCRIPTION') {
+                    const subscription = getStartedSubscription(event);
+                    if (subscription) {
+                        await saleSnapshot.ref.update({
+                            stripeSubscriptionId: subscription.subscriptionId,
+                            status: 'SUBSCRIPTION_STARTED',
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        });
+                    }
+                    res.status(200).send('Subscription recorded');
                     return;
                 }
+                if (sale?.kind !== 'RECHARGE') throw new Error('Vente introuvable.');
                 await fulfillPaidRecharge(db, saleId, event.id, premiumCodeSecret.value());
                 res.status(200).send('Recharge fulfilled');
             } catch (error) {

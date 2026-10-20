@@ -34,6 +34,8 @@ export function buildStripeCheckoutForm(
     });
     if (product.kind === 'SUBSCRIPTION') {
         form.set('line_items[0][price_data][recurring][interval]', product.id.endsWith('yearly') ? 'year' : 'month');
+        form.set('subscription_data[metadata][saleId]', saleId);
+        form.set('subscription_data[metadata][productId]', product.id);
     }
     if (input.email) {
         form.set('customer_email', input.email);
