@@ -18,6 +18,7 @@ import {
     isActivePremiumEntitlement,
 } from './premiumAccess';
 import { createStripeCheckout } from './premiumStripeCheckout';
+import { createStripeWebhook } from './premiumStripeWebhook';
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -28,6 +29,7 @@ export const grantPremiumAccess = createGrantPremiumAccess(db);
 export const createPremiumCodes = createPremiumCodesCallable(db);
 export const redeemPremiumCode = createRedeemPremiumCode(db);
 export const createPremiumStripeCheckout = createStripeCheckout(db);
+export const stripePremiumWebhook = createStripeWebhook(db);
 
 const LOCAL_WEB_ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
