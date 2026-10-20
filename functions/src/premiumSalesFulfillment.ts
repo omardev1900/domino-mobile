@@ -19,7 +19,7 @@ export function paidRechargeExpiryAt(now = Date.now()): number {
     return now + RECHARGE_CODE_EXPIRY_DAYS * 24 * 60 * 60 * 1_000;
 }
 
-type SaleData = { kind?: string; productId?: string; status?: string };
+type SaleData = { kind?: string; productId?: string; status?: string; email?: string | null };
 
 export async function fulfillPaidRecharge(
     db: admin.firestore.Firestore,
@@ -67,6 +67,15 @@ export async function fulfillPaidRecharge(
             type: 'RECHARGE_PAID',
             processedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+        if (sale.email) {
+            transaction.set(db.collection('premium_outbox').doc(saleId), {
+                email: sale.email,
+                productId: product.id,
+                status: 'PENDING',
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: false });
+        }
         transaction.update(saleRef, {
             status: 'PAID',
             stripeEventId,
