@@ -6,7 +6,7 @@ import { LogService } from './LogService';
 
 export interface PremiumEntitlement {
     expiresAt: Date;
-    source: 'TRIAL' | 'ADMIN_GRANT' | 'PROMO_CODE';
+    source: 'TRIAL' | 'ADMIN_GRANT' | 'PROMO_CODE' | 'PURCHASE_CODE' | 'SUBSCRIPTION';
     trialUsedAt?: Date;
 }
 
@@ -85,6 +85,12 @@ class PremiumService {
         const create = httpsCallable<{ count: number; durationDays: number; redeemBy: number }, CreatedPremiumCodes>(gameFunctions, 'createPremiumCodes');
         const result = await create({ count, durationDays, redeemBy });
         return result.data;
+    }
+
+    async createCustomerPortal(): Promise<string> {
+        const createPortal = httpsCallable<undefined, { url: string }>(gameFunctions, 'createPremiumCustomerPortal');
+        const result = await createPortal();
+        return result.data.url;
     }
 }
 

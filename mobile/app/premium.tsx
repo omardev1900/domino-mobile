@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -89,7 +89,7 @@ export default function PremiumScreen() {
     const [entitlement, setEntitlement] = useState<PremiumEntitlement | null>(null);
     const [loading, setLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
-    const [processing, setProcessing] = useState<'trial' | 'code' | null>(null);
+    const [processing, setProcessing] = useState<'trial' | 'code' | 'portal' | null>(null);
     const [code, setCode] = useState('');
     const [showCodeModal, setShowCodeModal] = useState(false);
     const [showTrialConfirmation, setShowTrialConfirmation] = useState(false);
@@ -131,6 +131,18 @@ export default function PremiumScreen() {
     const activateConfirmedTrial = () => {
         setShowTrialConfirmation(false);
         void handleTrial();
+    };
+
+    const manageSubscription = async () => {
+        setProcessing('portal');
+        try {
+            await Linking.openURL(await premiumService.createCustomerPortal());
+        } catch (error) {
+            LogService.warn('Premium', 'Portail Stripe indisponible.', error);
+            Alert.alert('Abonnement indisponible', 'Impossible d’ouvrir la gestion de ton abonnement. Réessaie dans quelques instants.');
+        } finally {
+            setProcessing(null);
+        }
     };
 
     const handleCode = async () => {
@@ -219,6 +231,10 @@ export default function PremiumScreen() {
                     </TouchableOpacity>
                 </ScrollView>
 
+                {premiumActive && entitlement?.source === 'SUBSCRIPTION' && <TouchableOpacity style={[styles.subscriptionManage, processing === 'portal' && styles.disabled]} onPress={() => void manageSubscription()} disabled={processing !== null}>
+                    {processing === 'portal' ? <ActivityIndicator color="#FFD700" /> : <><Ionicons name="card-outline" size={18} color="#FFD700" /><Text style={styles.subscriptionManageText}>Gérer mon abonnement</Text></>}
+                </TouchableOpacity>}
+
                 <View style={styles.benefitsCard}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.benefitsCarousel}>
                         {BENEFIT_TITLES.map(title => <View key={title} style={styles.benefitSlide}><Text style={styles.benefitTitle}>{title}</Text></View>)}
@@ -262,6 +278,8 @@ export default function PremiumScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#1A0E2E' },
+    subscriptionManage: { alignSelf: 'center', marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,215,0,0.55)' },
+    subscriptionManageText: { color: '#FFD700', fontWeight: '800', fontSize: 13 },
     topBar: { height: 50, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     backButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
     topTitle: { color: '#FFF', fontSize: 16, fontWeight: '900', letterSpacing: 1.2 },
