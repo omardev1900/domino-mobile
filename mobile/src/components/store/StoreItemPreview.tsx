@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, StyleSheet, Text } from 'react-native';
-import { Image } from 'expo-image';
+import { View, StyleSheet, Text, Image as NativeImage } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 
 import { getAvatarImage, hasAvatarImage } from '../../core/avatars';
@@ -39,16 +39,16 @@ export function StoreItemPreview({ item, height = 100 }: StoreItemPreviewProps) 
     if (item.type === 'AVATAR') {
         const avatarKey = resolveAvatarKey(item);
         const canRenderAvatar = !!item.imageUrl || hasAvatarImage(avatarKey);
+        const avatarSource = getAvatarImage(avatarKey);
 
         return (
             <View style={[styles.frame, { height }]}>
                 {canRenderAvatar ? (
-                    <Image
-                        source={getAvatarImage(avatarKey)}
-                        style={styles.avatarImage}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                    />
+                    typeof avatarSource === 'number' ? (
+                        <NativeImage source={avatarSource} style={styles.avatarImage} resizeMode="cover" />
+                    ) : (
+                        <ExpoImage source={avatarSource} style={styles.avatarImage} contentFit="cover" cachePolicy="memory-disk" />
+                    )
                 ) : (
                     <View style={styles.avatarFallback}>
                         <Ionicons name="person" size={30} color="rgba(255,255,255,0.72)" />
@@ -84,7 +84,7 @@ export function StoreItemPreview({ item, height = 100 }: StoreItemPreviewProps) 
     if (item.type === 'CURRENCY_PACK' && item.imageUrl) {
         return (
             <View style={[styles.frame, { height }]}>
-                <Image
+                <ExpoImage
                     source={{ uri: item.imageUrl }}
                     style={styles.avatarImage}
                     contentFit="cover"
