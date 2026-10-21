@@ -36,6 +36,12 @@ export function getPaidSubscriptionInvoice(event: StripeEvent): { invoiceId: str
     return { invoiceId, subscriptionId, ...(nonEmpty(event.data?.object?.customer) ? { customerId: event.data?.object?.customer } : {}), ...(seconds ? { periodEnd: seconds * 1_000 } : {}) };
 }
 
+export function getFailedSubscriptionInvoice(event: StripeEvent): { subscriptionId: string } | null {
+    if (event.type !== 'invoice.payment_failed') return null;
+    const subscriptionId = nonEmpty(event.data?.object?.subscription);
+    return subscriptionId ? { subscriptionId } : null;
+}
+
 export function getSubscriptionLifecycle(event: StripeEvent): { subscriptionId: string; status: string; currentPeriodEnd?: number; cancelAtPeriodEnd?: boolean } | null {
     if (event.type !== 'customer.subscription.updated' && event.type !== 'customer.subscription.deleted') return null;
     const subscriptionId = nonEmpty(event.data?.object?.id);
@@ -85,6 +91,8 @@ export const createStripeWebhook = (db: admin.firestore.Firestore) =>
                 }
                 const lifecycle = getSubscriptionLifecycle(event);
                 if (lifecycle) { await recordSubscriptionStatus(db, lifecycle.subscriptionId, lifecycle.status, lifecycle.currentPeriodEnd, lifecycle.cancelAtPeriodEnd); res.status(200).send('Subscription lifecycle recorded'); return; }
+                const failedInvoice = getFailedSubscriptionInvoice(event);
+                if (failedInvoice) { await recordSubscriptionStatus(db, failedInvoice.subscriptionId, 'PAYMENT_FAILED'); res.status(200).send('Subscription payment failure recorded'); return; }
                 res.status(200).send('Event ignored');
             } catch (error) {
                 functions.logger.error('Impossible de traiter le webhook Stripe.', { eventId: event.id, error });

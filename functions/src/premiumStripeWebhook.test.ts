@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { getPaidRechargeSaleId, getPaidSubscriptionInvoice, getStartedSubscription, getSubscriptionLifecycle } from './premiumStripeWebhook';
+import { getFailedSubscriptionInvoice, getPaidRechargeSaleId, getPaidSubscriptionInvoice, getStartedSubscription, getSubscriptionLifecycle } from './premiumStripeWebhook';
 
 describe('Stripe recharge event selection', () => {
     it('accepts only a paid Checkout completion with its server sale identifier', () => {
@@ -29,6 +29,12 @@ describe('Stripe recharge event selection', () => {
         assert.deepEqual(getSubscriptionLifecycle({
             type: 'customer.subscription.updated', data: { object: { id: 'sub_123', status: 'active', current_period_end: 1_800_000_000, cancel_at_period_end: true } },
         }), { subscriptionId: 'sub_123', status: 'active', currentPeriodEnd: 1_800_000_000_000, cancelAtPeriodEnd: true });
+    });
+
+    it('records a failed payment without extending Premium', () => {
+        assert.deepEqual(getFailedSubscriptionInvoice({
+            type: 'invoice.payment_failed', data: { object: { subscription: 'sub_123' } },
+        }), { subscriptionId: 'sub_123' });
     });
 
     it('ignores unpaid, unrelated, and malformed events', () => {

@@ -48,9 +48,17 @@ export const createPremiumRechargeCodeReader = (db: admin.firestore.Firestore) =
             if (session.payment_status !== 'paid' || !saleId) { res.status(202).json({ pending: true }); return; }
             const saleSnapshot = await db.collection('premium_sales').doc(saleId).get();
             const sale = saleSnapshot.data() as { kind?: string; status?: string; stripeCheckoutSessionId?: string; productId?: string } | undefined;
-            if (!sale || sale.kind !== 'RECHARGE' || sale.status !== 'PAID' || sale.stripeCheckoutSessionId !== session.id || !sale.productId) {
+            if (!sale || sale.stripeCheckoutSessionId !== session.id || !sale.productId) {
                 res.status(202).json({ pending: true });
                 return;
             }
-            res.status(200).json({ code: derivePaidRechargeCode(saleId, premiumCodeSecret.value()), productId: sale.productId });
+            if (sale.kind === 'RECHARGE' && sale.status === 'PAID') {
+                res.status(200).json({ kind: 'RECHARGE', code: derivePaidRechargeCode(saleId, premiumCodeSecret.value()), productId: sale.productId });
+                return;
+            }
+            if (sale.kind === 'SUBSCRIPTION' && sale.status === 'SUBSCRIPTION_ACTIVE') {
+                res.status(200).json({ kind: 'SUBSCRIPTION', productId: sale.productId });
+                return;
+            }
+            res.status(202).json({ pending: true });
         });
