@@ -19,7 +19,8 @@ import { authService } from '../src/core/services/auth.service';
 import { RewardOverlay } from '../src/components/RewardOverlay';
 import { premiumService } from '../src/core/services/premium.service';
 
-type TabType = 'PREMIUM' | StoreItemType;
+type TabType = 'PREMIUM' | 'WORKSHOP' | StoreItemType;
+const SKIN_WORKSHOP_ID = 'skin_premium_atelier';
 
 export default function StoreScreen() {
     const router = useRouter();
@@ -72,9 +73,9 @@ export default function StoreScreen() {
         const types = Array.from(new Set(catalog.map(item => item.type)));
         const tabs: { id: TabType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [];
 
-        // Premium est l'accès principal des abonnés : il apparaît avant les
-        // catégories générales, sans conserver l'ancienne section « À la une ».
-        if (hasPremium && catalog.some(item => item.isPremium)) tabs.push({ id: 'PREMIUM', label: 'Premium', icon: 'star' });
+        // Les créations Premium sont regroupées à part des objets à équiper.
+        if (hasPremium && catalog.some(item => item.id === SKIN_WORKSHOP_ID)) tabs.push({ id: 'WORKSHOP', label: 'Atelier', icon: 'color-wand' });
+        if (hasPremium && catalog.some(item => item.isPremium && item.id !== SKIN_WORKSHOP_ID)) tabs.push({ id: 'PREMIUM', label: 'Premium', icon: 'star' });
         if (types.includes('AVATAR')) tabs.push({ id: 'AVATAR', label: 'Avatars', icon: 'person' });
         if (types.includes('SKIN')) tabs.push({ id: 'SKIN', label: 'Skins', icon: 'color-palette' });
         if (types.includes('CURRENCY_PACK')) tabs.push({ id: 'CURRENCY_PACK', label: 'Devises', icon: 'diamond' });
@@ -204,7 +205,7 @@ export default function StoreScreen() {
     };
 
     const handleEquip = async (itemId: string) => {
-        if (itemId === 'skin_premium_atelier') {
+        if (itemId === SKIN_WORKSHOP_ID) {
             router.push('/premium-workshop' as never);
             return;
         }
@@ -223,9 +224,11 @@ export default function StoreScreen() {
         setProcessingPurchase(null);
     };
 
-    const filteredCatalog = activeTab === 'PREMIUM'
-        ? catalog.filter(item => item.isPremium)
-        : catalog.filter(item => item.type === activeTab);
+    const filteredCatalog = activeTab === 'WORKSHOP'
+        ? catalog.filter(item => item.id === SKIN_WORKSHOP_ID)
+        : activeTab === 'PREMIUM'
+            ? catalog.filter(item => item.isPremium && item.id !== SKIN_WORKSHOP_ID)
+            : catalog.filter(item => item.type === activeTab && item.id !== SKIN_WORKSHOP_ID);
 
     const StoreAdCard = ({ playerEconomy }: { playerEconomy: any }) => {
         const { width: currentWidth, height: currentHeight } = useWindowDimensions();
@@ -398,6 +401,31 @@ export default function StoreScreen() {
         );
     };
 
+    const AvatarWorkshopComingSoonCard = () => (
+        <Animated.View entering={FadeIn} style={[styles.card, isLandscape && styles.cardLandscape, isLandscape && { width: width * 0.24 }]}>
+            <View style={{ flex: 1 }}>
+                <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle} numberOfLines={1}>Atelier des avatars</Text>
+                    <Text style={styles.cardRarity}>BIENTÔT</Text>
+                </View>
+
+                <View style={[styles.cardImagePlaceholder, styles.comingSoonPreview]}>
+                    <Ionicons name="color-wand-outline" size={42} color="#FFD700" />
+                </View>
+
+                <View style={styles.descriptionRow}>
+                    <Text style={styles.cardDescription} numberOfLines={2}>
+                        Crée bientôt un avatar unique aux couleurs de Domino Martinique.
+                    </Text>
+                </View>
+            </View>
+
+            <View style={styles.cardFooter}>
+                <Text style={[styles.priceText, styles.premiumText]}>BIENTÔT DISPONIBLE</Text>
+            </View>
+        </Animated.View>
+    );
+
     return (
         <SafeAreaView style={styles.container}>
             <LinearGradient colors={['#1A0E2E', '#0A0514']} style={StyleSheet.absoluteFillObject} />
@@ -490,6 +518,7 @@ export default function StoreScreen() {
                                     />
                                 ) : null
                                 ))}
+                                {activeTab === 'WORKSHOP' ? <AvatarWorkshopComingSoonCard /> : null}
                             </>
                         ) : (
                             <Text style={styles.emptyText}>Aucun article dans cette catégorie pour le moment.</Text>
@@ -595,6 +624,14 @@ const styles = StyleSheet.create({
         height: 100,
         marginBottom: 8,
         position: 'relative',
+    },
+    comingSoonPreview: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 12,
+        backgroundColor: 'rgba(255, 215, 0, 0.08)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 215, 0, 0.22)',
     },
     previewBadge: {
         position: 'absolute',

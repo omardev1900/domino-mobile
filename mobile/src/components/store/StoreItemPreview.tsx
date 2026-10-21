@@ -14,6 +14,8 @@ type StoreItemPreviewProps = {
 
 const DEFAULT_TABLE_COLOR = '#105B3A';
 const DEFAULT_BOARD_COLOR = '#1B5E20';
+const SKIN_WORKSHOP_ID = 'skin_premium_atelier';
+const SKIN_WORKSHOP_IMAGE = require('../../assets/images/store/atelier-des-skins.jpg');
 
 function resolveAvatarKey(item: StoreItem) {
     // Les avatars Premium sont embarqués dans l'APK. Les autres avatars de
@@ -36,6 +38,14 @@ function resolveSkinConfig(item: StoreItem): SkinConfig {
 }
 
 export function StoreItemPreview({ item, height = 100 }: StoreItemPreviewProps) {
+    if (item.id === SKIN_WORKSHOP_ID) {
+        return (
+            <View style={[styles.frame, { height }]}>
+                <NativeImage source={SKIN_WORKSHOP_IMAGE} style={styles.avatarImage} resizeMode="cover" />
+            </View>
+        );
+    }
+
     if (item.type === 'AVATAR') {
         const avatarKey = resolveAvatarKey(item);
         const canRenderAvatar = !!item.imageUrl || hasAvatarImage(avatarKey);

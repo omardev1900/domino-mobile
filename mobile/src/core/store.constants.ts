@@ -134,7 +134,7 @@ export const STORE_CATALOG: StoreItem[] = [
     },
     {
         id: 'skin_premium_atelier',
-        name: 'Atelier Premium',
+        name: 'Atelier des skins',
         description: 'Crée et enregistre jusqu’à cinq plateaux, tuiles et boutons à ton style.',
         type: 'SKIN',
         rarity: 'LEGENDARY',
