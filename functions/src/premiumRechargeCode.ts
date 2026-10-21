@@ -2,7 +2,6 @@ import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import { defineSecret } from 'firebase-functions/params';
 import { derivePaidRechargeCode } from './premiumSalesFulfillment';
-import { premiumTestAccessSecret, verifyPremiumTestToken } from './premiumTestAccess';
 
 const stripeSecretKey = defineSecret('STRIPE_SECRET_KEY');
 const premiumCodeSecret = defineSecret('PREMIUM_CODE_SECRET');
@@ -15,7 +14,7 @@ function applyCors(req: functions.https.Request, res: functions.Response<any>): 
         res.set('Access-Control-Allow-Origin', origin);
         res.set('Vary', 'Origin');
     }
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
     res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
     if (req.method === 'OPTIONS') { res.status(204).send(''); return true; }
     return false;
@@ -28,12 +27,11 @@ export function isStripeCheckoutSessionId(value: unknown): value is string {
 type StripeCheckoutSession = { id?: string; payment_status?: string; metadata?: { saleId?: string } };
 
 export const createPremiumRechargeCodeReader = (db: admin.firestore.Firestore) =>
-    functions.region('europe-west1').runWith({ timeoutSeconds: 30, secrets: [stripeSecretKey, premiumCodeSecret, premiumTestAccessSecret] })
+    functions.region('europe-west1').runWith({ timeoutSeconds: 30, secrets: [stripeSecretKey, premiumCodeSecret] })
         .https.onRequest(async (req, res) => {
             if (applyCors(req, res)) return;
-            const token = req.header('authorization')?.replace(/^Bearer\s+/i, '');
-            if (req.method !== 'POST' || !verifyPremiumTestToken(token, premiumTestAccessSecret.value())) {
-                res.status(401).json({ error: 'Accès Premium de test requis.' });
+            if (req.method !== 'POST') {
+                res.status(405).json({ error: 'Méthode non autorisée.' });
                 return;
             }
             const sessionId = req.body?.sessionId;
