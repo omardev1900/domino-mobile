@@ -28,7 +28,7 @@ export default function StoreScreen() {
     const { width, height } = useWindowDimensions();
     const isLandscape = width > height;
 
-    const [activeTab, setActiveTab] = useState<TabType>('AVATAR');
+    const [activeTab, setActiveTab] = useState<TabType>('WORKSHOP');
     const [inventory, setInventory] = useState<PlayerInventory | null>(null);
     const [catalog, setCatalog] = useState<StoreItem[]>([]);
     const [economy, setEconomy] = useState<any>(null);
