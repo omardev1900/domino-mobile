@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { isPremiumActive, PremiumEntitlement, premiumService } from '../src/core/services/premium.service';
 import { economyService } from '../src/core/services/economy.service';
+import { authService } from '../src/core/services/auth.service';
 import { LogService } from '../src/core/services/LogService';
 
 const BENEFIT_TITLES = [
@@ -155,12 +156,19 @@ export default function PremiumScreen() {
                 if (serverEntitlement) setEntitlement(serverEntitlement);
             });
             const currentUser = await authService.getCurrentUser();
-            if (currentUser?.uid) await economyService.syncFromFirebase(currentUser.uid);
             setCelebration({
                 expiresAt: new Date(result.expiresAt),
                 bonusCoins: result.bonusCoins ?? 0,
                 isRenewal,
             });
+            // Le rafraîchissement des coins est secondaire : le code a déjà été
+            // consommé et l'accès Premium confirmé par la Function. Il ne doit
+            // jamais transformer ce succès en erreur visible pour le joueur.
+            if (currentUser?.uid) {
+                void economyService.syncFromFirebase(currentUser.uid).catch(error => {
+                    LogService.warn('Premium', 'Synchronisation des coins différée.', error);
+                });
+            }
         } catch (error) {
             LogService.warn('Premium', 'Code Premium refusé.', error);
             Alert.alert('Code refusé', friendlyError(error));
