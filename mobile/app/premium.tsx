@@ -191,6 +191,19 @@ export default function PremiumScreen() {
 
     const premiumActive = isPremiumActive(entitlement);
     const trialAlreadyUsed = Boolean(entitlement?.trialUsedAt);
+    const CodeOrShopTrigger = () => (
+        <TouchableOpacity
+            style={[styles.offerCard, styles.codeTrigger, { width: Math.min(220, Math.max(170, width * 0.52)) }]}
+            onPress={() => premiumActive ? router.push('/store?tab=PREMIUM' as never) : setShowCodeModal(true)}
+        >
+            <View style={styles.codeTriggerIcon}><Ionicons name={premiumActive ? 'storefront-outline' : 'key-outline'} size={22} color="#FFD700" /></View>
+            <View style={styles.codeTriggerCopy}>
+                <Text style={styles.codeTriggerText}>{premiumActive ? 'Boutique Premium' : 'Vous avez un code ?'}</Text>
+                <Text style={styles.codeTriggerHint}>{premiumActive ? 'Découvrir les offres' : 'L’activer'}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={19} color="#FFD700" />
+        </TouchableOpacity>
+    );
 
     return (
         <SafeAreaView style={styles.container}>
@@ -203,6 +216,8 @@ export default function PremiumScreen() {
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.offerRow}>
+                    {!premiumActive && <CodeOrShopTrigger />}
+
                     <LinearGradient colors={['#F6C844', '#D88618']} style={[styles.offerCard, { width: cardWidth }]}>
                         <Ionicons name="star" size={39} color="#2A1648" />
                         <View style={styles.offerCopy}>
@@ -221,14 +236,7 @@ export default function PremiumScreen() {
                         )}
                     </View>
 
-                    <TouchableOpacity style={[styles.offerCard, styles.codeTrigger, { width: Math.min(220, Math.max(170, width * 0.52)) }]} onPress={() => premiumActive ? router.push('/store?tab=PREMIUM' as never) : setShowCodeModal(true)}>
-                        <View style={styles.codeTriggerIcon}><Ionicons name={premiumActive ? 'storefront-outline' : 'key-outline'} size={22} color="#FFD700" /></View>
-                        <View style={styles.codeTriggerCopy}>
-                            <Text style={styles.codeTriggerText}>{premiumActive ? 'Boutique Premium' : 'Vous avez un code ?'}</Text>
-                            <Text style={styles.codeTriggerHint}>{premiumActive ? 'Découvrir les offres' : 'L’activer'}</Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={19} color="#FFD700" />
-                    </TouchableOpacity>
+                    {premiumActive && <CodeOrShopTrigger />}
                 </ScrollView>
 
                 {premiumActive && entitlement?.source === 'SUBSCRIPTION' && <TouchableOpacity style={[styles.subscriptionManage, processing === 'portal' && styles.disabled]} onPress={() => void manageSubscription()} disabled={processing !== null}>

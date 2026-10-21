@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, useWindowDimensions, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,6 +21,7 @@ import { premiumService } from '../src/core/services/premium.service';
 
 type TabType = 'PREMIUM' | 'WORKSHOP' | StoreItemType;
 const SKIN_WORKSHOP_ID = 'skin_premium_atelier';
+const AVATAR_WORKSHOP_IMAGE = require('../src/assets/images/store/atelier-des-avatars.jpg');
 
 export default function StoreScreen() {
     const router = useRouter();
@@ -410,7 +411,7 @@ export default function StoreScreen() {
                 </View>
 
                 <View style={[styles.cardImagePlaceholder, styles.comingSoonPreview]}>
-                    <Ionicons name="color-wand-outline" size={42} color="#FFD700" />
+                    <Image source={AVATAR_WORKSHOP_IMAGE} style={styles.workshopImage} resizeMode="cover" />
                 </View>
 
                 <View style={styles.descriptionRow}>
@@ -632,6 +633,11 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255, 215, 0, 0.08)',
         borderWidth: 1,
         borderColor: 'rgba(255, 215, 0, 0.22)',
+    },
+    workshopImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 11,
     },
     previewBadge: {
         position: 'absolute',
