@@ -21,6 +21,7 @@ import { createStripeCheckout } from './premiumStripeCheckout';
 import { createStripeWebhook } from './premiumStripeWebhook';
 import { createRechargeCodeEmailSender } from './premiumBrevoEmail';
 import { createPremiumTestAccess } from './premiumTestAccess';
+import { createPremiumRechargeCodeReader } from './premiumRechargeCode';
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -34,6 +35,7 @@ export const createPremiumStripeCheckout = createStripeCheckout(db);
 export const stripePremiumWebhook = createStripeWebhook(db);
 export const sendPremiumRechargeEmail = createRechargeCodeEmailSender(db);
 export const createPremiumTestAccessToken = createPremiumTestAccess();
+export const getPremiumRechargeCode = createPremiumRechargeCodeReader(db);
 
 const LOCAL_WEB_ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
