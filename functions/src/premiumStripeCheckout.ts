@@ -3,6 +3,7 @@ import * as functions from 'firebase-functions';
 import { defineSecret } from 'firebase-functions/params';
 import { z, ZodError } from 'zod';
 import { getPremiumSaleProduct, PremiumSaleProduct } from './premiumSalesCatalog';
+import { premiumTestAccessSecret, verifyPremiumTestToken } from './premiumTestAccess';
 
 const stripeSecretKey = defineSecret('STRIPE_SECRET_KEY');
 const WEB_APP_ORIGIN = 'https://www.domino-martinique.online';
@@ -56,7 +57,7 @@ function applyCors(req: functions.https.Request, res: functions.Response<any>): 
         res.set('Access-Control-Allow-Origin', origin);
         res.set('Vary', 'Origin');
     }
-    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
     if (req.method === 'OPTIONS') {
         res.status(204).send('');
@@ -68,11 +69,16 @@ function applyCors(req: functions.https.Request, res: functions.Response<any>): 
 export const createStripeCheckout = (db: admin.firestore.Firestore) =>
     functions
         .region('europe-west1')
-        .runWith({ timeoutSeconds: 30, secrets: [stripeSecretKey] })
+        .runWith({ timeoutSeconds: 30, secrets: [stripeSecretKey, premiumTestAccessSecret] })
         .https.onRequest(async (req, res) => {
             if (applyCors(req, res)) return;
             if (req.method !== 'POST') {
                 res.status(405).json({ error: 'Méthode non autorisée.' });
+                return;
+            }
+            const token = req.header('authorization')?.replace(/^Bearer\s+/i, '');
+            if (!verifyPremiumTestToken(token, premiumTestAccessSecret.value())) {
+                res.status(401).json({ error: 'Accès Premium de test requis.' });
                 return;
             }
 
