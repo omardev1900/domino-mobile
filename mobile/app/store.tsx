@@ -315,12 +315,13 @@ export default function StoreScreen() {
         const { width: currentWidth, height: currentHeight } = useWindowDimensions();
         const cardLandscape = currentWidth > currentHeight;
         const [isExpanded, setIsExpanded] = useState(false);
-        const isOwned = item.type !== 'CURRENCY_PACK' && playerInventory.ownedItems.includes(item.id);
-        const isEquipped = item.type === 'AVATAR'
+        const isWorkshop = item.id === SKIN_WORKSHOP_ID;
+        const isOwned = isWorkshop || (item.type !== 'CURRENCY_PACK' && playerInventory.ownedItems.includes(item.id));
+        const isEquipped = !isWorkshop && (item.type === 'AVATAR'
             ? playerInventory.equipped.avatar === item.id
             : item.type === 'SKIN'
                 ? playerInventory.equipped.skin === item.id
-                : false;
+                : false);
 
         const canAffordCoins = item.priceCoins ? (playerEconomy?.coins ?? 0) >= item.priceCoins : true;
         const canAffordDiamonds = item.priceDiamonds ? (playerEconomy?.diamonds ?? 0) >= item.priceDiamonds : true;
@@ -341,12 +342,12 @@ export default function StoreScreen() {
                     <TouchableOpacity
                         style={styles.cardImagePlaceholder}
                         activeOpacity={item.type === 'SKIN' ? 0.78 : 1}
-                        onPress={() => item.type === 'SKIN' && setPreviewedSkin(item)}
+                        onPress={() => isWorkshop ? onEquip(item.id) : item.type === 'SKIN' && setPreviewedSkin(item)}
                         disabled={item.type !== 'SKIN'}
-                        accessibilityLabel={item.type === 'SKIN' ? `Prévisualiser ${item.name}` : undefined}
+                        accessibilityLabel={item.type === 'SKIN' ? (isWorkshop ? `Lancer ${item.name}` : `Prévisualiser ${item.name}`) : undefined}
                     >
                         <StoreItemPreview item={item} height={100} />
-                        {item.type === 'SKIN' && <View style={styles.previewBadge}><Ionicons name="expand-outline" size={15} color="#FFF" /></View>}
+                        {item.type === 'SKIN' && !isWorkshop && <View style={styles.previewBadge}><Ionicons name="expand-outline" size={15} color="#FFF" /></View>}
                     </TouchableOpacity>
 
                     <View style={styles.descriptionRow}>
@@ -386,7 +387,7 @@ export default function StoreScreen() {
                         </View>
                     ) : isOwned ? (
                         <TouchableOpacity style={styles.equipButton} onPress={() => onEquip(item.id)}>
-                            <Text style={styles.equipButtonText}>UTILISER</Text>
+                            <Text style={styles.equipButtonText}>{isWorkshop ? 'LANCER' : 'UTILISER'}</Text>
                         </TouchableOpacity>
                     ) : (
                         <TouchableOpacity
