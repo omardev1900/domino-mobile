@@ -19,16 +19,17 @@ import { authService } from '../src/core/services/auth.service';
 import { statsService } from '../src/core/services/stats.service';
 import { economyService } from '../src/core/services/economy.service';
 import { PlayerProfile } from '../src/core/types';
-import { DAILY_REWARD_COINS, LEAGUE_GRADE_COLORS, LOW_COINS_PROMPT_THRESHOLD, NEW_PLAYER_COINS } from '../src/core/economy.constants';
+import { LEAGUE_GRADE_COLORS, LOW_COINS_PROMPT_THRESHOLD, NEW_PLAYER_COINS } from '../src/core/economy.constants';
 import { LeagueGrade } from '../src/core/economy.types';
 import { getAvatarImage } from '../src/core/avatars';
 import { EconomyHeader } from '../src/components/EconomyHeader';
 import { DailyRewardModal } from '../src/components/DailyRewardModal';
+import { DailyGiftInfoModal } from '../src/components/DailyGiftInfoModal';
 import { HelpOverlay } from '../src/components/HelpOverlay';
 import { LeagueProgressWidget } from '../src/components/LeagueProgressWidget';
 import { ShareTextButton } from '../src/components/ShareButton';
 import { NewsService, NewsItem } from '../src/core/services/news.service';
-import { useRewardedAd, useAppOpenAd, AdMobIds } from '../src/core/services/AdMobAdapter';
+import { useAppOpenAd, AdMobIds } from '../src/core/services/AdMobAdapter';
 import { USE_NEW_SIDEBAR } from '../src/core/config/navigation.config';
 import { getLeagueProgress, getMonthlyCochonsFromHistory } from '../src/core/leagueProgress';
 import { PremiumButton } from '../src/components/common/PremiumButton';
@@ -40,7 +41,6 @@ export default function HomeScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const [user, setUser] = useState<PlayerProfile | null>(null);
-    const dailyClaimTriggerRef = useRef<(() => void) | null>(null);
     const [showHelp, setShowHelp] = useState(false);
     const [newsList, setNewsList] = useState<NewsItem[]>([]);
     const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
@@ -51,21 +51,12 @@ export default function HomeScreen() {
     const [showWelcomeReward, setShowWelcomeReward] = useState(false);
     const [showLowCoinsPrompt, setShowLowCoinsPrompt] = useState(false);
     const [dailyRewardAmount, setDailyRewardAmount] = useState(0);
-    const [isProcessingRewardAd, setIsProcessingRewardAd] = useState(false);
     const [hasPremium, setHasPremium] = useState(false);
     const [premiumEntitlement, setPremiumEntitlement] = useState<PremiumEntitlement | null>(null);
     const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
-    const { isLoaded: isRewardLoaded, isClosed: isRewardClosed, isEarnedReward, load: loadReward, show: showReward } = useRewardedAd(AdMobIds.REWARDED_FIN_PARTIE);
     const { isLoaded: isAppOpenLoaded, load: loadAppOpen, show: showAppOpen } = useAppOpenAd(AdMobIds.APP_OPEN);
 
-    const AD_FALLBACK_TIMEOUT_MS = 8000;
-    const adFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const isProcessingRewardAdRef = useRef(false);
     const lowCoinsPromptShownRef = useRef(false);
-
-    useEffect(() => {
-        isProcessingRewardAdRef.current = isProcessingRewardAd;
-    }, [isProcessingRewardAd]);
 
     useFocusEffect(
         useCallback(() => {
@@ -101,25 +92,6 @@ export default function HomeScreen() {
             }
         }
     }, [hasPremium, isAppOpenLoaded, premiumStatusResolved, showAppOpen, user]);
-    useEffect(() => {
-        if (premiumStatusResolved && !hasPremium) {
-            loadReward();
-        }
-    }, [hasPremium, loadReward, premiumStatusResolved]);
-
-    useEffect(() => {
-        if (isRewardClosed) {
-            if (adFallbackTimerRef.current) {
-                clearTimeout(adFallbackTimerRef.current);
-                adFallbackTimerRef.current = null;
-            }
-            if (isEarnedReward && isProcessingRewardAd) {
-                dailyClaimTriggerRef.current?.();
-            }
-            setIsProcessingRewardAd(false);
-            if (!hasPremium) loadReward(); // preload next only for non-Premium players
-        }
-    }, [hasPremium, isRewardClosed, isEarnedReward, loadReward, isProcessingRewardAd]);
 
     // Ref pour l'unsubscribe du listener Firestore — nettoyé au démontage du composant
     const economyListenerRef = useRef<(() => void) | null>(null);
@@ -195,10 +167,13 @@ export default function HomeScreen() {
                             if (!cancelled) setShowWelcomeReward(true);
                         }, 1000);
                     } else if (dailyAvailable) {
-                        setDailyRewardAmount(DAILY_REWARD_COINS);
-                        setTimeout(() => {
-                            if (!cancelled) setShowDailyReward(true);
-                        }, 500);
+                        const claimedAmount = await economyService.checkAndClaimDailyReward(u.uid);
+                        if (!cancelled && claimedAmount !== null) {
+                            setDailyRewardAmount(claimedAmount);
+                            setTimeout(() => {
+                                if (!cancelled) setShowDailyReward(true);
+                            }, 500);
+                        }
                     } else {
                         const economy = await economyService.getEconomy();
                         if (
@@ -239,16 +214,7 @@ export default function HomeScreen() {
 
 
 
-    // Appelé par DailyRewardModal après la fin de l'animation compteur
-    const handleClaimDailyReward = async () => {
-        // [R3-B9] FIX : claimDailyRewardNow() évite la race condition avec le listener Firestore
-        await economyService.claimDailyRewardNow(user?.uid, undefined, dailyRewardAmount);
-        setShowDailyReward(false);
-        setEconomyRefresh(v => v + 1);
-    };
-
-    // Appelé si le joueur ferme le modal de cadeau quotidien (skip)
-    const handleSkipDailyReward = () => {
+    const handleCloseDailyReward = () => {
         setShowDailyReward(false);
     };
 
@@ -260,45 +226,14 @@ export default function HomeScreen() {
         // Si le cadeau quotidien est aussi dispo, on l'affiche juste après avec un délai
         const dailyAvailable = await economyService.isDailyRewardAvailable();
         if (dailyAvailable) {
-            setDailyRewardAmount(DAILY_REWARD_COINS);
-            setTimeout(() => {
-                setShowDailyReward(true);
-            }, 500);
-        }
-    };
-
-    // Helper pour le fallback
-    const _grantDailyRewardFallback = async () => {
-        if (adFallbackTimerRef.current) {
-            clearTimeout(adFallbackTimerRef.current);
-            adFallbackTimerRef.current = null;
-        }
-        dailyClaimTriggerRef.current?.();
-        setIsProcessingRewardAd(false);
-    };
-
-    // Appelé quand le joueur clique "Voir une pub → +300 🪙" dans le modal cadeau
-    const handleWatchAdForReward = async () => {
-        if (isProcessingRewardAd) return;
-        setIsProcessingRewardAd(true);
-        
-        if (Platform.OS === 'web') {
-            await _grantDailyRewardFallback();
-            return;
-        }
-        
-        if (isRewardLoaded) {
-            showReward();
-            return;
-        }
-        
-        loadReward(); // retenter
-        const fallbackTimer = setTimeout(async () => {
-            if (isProcessingRewardAdRef.current) {
-                await _grantDailyRewardFallback();
+            const claimedAmount = await economyService.checkAndClaimDailyReward(user?.uid);
+            if (claimedAmount !== null) {
+                setDailyRewardAmount(claimedAmount);
+                setTimeout(() => {
+                    setShowDailyReward(true);
+                }, 500);
             }
-        }, AD_FALLBACK_TIMEOUT_MS);
-        adFallbackTimerRef.current = fallbackTimer;
+        }
     };
 
     return (
@@ -564,14 +499,10 @@ export default function HomeScreen() {
             />
 
             {/* Daily Reward Modal — affiché uniquement si aucun modal de reconnexion */}
-            <DailyRewardModal
+            <DailyGiftInfoModal
                 visible={showDailyReward && premiumStatusResolved}
                 amount={dailyRewardAmount}
-                onClaim={handleClaimDailyReward}
-                onWatchAd={handleWatchAdForReward}
-                onSkip={handleSkipDailyReward}
-                claimTriggerRef={dailyClaimTriggerRef}
-                showAdReward={!hasPremium}
+                onClose={handleCloseDailyReward}
             />
 
             {/* Réserve basse : le bouton ouvre volontairement le flux vidéo unique de la boutique. */}

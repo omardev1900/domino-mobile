@@ -2,6 +2,10 @@
 
 ### 2026-10-22
 
+- [x] `UI-DAILY-GIFT-01` Cadeau quotidien crédité automatiquement avant
+  l'affichage d'une popup informative statique, sans publicité ni animation de
+  récupération, avec rappel du prochain cadeau dans 24 heures.
+
 - [x] `BUG-SOLO-BOUDE-FREEZE` Resolution d'une partie bloquee rendue observable
   et recuperable : le dispatch renvoie desormais un resultat explicite (applique,
   ignore ou echoue), le solo enchaine trois tentatives (3s, 1s puis 3s) avant

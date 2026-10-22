@@ -2,6 +2,11 @@
 
 ### 2026-10-22
 
+> je veux modifier le comportement du cadeau du jour,
+> au lieu d'afficher le popup avec un bouton Récupérer et une animation, je veux
+> le remplacer par un popup informatif qui dit Vous avez reçu 200 coins cadeau
+> du jour et en bas Prochain cadeau dans 24 heures
+
 > En mode solo, quelques utilisateurs déclarent que des fois, quand une partie
 > est bloquée et que le popup Partie bloquée apparait, le jeu reste figé et on
 > ne peut plus avancer, et meme le fait de fermer le jeu et y retourner ne

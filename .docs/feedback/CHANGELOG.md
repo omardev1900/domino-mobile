@@ -2,6 +2,10 @@
 
 ### 2026-10-22
 
+- Le cadeau du jour est désormais ajouté automatiquement au solde. Une popup
+  courte confirme les 200 coins reçus et indique que le prochain cadeau sera
+  disponible dans 24 heures.
+
 - Si une partie se bloque en solo, l'application retente désormais la
   résolution du tour automatiquement. En cas d'échec persistant, un écran de
   secours propose de réessayer ou de revenir à l'accueil : la partie reste
