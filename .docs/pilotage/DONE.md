@@ -1,5 +1,21 @@
 # Taches terminees
 
+### 2026-10-21
+
+- [x] `UI-CREATORS-WARDROBE-02` Onglets Boutique ordonnes Premium, Creators,
+  Avatars puis autres categories ; corbeille retiree des creations dans le
+  vestiaire et suppression definitive ajoutee au Skin Creator pour liberer un
+  emplacement.
+
+- [x] `UI-CREATORS-WARDROBE-01` Ateliers renommes Skin Creator et Avatar
+  Creator ; les creations sont listees comme skins individuels sans exposer la
+  carte Creator en partie, et les cosmetiques non systeme peuvent etre
+  supprimes du vestiaire avec confirmation et fallback automatique.
+
+- [x] `UI-PREMIUM-WORKSHOP-01` Atelier Premium refait pour le mode paysage :
+  actions et palette tactile directe à gauche, aperçu de partie permanent à
+  droite, couleurs libres par HSV/hexadécimal et enregistrement fixe.
+
 ### 2026-10-20
 
 - [x] `PREMIUM-STORE-02` Deux variantes Premium à palettes colorées par valeur

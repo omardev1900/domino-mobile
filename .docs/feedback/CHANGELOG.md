@@ -1,5 +1,23 @@
 # Changelog
 
+### 2026-10-21
+
+- La boutique commence désormais par Premium, puis Creators et Avatars. Les
+  skins personnalisés se suppriment uniquement depuis le Skin Creator, où une
+  corbeille libère immédiatement un des cinq emplacements.
+
+- Les ateliers deviennent Skin Creator et Avatar Creator. Chaque skin cree est
+  disponible individuellement dans le vestiaire et dans les reglages de partie,
+  sans afficher la carte du Creator comme skin equipable.
+
+- Une corbeille permet de supprimer du vestiaire les cosmetiques non systeme,
+  apres confirmation et sans remboursement. Si l'objet etait equipe, le style
+  ou l'avatar par defaut est restaure automatiquement.
+
+- L'Atelier Premium adopte une interface paysage en deux parties : les réglages
+  et la palette de couleurs tactile restent à gauche pendant que le rendu du
+  plateau et des dominos reste visible en permanence à droite.
+
 ### 2026-10-20
 
 - Deux skins Premium à palette par valeur rejoignent la boutique : Terre Ambrée

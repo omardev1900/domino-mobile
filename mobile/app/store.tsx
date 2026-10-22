@@ -9,8 +9,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { EconomyHeader } from '../src/components/EconomyHeader';
 import { PurchaseSuccessModal } from '../src/components/PurchaseSuccessModal';
-import { StoreItemPreview } from '../src/components/store/StoreItemPreview';
 import { BundledImage } from '../src/components/common/BundledImage';
+import { StoreItemPreview } from '../src/components/store/StoreItemPreview';
 import { SkinPreviewModal } from '../src/components/store/SkinPreviewModal';
 import { economyService } from '../src/core/services/economy.service';
 import { getAccessibleInventory, storeService } from '../src/core/services/store.service';
@@ -76,8 +76,8 @@ export default function StoreScreen() {
         const tabs: { id: TabType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [];
 
         // Les créations Premium sont regroupées à part des objets à équiper.
-        if (hasPremium && catalog.some(item => item.id === SKIN_WORKSHOP_ID)) tabs.push({ id: 'WORKSHOP', label: 'Atelier', icon: 'color-wand' });
         if (hasPremium && catalog.some(item => item.isPremium && item.id !== SKIN_WORKSHOP_ID)) tabs.push({ id: 'PREMIUM', label: 'Premium', icon: 'star' });
+        if (hasPremium && catalog.some(item => item.id === SKIN_WORKSHOP_ID)) tabs.push({ id: 'WORKSHOP', label: 'Creators', icon: 'color-wand' });
         if (types.includes('AVATAR')) tabs.push({ id: 'AVATAR', label: 'Avatars', icon: 'person' });
         if (types.includes('SKIN')) tabs.push({ id: 'SKIN', label: 'Skins', icon: 'color-palette' });
         if (types.includes('CURRENCY_PACK')) tabs.push({ id: 'CURRENCY_PACK', label: 'Devises', icon: 'diamond' });
@@ -408,7 +408,7 @@ export default function StoreScreen() {
         <Animated.View entering={FadeIn} style={[styles.card, isLandscape && styles.cardLandscape, isLandscape && { width: width * 0.24 }]}>
             <View style={{ flex: 1 }}>
                 <View style={styles.cardHeader}>
-                    <Text style={styles.cardTitle} numberOfLines={1}>Atelier des avatars</Text>
+                    <Text style={styles.cardTitle} numberOfLines={1}>Avatar Creator</Text>
                     <Text style={styles.cardRarity}>BIENTÔT</Text>
                 </View>
 

@@ -1,5 +1,28 @@
 # Retours client
 
+### 2026-10-21
+
+> Réorganiser les onglets de la boutique avec Premium en premier, puis
+> Creators, Avatars et le reste. La corbeille ne doit pas apparaître sur les
+> skins créés par le Skin Creator ; leur suppression complète doit se faire
+> depuis le Skin Creator pour récupérer une place disponible.
+
+> Renommer Atelier des skins et Atelier des avatars en Skin Creator et Avatar
+> Creator. Ajouter une corbeille dans chaque objet du vestiaire pour permettre
+> au joueur de supprimer les objets qu'il ne veut plus. Valider aussi le
+> comportement idéal : les créations personnalisées apparaissent séparément
+> dans Réglages > Skins et la carte du Creator n'est pas équipable.
+
+> Je veux améliorer le UI UX de l'atelier Premium : il n'est pas très intuitif
+> et la prévisualisation prend tout l'écran et le user doit descendre et
+> redescendre à chaque fois pour voir le rendu de son changement. En plus les
+> couleurs sont limitées ; si possible mettre la palette de couleur réglable par
+> le doigt.
+>
+> Attention, le jeu est en mode paysage et donc on doit diviser l'écran en deux
+> blocs côte à côte : gauche pour les actions users et droite pour la
+> prévisualisation. La palette directe est la meilleure.
+
 ### 2026-10-11
 
 > `UI-ROUND-END-01` est valider meme si jaurai souhiater ameliorer encore

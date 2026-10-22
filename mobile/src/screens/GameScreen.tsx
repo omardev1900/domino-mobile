@@ -1351,9 +1351,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     ]);
                     const accessibleInventory = getAccessibleInventory(inventory, catalog, premiumActive);
                     const skinItems = [
-                        ...catalog.filter(item => item.type === 'SKIN' && accessibleInventory.ownedItems.includes(item.id)),
+                        ...catalog.filter(item => item.type === 'SKIN' && item.id !== 'skin_premium_atelier' && accessibleInventory.ownedItems.includes(item.id)),
                         ...(premiumActive ? (accessibleInventory.customPremiumSkins ?? []).map(design => ({
-                            id: design.id, name: design.name, description: 'Création Atelier Premium', type: 'SKIN' as const,
+                            id: design.id, name: design.name, description: 'Création du Skin Creator', type: 'SKIN' as const,
                             rarity: 'LEGENDARY' as const, assetId: 'premium_workshop', isPremium: true, skinConfig: design.skinConfig,
                         })) : []),
                     ];

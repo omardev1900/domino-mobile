@@ -4,9 +4,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StoreItem, PlayerInventory, StoreItemType, StoreItemRarity } from '../store.types';
 import { economyService } from './economy.service';
 import { authService } from './auth.service';
-import { DEFAULT_INVENTORY, STORE_CATALOG } from '../store.constants';
+import { DEFAULT_INVENTORY, DEFAULT_OWNED_ITEMS, STORE_CATALOG } from '../store.constants';
 import { premiumService } from './premium.service';
 import { hasAvatarImage } from '../avatars';
+import { removeInventoryEntry } from '../inventoryDeletion';
 
 const STORE_COLLECTION = 'store_catalog';
 const STORAGE_KEY_GUEST_INVENTORY = '@guest_inventory';
@@ -193,16 +194,38 @@ export class StoreService {
         return { success: true };
     }
 
+    async removeOwnedItem(itemId: string, userId?: string): Promise<{ success: boolean; message?: string }> {
+        if (DEFAULT_OWNED_ITEMS.includes(itemId)) {
+            return { success: false, message: 'Les objets de base ne peuvent pas être supprimés.' };
+        }
+
+        const inventory = await this.getInventory(userId);
+        const isCustomSkin = (inventory.customPremiumSkins ?? []).some(design => design.id === itemId);
+        if (!inventory.ownedItems.includes(itemId) && !isCustomSkin) {
+            return { success: false, message: 'Cet objet ne se trouve pas dans ton vestiaire.' };
+        }
+
+        const removedEquippedAvatar = inventory.equipped.avatar === itemId;
+        const nextInventory = removeInventoryEntry(inventory, itemId);
+        await this.saveInventory(nextInventory, userId);
+
+        if (removedEquippedAvatar) {
+            await authService.updateProfile({ photoURL: 'avatar_default' });
+        }
+
+        return { success: true };
+    }
+
     async savePremiumCustomSkin(
         design: { id?: string; name: string; skinConfig: StoreItem['skinConfig']; buttonColor: string },
         userId?: string,
     ): Promise<{ success: boolean; id?: string; message?: string }> {
         if (!design.skinConfig || !(await premiumService.hasActiveAccess(userId))) {
-            return { success: false, message: 'L’Atelier est réservé aux membres Premium actifs.' };
+            return { success: false, message: 'Le Skin Creator est réservé aux membres Premium actifs.' };
         }
         const inventory = await this.getInventory(userId);
         if (!inventory.ownedItems.includes('skin_premium_atelier')) {
-            return { success: false, message: 'Achète d’abord l’Atelier Premium.' };
+            return { success: false, message: 'Achète d’abord le Skin Creator.' };
         }
         const designs = inventory.customPremiumSkins ?? [];
         const id = design.id ?? `custom_premium_${Date.now()}`;

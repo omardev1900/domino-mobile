@@ -1,18 +1,19 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, useWindowDimensions, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 
-import { StoreItemPreview } from '../src/components/store/StoreItemPreview';
 import { getAccessibleInventory, storeService } from '../src/core/services/store.service';
 import { premiumService } from '../src/core/services/premium.service';
 import { StoreItem, StoreItemType, PlayerInventory } from '../src/core/store.types';
+import { DEFAULT_OWNED_ITEMS } from '../src/core/store.constants';
+import { CollectionItemCard } from '../src/features/collection/CollectionItemCard';
 
 type TabType = 'ALL' | StoreItemType;
+const SKIN_CREATOR_ID = 'skin_premium_atelier';
 
 export default function CollectionScreen() {
     const { width, height } = useWindowDimensions();
@@ -24,6 +25,7 @@ export default function CollectionScreen() {
     const [ownedItems, setOwnedItems] = useState<StoreItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [processingEquip, setProcessingEquip] = useState<string | null>(null);
+    const [processingDelete, setProcessingDelete] = useState<string | null>(null);
 
     const loadData = async () => {
         try {
@@ -33,10 +35,23 @@ export default function CollectionScreen() {
                 premiumService.hasActiveAccess(),
             ]);
             const accessibleInventory = getAccessibleInventory(inv, cat, hasPremium);
+            const customSkins: StoreItem[] = hasPremium
+                ? (accessibleInventory.customPremiumSkins ?? []).map(design => ({
+                    id: design.id,
+                    name: design.name,
+                    description: 'Création du Skin Creator',
+                    type: 'SKIN',
+                    rarity: 'LEGENDARY',
+                    assetId: 'premium_workshop',
+                    isPremium: true,
+                    skinConfig: design.skinConfig,
+                }))
+                : [];
             setInventory(accessibleInventory);
-            setOwnedItems(
-                cat.filter(item => item.type !== 'CURRENCY_PACK' && accessibleInventory.ownedItems.includes(item.id))
-            );
+            setOwnedItems([
+                ...cat.filter(item => item.id !== SKIN_CREATOR_ID && item.type !== 'CURRENCY_PACK' && accessibleInventory.ownedItems.includes(item.id)),
+                ...customSkins,
+            ]);
         } catch (error) {
             console.error('Failed to load collection data', error);
         } finally {
@@ -67,7 +82,9 @@ export default function CollectionScreen() {
 
     const handleEquip = async (itemId: string) => {
         setProcessingEquip(itemId);
-        const result = await storeService.equipItem(itemId);
+        const result = itemId.startsWith('custom_premium_')
+            ? await storeService.equipPremiumCustomSkin(itemId)
+            : await storeService.equipItem(itemId);
 
         if (result.success) {
             await loadData();
@@ -80,75 +97,34 @@ export default function CollectionScreen() {
         setProcessingEquip(null);
     };
 
+    const removeItem = async (item: StoreItem) => {
+        setProcessingDelete(item.id);
+        const result = await storeService.removeOwnedItem(item.id);
+        if (result.success) {
+            await loadData();
+        } else if (Platform.OS === 'web') {
+            window.alert(result.message || 'Impossible de supprimer cet objet.');
+        } else {
+            Alert.alert('Erreur', result.message || 'Impossible de supprimer cet objet.');
+        }
+        setProcessingDelete(null);
+    };
+
+    const confirmDelete = (item: StoreItem) => {
+        const message = `Supprimer « ${item.name} » du vestiaire ? Cette action ne rembourse pas son prix.`;
+        if (Platform.OS === 'web') {
+            if (window.confirm(message)) void removeItem(item);
+            return;
+        }
+        Alert.alert('Supprimer cet objet ?', message, [
+            { text: 'Annuler', style: 'cancel' },
+            { text: 'Supprimer', style: 'destructive', onPress: () => { void removeItem(item); } },
+        ]);
+    };
+
     const filteredItems = activeTab === 'ALL'
         ? ownedItems
         : ownedItems.filter(item => item.type === activeTab);
-
-    const CollectionItem = ({
-        item,
-        isEquipped,
-        onEquip,
-        isProcessing,
-    }: {
-        item: StoreItem;
-        isEquipped: boolean;
-        onEquip: (id: string) => void;
-        isProcessing: boolean;
-    }) => {
-        const { width: currentWidth, height: currentHeight } = useWindowDimensions();
-        const cardLandscape = currentWidth > currentHeight;
-        const [isExpanded, setIsExpanded] = useState(false);
-
-        return (
-            <Animated.View
-                entering={FadeIn}
-                key={item.id}
-                style={[
-                    styles.card,
-                    cardLandscape && styles.cardLandscape,
-                    isEquipped && styles.cardEquipped,
-                    cardLandscape && { width: currentWidth * 0.24 },
-                ]}
-            >
-                <View style={{ flex: 1 }}>
-                    <View style={styles.cardHeader}>
-                        <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
-                        <Text style={styles.cardRarity}>{item.rarity}</Text>
-                    </View>
-
-                    <View style={styles.cardImagePlaceholder}>
-                        <StoreItemPreview item={item} height={100} />
-                    </View>
-
-                    <View style={styles.descriptionRow}>
-                        <Text style={styles.cardDescription} numberOfLines={isExpanded ? undefined : 2}>
-                            {item.description}
-                        </Text>
-                        {item.description && item.description.length > 40 ? (
-                            <TouchableOpacity onPress={() => setIsExpanded(!isExpanded)} style={styles.collapseBtn}>
-                                <Text style={styles.collapseBtnText}>{isExpanded ? '<<' : '>>'}</Text>
-                            </TouchableOpacity>
-                        ) : null}
-                    </View>
-                </View>
-
-                <View style={styles.cardFooter}>
-                    {isProcessing ? (
-                        <ActivityIndicator color="#FFD700" size="small" />
-                    ) : isEquipped ? (
-                        <View style={styles.equippedBadge}>
-                            <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
-                            <Text style={styles.equippedText}>Utilisé</Text>
-                        </View>
-                    ) : (
-                        <TouchableOpacity style={styles.equipButton} onPress={() => onEquip(item.id)}>
-                            <Text style={styles.equipButtonText}>UTILISER</Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-            </Animated.View>
-        );
-    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -210,12 +186,14 @@ export default function CollectionScreen() {
                             : false;
 
                         return (
-                            <CollectionItem
+                            <CollectionItemCard
+                                canDelete={!DEFAULT_OWNED_ITEMS.includes(item.id) && !item.id.startsWith('custom_premium_')}
                                 key={item.id}
                                 item={item}
                                 isEquipped={!!isEquipped}
                                 onEquip={handleEquip}
-                                isProcessing={processingEquip === item.id}
+                                onDelete={confirmDelete}
+                                isProcessing={processingEquip === item.id || processingDelete === item.id}
                             />
                         );
                     })}
@@ -309,99 +287,5 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'nowrap',
         alignItems: 'center',
-    },
-    card: {
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderRadius: 16,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        overflow: 'hidden',
-    },
-    cardEquipped: {
-        borderColor: '#4CAF50',
-        backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    },
-    cardLandscape: {
-        height: 250,
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    cardTitle: {
-        color: '#FFF',
-        fontSize: 14,
-        fontWeight: 'bold',
-        flex: 1,
-    },
-    cardRarity: {
-        color: '#A020F0',
-        fontSize: 9,
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
-    },
-    cardImagePlaceholder: {
-        height: 100,
-        marginBottom: 8,
-    },
-    cardDescription: {
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 14,
-        marginBottom: 16,
-        lineHeight: 20,
-        flex: 1,
-    },
-    cardFooter: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.1)',
-        paddingTop: 12,
-        minHeight: 48,
-    },
-    equipButton: {
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        paddingHorizontal: 20,
-        paddingVertical: 8,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: '#FFD700',
-    },
-    equipButtonText: {
-        color: '#FFD700',
-        fontWeight: 'bold',
-        fontSize: 14,
-    },
-    equippedBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(76, 175, 80, 0.2)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-        gap: 6,
-    },
-    equippedText: {
-        color: '#4CAF50',
-        fontWeight: 'bold',
-        fontSize: 14,
-    },
-    descriptionRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        justifyContent: 'space-between',
-        gap: 4,
-    },
-    collapseBtn: {
-        paddingHorizontal: 4,
-    },
-    collapseBtnText: {
-        color: '#FFD700',
-        fontSize: 12,
-        fontWeight: 'bold',
     },
 });
