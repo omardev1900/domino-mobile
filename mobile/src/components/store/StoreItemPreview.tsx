@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, StyleSheet, Text, Image as NativeImage } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 
 import { getAvatarImage, hasAvatarImage } from '../../core/avatars';
 import { StoreItem, SkinConfig } from '../../core/store.types';
+import { BundledImage } from '../common/BundledImage';
 import { DominoTile } from '../DominoTile';
 
 type StoreItemPreviewProps = {
@@ -41,7 +42,7 @@ export function StoreItemPreview({ item, height = 100 }: StoreItemPreviewProps) 
     if (item.id === SKIN_WORKSHOP_ID) {
         return (
             <View style={[styles.frame, { height }]}>
-                <NativeImage source={SKIN_WORKSHOP_IMAGE} style={styles.avatarImage} resizeMode="cover" />
+                <BundledImage source={SKIN_WORKSHOP_IMAGE} style={styles.imageFill} />
             </View>
         );
     }
@@ -54,11 +55,7 @@ export function StoreItemPreview({ item, height = 100 }: StoreItemPreviewProps) 
         return (
             <View style={[styles.frame, { height }]}>
                 {canRenderAvatar ? (
-                    typeof avatarSource === 'number' ? (
-                        <NativeImage source={avatarSource} style={styles.avatarImage} resizeMode="cover" />
-                    ) : (
-                        <ExpoImage source={avatarSource} style={styles.avatarImage} contentFit="cover" cachePolicy="memory-disk" />
-                    )
+                    <BundledImage source={avatarSource} style={styles.imageFill} />
                 ) : (
                     <View style={styles.avatarFallback}>
                         <Ionicons name="person" size={30} color="rgba(255,255,255,0.72)" />
@@ -132,6 +129,11 @@ const styles = StyleSheet.create({
     avatarImage: {
         width: '100%',
         height: '100%',
+    },
+    // Remplissage absolu : évite les tailles en pourcentage sur les images
+    // embarquées, qui peuvent rester à 0 px selon la mesure Yoga.
+    imageFill: {
+        ...StyleSheet.absoluteFillObject,
     },
     avatarFallback: {
         flex: 1,

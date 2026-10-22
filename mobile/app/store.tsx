@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, useWindowDimensions, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +10,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { EconomyHeader } from '../src/components/EconomyHeader';
 import { PurchaseSuccessModal } from '../src/components/PurchaseSuccessModal';
 import { StoreItemPreview } from '../src/components/store/StoreItemPreview';
+import { BundledImage } from '../src/components/common/BundledImage';
 import { SkinPreviewModal } from '../src/components/store/SkinPreviewModal';
 import { economyService } from '../src/core/services/economy.service';
 import { getAccessibleInventory, storeService } from '../src/core/services/store.service';
@@ -412,7 +413,7 @@ export default function StoreScreen() {
                 </View>
 
                 <View style={[styles.cardImagePlaceholder, styles.comingSoonPreview]}>
-                    <Image source={AVATAR_WORKSHOP_IMAGE} style={styles.workshopImage} resizeMode="cover" />
+                    <BundledImage source={AVATAR_WORKSHOP_IMAGE} style={styles.workshopImage} />
                 </View>
 
                 <View style={styles.descriptionRow}>
@@ -636,8 +637,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255, 215, 0, 0.22)',
     },
     workshopImage: {
-        width: '100%',
-        height: '100%',
+        ...StyleSheet.absoluteFillObject,
         borderRadius: 11,
     },
     previewBadge: {
