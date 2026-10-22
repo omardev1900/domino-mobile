@@ -1,5 +1,12 @@
 # Changelog
 
+### 2026-10-22
+
+- Si une partie se bloque en solo, l'application retente désormais la
+  résolution du tour automatiquement. En cas d'échec persistant, un écran de
+  secours propose de réessayer ou de revenir à l'accueil : la partie reste
+  sauvegardée et peut être reprise plus tard.
+
 ### 2026-10-21
 
 - La boutique commence désormais par Premium, puis Creators et Avatars. Les

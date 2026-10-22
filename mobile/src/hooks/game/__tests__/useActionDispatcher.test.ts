@@ -280,12 +280,52 @@ describe('useActionDispatcher - RESOLVE_BOUDE Tie-Break', () => {
       setOvertime: () => {},
     }));
 
+    let dispatchResult: Awaited<ReturnType<typeof result.current.dispatch>> | undefined;
     await act(async () => {
-      await result.current.dispatch({ type: 'NEXT_ROUND' });
+      dispatchResult = await result.current.dispatch({ type: 'NEXT_ROUND' });
     });
 
     expect(updatedState).not.toBeNull();
     expect(updatedState!.phase).toBe('PLAYING');
+    expect(dispatchResult).toEqual(expect.objectContaining({ status: 'applied' }));
+  });
+
+  it('retourne failed et ne publie aucun etat local si la synchronisation legacy echoue', async () => {
+    const gameState = {
+      gameId: 'legacy-sync-failure',
+      phase: 'PLAYING',
+      players: [{ id: 'p1', name: 'P1', hand: [], status: 'HUMAN' }],
+      currentPlayerId: 'p1',
+      turnId: 4,
+      stateVersion: 2,
+      history: [],
+    } as unknown as GameState;
+    const syncError = new Error('firestore unavailable');
+    const setGameState = jest.fn();
+
+    const { result } = renderHook(() => useActionDispatcher({
+      gameState,
+      localPlayerId: 'p1',
+      isSoloMode: false,
+      gameId: 'legacy-sync-failure',
+      hasLegacyHostAuthority: true,
+      roomData: null,
+      acquireLock: () => true,
+      releaseLock: jest.fn(),
+      canAction: () => true,
+      safeUpdateGameState: jest.fn().mockRejectedValue(syncError),
+      setGameState,
+      clearAllTurnTimers: jest.fn(),
+      setOvertime: jest.fn(),
+    }));
+
+    let dispatchResult: Awaited<ReturnType<typeof result.current.dispatch>> | undefined;
+    await act(async () => {
+      dispatchResult = await result.current.dispatch({ type: 'MARK_BOUDE', playerId: 'p1', turnId: 4 });
+    });
+
+    expect(dispatchResult).toEqual({ status: 'failed', error: syncError });
+    expect(setGameState).not.toHaveBeenCalled();
   });
 
   it('should pick the starter with the highest double ONLY among tied players', async () => {

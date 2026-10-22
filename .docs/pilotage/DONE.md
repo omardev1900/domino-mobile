@@ -1,5 +1,13 @@
 # Taches terminees
 
+### 2026-10-22
+
+- [x] `BUG-SOLO-BOUDE-FREEZE` Resolution d'une partie bloquee rendue observable
+  et recuperable : le dispatch renvoie desormais un resultat explicite (applique,
+  ignore ou echoue), le solo enchaine trois tentatives (3s, 1s puis 3s) avant
+  d'afficher un panneau Reessayer / Quitter, et la sortie conserve la sauvegarde
+  locale au lieu de supprimer la partie.
+
 ### 2026-10-21
 
 - [x] `UI-CREATORS-WARDROBE-02` Onglets Boutique ordonnes Premium, Creators,

@@ -25,6 +25,7 @@ import { LobbyScreen } from './LobbyScreen';
 import { UnifiedResultOverlay } from '../components/UnifiedResultOverlay';
 import { QuickChat } from '../components/QuickChat';
 import { RoundEndFlow } from '../components/game/RoundEndFlow';
+import { BoudeRecoveryPanel } from '../components/game/BoudeRecoveryPanel';
 import { MancheEndFlow } from '../components/game/MancheEndFlow';
 import { RewardOverlay } from '../components/RewardOverlay';
 import { MatchRewardModal } from '../components/MatchRewardModal';
@@ -94,6 +95,13 @@ const RESULT_TRANSITION_FALLBACK_MS = 3000;
 const COORDINATED_ROUND_RESULT_DISPLAY_MS = 6000;
 const MATCH_REWARD_DELAY_MS = 6000;
 const MATCH_EXIT_AD_FALLBACK_MS = 15000;
+const BOUDE_RECOVERY_RETRY_DELAYS_MS = [1000, 3000] as const;
+
+type BoudeRecoveryStatus = 'idle' | 'resolving' | 'exhausted' | 'resolved';
+type BoudeRecoveryEntry = {
+    status: BoudeRecoveryStatus;
+    automaticAttempts: number;
+};
 
 export default function GameScreen({ gameId, userId, authUid, mode, difficulty, gameMode, winningCondition, turnDuration, startingHandSize: propStartingHandSize, tableTier: propTableTier, soloBuyInDebited = false, training }: GameScreenProps) {
     const { width, height } = useWindowDimensions();
@@ -445,6 +453,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [isPaused, setIsPaused] = useState(false);
     const [showOptions, setShowOptions] = useState(false);
     const [showTrainingOnboarding, setShowTrainingOnboarding] = useState(isTrainingMode);
+    const [boudeRecoveryKey, setBoudeRecoveryKey] = useState<string | null>(null);
+    const [isBoudeRecoveryResolving, setIsBoudeRecoveryResolving] = useState(false);
 
     // Référence mutable pour stocker la fonction handleTimeout issue du moteur
     const handleTimeoutRef = useRef<((pId: string, turnId?: number) => void) | null>(null);
@@ -473,6 +483,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         animationId: string;
         startPoint: { x: number, y: number };
     } | null>(null);
+    const boudeRecoveryRef = useRef<Map<string, BoudeRecoveryEntry>>(new Map());
+    const boudeSessionEpochRef = useRef(0);
     const [localHandAnimationSnapshot, setLocalHandAnimationSnapshot] = useState<Domino[] | null>(null);
     const [hiddenHandDominoId, setHiddenHandDominoId] = useState<string | null>(null);
     const [preserveLocalHandHighlights, setPreserveLocalHandHighlights] = useState(false);
@@ -698,6 +710,14 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
     const handleReplay = async () => {
         if (isSoloMode) {
+            boudeSessionEpochRef.current += 1;
+            boudeRecoveryRef.current.clear();
+            if (boudeTimerRef.current) {
+                clearTimeout(boudeTimerRef.current);
+                boudeTimerRef.current = null;
+            }
+            setBoudeRecoveryKey(null);
+            setIsBoudeRecoveryResolving(false);
             if (gameId) {
                 await AsyncStorage.removeItem(`@solo_game_state:${gameId}`);
             }
@@ -794,6 +814,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const chatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastChatTimeRef = useRef<number>(0);
     const gameStateRef = useRef<GameState | null>(null);
+    const dispatchRef = useRef(dispatch);
 
     // Google AdMob
     const { isLoaded: isAdMobLoaded, isClosed: isAdMobClosed, load: loadAdMob, show: showAdMob } = useInterstitialAd(AdMobIds.INTERSTITIAL_FIN_PARTIE);
@@ -844,6 +865,10 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     useEffect(() => {
         gameStateRef.current = gameState;
     }, [gameState]);
+
+    useEffect(() => {
+        dispatchRef.current = dispatch;
+    }, [dispatch]);
 
     // FIX-TDZ: handleLeaveRoom déclarée ici (après gameStateRef, sa dernière dépendance)
     // pour éviter le ReferenceError "Cannot access before initialization" causé par les
@@ -930,6 +955,20 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         soloBuyInDebited,
         usesSystemCoordinator,
     ]);
+
+    const handleExitPreservingSoloGame = useCallback(() => {
+        boudeSessionEpochRef.current += 1;
+        boudeRecoveryRef.current.clear();
+        if (boudeTimerRef.current) {
+            clearTimeout(boudeTimerRef.current);
+            boudeTimerRef.current = null;
+        }
+        isIntentionalLeave.current = true;
+        setBoudeRecoveryKey(null);
+        setIsBoudeRecoveryResolving(false);
+        SoundManager.stopMusic();
+        requestAnimationFrame(() => router.replace('/home'));
+    }, [router]);
 
     // --- CHAT LOGIC ---
     const triggerLocalChat = useCallback(async (content: string) => {
@@ -1033,8 +1072,18 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // Tracks whether current PARTIE_END came from a BOUDE (to skip re-showing the card)
     const boudeHandledRef = useRef(false);
     const activeBoudeResultKeyRef = useRef<string | null>(null);
+    // Multi legacy uniquement : une seule tentative de résolution par BOUDE.
+    // Le solo utilise boudeRecoveryRef (retries bornés + panneau de secours).
     const resolvedBoudeResultKeysRef = useRef<Set<string>>(new Set());
     const boudeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const attemptBoudeResolutionRef = useRef<((resultKey: string, source: 'automatic' | 'manual') => Promise<void>) | null>(null);
+
+    useEffect(() => () => {
+        boudeSessionEpochRef.current += 1;
+        if (boudeTimerRef.current) clearTimeout(boudeTimerRef.current);
+        boudeRecoveryRef.current.clear();
+        resolvedBoudeResultKeysRef.current.clear();
+    }, []);
 
     // -- 6. Derived State & Layout --
     const localPlayer = gameState?.players.find(p => p.id === localPlayerId);
@@ -1420,19 +1469,96 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             : handleOverlayContinue;
     }, [handleOverlayContinue, usesSystemCoordinator]);
 
-    const resolveBoudeOnce = useCallback((resultKey: string) => {
-        if (resolvedBoudeResultKeysRef.current.has(resultKey)) return;
-        resolvedBoudeResultKeysRef.current.add(resultKey);
-        setShowRoundResult(false);
-        partieEndContinueRef.current();
+    const attemptBoudeResolution = useCallback(async (resultKey: string, source: 'automatic' | 'manual') => {
+        const entry = boudeRecoveryRef.current.get(resultKey);
+        if (!entry || entry.status === 'resolved' || entry.status === 'resolving') return;
+        if (source === 'automatic' && entry.status === 'exhausted') return;
+
+        const capturedEpoch = boudeSessionEpochRef.current;
+        entry.status = 'resolving';
+        if (source === 'automatic') entry.automaticAttempts += 1;
+        if (source === 'manual') setIsBoudeRecoveryResolving(true);
+
+        try {
+            const result = await dispatchRef.current({ type: 'RESOLVE_BOUDE' });
+            if (capturedEpoch !== boudeSessionEpochRef.current) return;
+
+            const phaseAfterDispatch = result.status === 'applied'
+                ? result.state.phase
+                : gameStateRef.current?.phase;
+            const didAdvance = phaseAfterDispatch !== undefined && phaseAfterDispatch !== 'BOUDE';
+            const alreadyAdvanced = result.status === 'ignored' && result.reason === 'phase-already-advanced';
+
+            if (didAdvance || alreadyAdvanced) {
+                entry.status = 'resolved';
+                activeBoudeResultKeyRef.current = null;
+                setBoudeRecoveryKey(null);
+                setShowRoundResult(false);
+                return;
+            }
+
+            LogService.error('GameScreen', '[SOLO-BOUDE] Resolution attempt failed.', {
+                resultKey,
+                source,
+                attempt: entry.automaticAttempts,
+                dispatchStatus: result.status,
+                reason: result.status === 'ignored' ? result.reason : undefined,
+                error: result.status === 'failed' ? result.error : undefined,
+                phase: gameStateRef.current?.phase,
+                gameId: gameStateRef.current?.gameId,
+                mancheNumber: gameStateRef.current?.mancheNumber,
+                roundNumber: gameStateRef.current?.roundNumber,
+                turnId: gameStateRef.current?.turnId,
+                players: gameStateRef.current?.players.map(player => ({
+                    id: player.id,
+                    handSize: player.hand?.length ?? 0,
+                    handPoints: player.hand?.reduce((sum, domino) => sum + domino.left + domino.right, 0) ?? 0,
+                })),
+            });
+
+            if (source === 'automatic' && entry.automaticAttempts < 3) {
+                entry.status = 'idle';
+                const delay = BOUDE_RECOVERY_RETRY_DELAYS_MS[entry.automaticAttempts - 1];
+                boudeTimerRef.current = setTimeout(() => {
+                    boudeTimerRef.current = null;
+                    void attemptBoudeResolutionRef.current?.(resultKey, 'automatic');
+                }, delay);
+                return;
+            }
+
+            entry.status = 'exhausted';
+            activeBoudeResultKeyRef.current = null;
+            setShowRoundResult(false);
+            setBoudeRecoveryKey(resultKey);
+        } catch (error) {
+            if (capturedEpoch !== boudeSessionEpochRef.current) return;
+            LogService.error('GameScreen', '[SOLO-BOUDE] Unexpected recovery error.', error);
+            entry.status = 'exhausted';
+            activeBoudeResultKeyRef.current = null;
+            setShowRoundResult(false);
+            setBoudeRecoveryKey(resultKey);
+        } finally {
+            // Aucun `return` ici : un return dans un finally masquerait les erreurs.
+            // Toutes les sorties ci-dessus fixent déjà le statut de l'entrée.
+            if (capturedEpoch === boudeSessionEpochRef.current && source === 'manual') {
+                setIsBoudeRecoveryResolving(false);
+            }
+        }
     }, []);
 
-    const isCurrentBoudeResultVisible = gameState?.phase === 'BOUDE'
-        && activeBoudeResultKeyRef.current === `${gameState.gameId}:${gameState.mancheNumber}:${gameState.roundNumber}:${gameState.turnId}`;
+    useEffect(() => {
+        attemptBoudeResolutionRef.current = attemptBoudeResolution;
+    }, [attemptBoudeResolution]);
+
+    const currentBoudeResultKey = gameState?.phase === 'BOUDE'
+        ? `${boudeSessionEpochRef.current}:${gameState.gameId}:${gameState.mancheNumber}:${gameState.roundNumber}:${gameState.turnId}`
+        : null;
+    const isCurrentBoudeResultVisible = currentBoudeResultKey !== null
+        && activeBoudeResultKeyRef.current === currentBoudeResultKey;
 
     useEffect(() => {
         if (!gameState) return;
-        const boudeResultKey = `${gameState.gameId}:${gameState.mancheNumber}:${gameState.roundNumber}:${gameState.turnId}`;
+        const boudeResultKey = `${boudeSessionEpochRef.current}:${gameState.gameId}:${gameState.mancheNumber}:${gameState.roundNumber}:${gameState.turnId}`;
 
         if (isMoveAnimationActive) return;
 
@@ -1461,6 +1587,21 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         }
 
         if (gameState.phase === 'BOUDE') {
+            const recoveryEntry = boudeRecoveryRef.current.get(boudeResultKey);
+            if (recoveryEntry?.status === 'exhausted') {
+                activeBoudeResultKeyRef.current = null;
+                setShowRoundResult(false);
+                setBoudeRecoveryKey(boudeResultKey);
+                return;
+            }
+            if (recoveryEntry?.status === 'resolved') return;
+
+            if (!recoveryEntry) {
+                boudeRecoveryRef.current.set(boudeResultKey, { status: 'idle', automaticAttempts: 0 });
+                setBoudeRecoveryKey(null);
+                setIsBoudeRecoveryResolving(false);
+            }
+
             if (activeBoudeResultKeyRef.current !== boudeResultKey) {
                 // Partie bloquée : card immédiate 3.5s, host résout BOUDE au bout
                 boudeHandledRef.current = true;
@@ -1470,28 +1611,40 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 setShowRoundResult(true);
             }
             if (usesSystemCoordinator) return;
-            if (hasLegacyHostAuthority && !boudeTimerRef.current) {
-                // L'hôte résout avant la limite UX de 3 secondes.
+            if (!isSoloMode) {
+                // Secours réservé aux anciennes salles sans coordinateur :
+                // si l'hôte est indisponible, un autre joueur résout au plus tard à 3s.
+                // Une seule tentative par BOUDE (comportement historique inchangé).
+                if (!boudeTimerRef.current && !resolvedBoudeResultKeysRef.current.has(boudeResultKey)) {
+                    boudeTimerRef.current = setTimeout(() => {
+                        boudeTimerRef.current = null;
+                        resolvedBoudeResultKeysRef.current.add(boudeResultKey);
+                        setShowRoundResult(false);
+                        partieEndContinueRef.current();
+                    }, RESULT_TRANSITION_FALLBACK_MS);
+                }
+                return;
+            }
+            const currentEntry = boudeRecoveryRef.current.get(boudeResultKey);
+            if (currentEntry?.automaticAttempts === 0 && currentEntry.status === 'idle' && !boudeTimerRef.current) {
+                // Solo : première tentative automatique. En cas d'échec, relances
+                // bornées (1s puis 3s) puis panneau de secours.
                 boudeTimerRef.current = setTimeout(() => {
-                    resolveBoudeOnce(boudeResultKey);
                     boudeTimerRef.current = null;
-                }, RESULT_TRANSITION_FALLBACK_MS);
-            } else if (!hasLegacyHostAuthority && !boudeTimerRef.current) {
-                // Secours reserve aux anciennes salles sans coordinateur :
-                // Si l'hôte est indisponible, un autre joueur résout au plus tard à 3s.
-                // Firestore n'enregistrera l'update qu'une seule fois grâce à l'idempotence de resolveBoude
-                boudeTimerRef.current = setTimeout(() => {
-                    resolveBoudeOnce(boudeResultKey);
-                    boudeTimerRef.current = null;
+                    void attemptBoudeResolutionRef.current?.(boudeResultKey, 'automatic');
                 }, RESULT_TRANSITION_FALLBACK_MS);
             }
-            // Attente de PARTIE_END via Firestore (timer du host ou secours)
+            // Attente de PARTIE_END (résolution automatique ou panneau de secours)
             return;
         } else {
             if (boudeTimerRef.current) {
                 clearTimeout(boudeTimerRef.current);
                 boudeTimerRef.current = null;
             }
+            boudeRecoveryRef.current.clear();
+            resolvedBoudeResultKeysRef.current.clear();
+            setBoudeRecoveryKey(null);
+            setIsBoudeRecoveryResolving(false);
         }
 
         // ── MANCHE_END ──────────────────────────────────────────────────────────
@@ -1604,7 +1757,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // Rejouer l'effet après le dernier domino : une transition Firestore peut
     // arriver pendant son animation. Sans cette dépendance, la fin de round
     // était ignorée de façon intermittente.
-    }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, hasLegacyHostAuthority, usesSystemCoordinator, resolveBoudeOnce, isMoveAnimationActive]);
+    }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, isSoloMode, usesSystemCoordinator, isMoveAnimationActive]);
 
     // Laisser les scores lisibles avant d'afficher le cadeau de fin de match.
     // Uniquement en mode SOLO — en multi la pub interstitielle AdMob est déjà gérée ailleurs.
@@ -1797,6 +1950,15 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             const eco = await economyService.getEconomy();
             const profile = await authService.refreshUserFromStorage().catch(() => null);
             const resolvedPlayerName = profile?.displayName?.trim() || playerDisplayName;
+
+            // Nouvelle partie dans le même écran : invalider toute résolution BOUDE
+            // encore en vol et toutes les clés du match précédent.
+            boudeSessionEpochRef.current += 1;
+            boudeRecoveryRef.current.clear();
+            if (boudeTimerRef.current) {
+                clearTimeout(boudeTimerRef.current);
+                boudeTimerRef.current = null;
+            }
 
             const fullState = dealGameSolo(
                 localPlayerId,
@@ -2430,6 +2592,17 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     isFinalMatch={(roundResultSnapshot ?? gameState)?.phase === 'MATCH_END'}
                 />
             )}
+
+            <BoudeRecoveryPanel
+                visible={isSoloMode && gameState?.phase === 'BOUDE' && boudeRecoveryKey === currentBoudeResultKey}
+                isRetrying={isBoudeRecoveryResolving}
+                onRetry={() => {
+                    if (boudeRecoveryKey) {
+                        void attemptBoudeResolutionRef.current?.(boudeRecoveryKey, 'manual');
+                    }
+                }}
+                onExit={handleExitPreservingSoloGame}
+            />
 
 
 

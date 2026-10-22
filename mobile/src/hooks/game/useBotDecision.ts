@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { GameState } from '../../core/types';
 import { computeBotDecision, computeEmergencyBotDecision } from '../../core/BotEngine';
-import { ActionCommand } from './useActionDispatcher';
+import { ActionCommand, ActionDispatch } from './useActionDispatcher';
 import { LogService } from '../../core/services/LogService';
 import { getMeytKayaliMove } from '../../core/MeytKayaliEngine';
 
@@ -12,7 +12,7 @@ export interface UseBotDecisionProps {
     isPaused: boolean;
     hasLegacyHostAuthority: boolean;
     canAction: (playerId: string, options?: { isAuto?: boolean; minAgeMs?: number }) => boolean;
-    dispatch: (command: ActionCommand) => Promise<void>;
+    dispatch: ActionDispatch;
 }
 
 export const useBotDecision = ({

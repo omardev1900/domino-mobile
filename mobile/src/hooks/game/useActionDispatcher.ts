@@ -21,6 +21,24 @@ export type ActionCommand =
     | { type: 'RESOLVE_BOUDE' }
     | { type: 'MARK_BOUDE'; playerId: PlayerId; turnId: number };
 
+export type DispatchIgnoreReason =
+    | 'no-state'
+    | 'phase-already-advanced'
+    | 'action-rejected'
+    | 'lock-held'
+    | 'coordinator-forbidden'
+    | 'not-authorized'
+    | 'stale-turn'
+    | 'no-state-change'
+    | 'coordinator-deferred';
+
+export type DispatchResult =
+    | { status: 'applied'; state: GameState }
+    | { status: 'ignored'; reason: DispatchIgnoreReason }
+    | { status: 'failed'; error: unknown };
+
+export type ActionDispatch = (command: ActionCommand) => Promise<DispatchResult>;
+
 export interface UseActionDispatcherProps {
     gameState: GameState | null;
     localPlayerId: string;
@@ -57,8 +75,8 @@ export const useActionDispatcher = ({
     onTilePlayed
 }: UseActionDispatcherProps) => {
 
-    const dispatch = useCallback(async (command: ActionCommand) => {
-        if (!gameState) return;
+    const dispatch = useCallback(async (command: ActionCommand): Promise<DispatchResult> => {
+        if (!gameState) return { status: 'ignored', reason: 'no-state' };
 
         LogService.info('ActionDispatcher', `[DISPATCH] ➔ ${command.type}`, 'playerId' in command ? command.playerId : '');
 
@@ -67,7 +85,7 @@ export const useActionDispatcher = ({
             const player = gameState.players.find(p => p.id === command.playerId);
             const isBotOrDisconnected = player?.status !== 'HUMAN';
             if (isBotOrDisconnected && !isSoloMode && !hasLegacyHostAuthority) {
-                return;
+                return { status: 'ignored', reason: 'not-authorized' };
             }
         }
 
@@ -89,16 +107,16 @@ export const useActionDispatcher = ({
                     isAuto,
                     minAgeMs,
                 });
-                return;
+                return { status: 'ignored', reason: 'action-rejected' };
             }
         }
 
         // MARK_BOUDE : vérifs minimales (tour du joueur, turnId, phase, non déjà marqué)
         if (command.type === 'MARK_BOUDE') {
-            if (gameState.phase !== 'PLAYING') return;
-            if (gameState.currentPlayerId !== command.playerId) return;
-            if (gameState.turnId !== command.turnId) return;
-            if (gameState.boudePlayerId === command.playerId) return;
+            if (gameState.phase !== 'PLAYING') return { status: 'ignored', reason: 'phase-already-advanced' };
+            if (gameState.currentPlayerId !== command.playerId) return { status: 'ignored', reason: 'action-rejected' };
+            if (gameState.turnId !== command.turnId) return { status: 'ignored', reason: 'stale-turn' };
+            if (gameState.boudePlayerId === command.playerId) return { status: 'ignored', reason: 'no-state-change' };
         }
 
         // Tente d'acquérir le verrou
@@ -115,7 +133,7 @@ export const useActionDispatcher = ({
                 turnId: gameState.turnId,
                 phase: gameState.phase,
             });
-            return;
+            return { status: 'ignored', reason: 'lock-held' };
         }
 
         try {
@@ -125,8 +143,8 @@ export const useActionDispatcher = ({
                     command.type !== 'PLAY_TILE'
                     && command.type !== 'PASS_TURN'
                     && command.type !== 'SURRENDER'
-                ) return;
-                if (command.playerId !== localPlayerId || !gameId) return;
+                ) return { status: 'ignored', reason: 'coordinator-forbidden' };
+                if (command.playerId !== localPlayerId || !gameId) return { status: 'ignored', reason: 'not-authorized' };
 
                 const action = command.type === 'PLAY_TILE'
                     ? {
@@ -151,7 +169,10 @@ export const useActionDispatcher = ({
                         onTilePlayed(command.tile);
                     }
                 }
-                return;
+                return {
+                    status: 'ignored',
+                    reason: result.applied ? 'coordinator-deferred' : 'action-rejected',
+                };
             }
 
             let newState: GameState | null = null;
@@ -192,7 +213,7 @@ export const useActionDispatcher = ({
                     break;
                 }
                 case 'NEXT_ROUND': {
-                    if (!hasLegacyHostAuthority) break;
+                    if (!hasLegacyHostAuthority) return { status: 'ignored', reason: 'not-authorized' };
                     const activeState = command.stateOverride || gameState;
                     newState = computeNextRoundState(activeState, startingHandSize);
 
@@ -203,8 +224,8 @@ export const useActionDispatcher = ({
                     break;
                 }
                 case 'RESOLVE_BOUDE': {
-                    if (!hasLegacyHostAuthority) break;
-                    if (gameState.phase !== 'BOUDE') break;
+                    if (!hasLegacyHostAuthority) return { status: 'ignored', reason: 'not-authorized' };
+                    if (gameState.phase !== 'BOUDE') return { status: 'ignored', reason: 'phase-already-advanced' };
                     const { newState: resolvedState, isTie, tiedPlayerIds } = resolveBoude(gameState);
                     if (isTie) {
                         // TIE = même manche, étoiles inchangées, nouveau round (nouvelle donne)
@@ -261,6 +282,7 @@ export const useActionDispatcher = ({
 
                 if (isSoloMode || !gameId) {
                     setGameState(newState);
+                    return { status: 'applied', state: newState };
                 } else {
                     const cleanState = JSON.parse(JSON.stringify(newState));
                     try {
@@ -281,6 +303,7 @@ export const useActionDispatcher = ({
                             // sans déclencher un double re-render.
                             setGameState(cleanState);
                             LogService.info('ActionDispatcher', `[SYNC] Firebase update SUCCESS for ${command.type}`);
+                            return { status: 'applied', state: cleanState };
                         } finally {
                             clearTimeout(timeoutId!);
                         }
@@ -289,16 +312,18 @@ export const useActionDispatcher = ({
                         // L'état local reste sur l'ancien état confirmé ; le prochain snapshot valide
                         // remettra le jeu en cohérence.
                         LogService.error('ActionDispatcher', `[SYNC] Firebase sync failed definitively: ${syncError?.code || syncError?.message || syncError}`);
+                        return { status: 'failed', error: syncError };
                     }
                 }
             } else {
-
+                return { status: 'ignored', reason: 'no-state-change' };
             }
         } catch (e) {
             LogService.error('ActionDispatcher', 'Erreur durant l\'action:', e);
             if (command.type === 'SURRENDER') {
                 throw e;
             }
+            return { status: 'failed', error: e };
         } finally {
             // Toujours libérer le verrou à la fin de l'action, qu'elle réussisse ou échoue !
             if (usesTurnLock) {

@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { GameState } from '../../core/types';
 import { getValidMoves } from '../../core/DominoEngine';
-import SoundManager from '../../core/audio/SoundManager';
-import { ActionCommand } from './useActionDispatcher';
+import { ActionDispatch } from './useActionDispatcher';
 
 // R2-M1 : Délai d'affichage du Boudé avant passage au joueur suivant.
 // Laisse le temps à tous les clients de voir l'animation via Firestore.
@@ -13,7 +12,7 @@ export interface UseAutoPassProps {
     localPlayerId: string;
     hasLegacyHostAuthority: boolean;
     isPaused: boolean;
-    dispatch: (command: ActionCommand) => Promise<void>;
+    dispatch: ActionDispatch;
 }
 
 export const useAutoPass = ({

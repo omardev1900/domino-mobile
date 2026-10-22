@@ -1,5 +1,13 @@
 # Retours client
 
+### 2026-10-22
+
+> En mode solo, quelques utilisateurs déclarent que des fois, quand une partie
+> est bloquée et que le popup Partie bloquée apparait, le jeu reste figé et on
+> ne peut plus avancer, et meme le fait de fermer le jeu et y retourner ne
+> permet pas de retourner là ou ils étaient et la partie disparait. Mais des
+> fois, le jeu ne bloque pas dans ce popup partie bloquée.
+
 ### 2026-10-21
 
 > Réorganiser les onglets de la boutique avec Premium en premier, puis
