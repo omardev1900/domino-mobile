@@ -28,7 +28,7 @@ type EconomyData = { coins?: number };
 
 const grantInputSchema = z.object({
     userId: z.string().min(1).max(128),
-    durationDays: z.number().int().min(1).max(3650),
+    durationDays: z.number().int().min(1).max(365),
 });
 
 const createCodesInputSchema = z.object({
