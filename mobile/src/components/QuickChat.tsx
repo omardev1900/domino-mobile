@@ -8,6 +8,7 @@ import { db } from '../core/services/firebase';
 import { economyService } from '../core/services/economy.service';
 import { authService } from '../core/services/auth.service';
 import { LogService } from '../core/services/LogService';
+import { premiumService } from '../core/services/premium.service';
 
 // ─── Fallback codé en dur (si Firestore hors ligne) ──────────────────────────
 
@@ -33,6 +34,7 @@ interface ChatItem {
     usagesPerPurchase: number; // 0 = à vie, N > 0 = pack de N envois
     order: number;
     enabled: boolean;
+    access?: 'PUBLIC' | 'PREMIUM_ONLY';
 }
 
 interface QuickChatProps {
@@ -54,6 +56,7 @@ export const QuickChat: React.FC<QuickChatProps> = ({ onSelectMessage, onSelectE
     const [emojis, setEmojis] = useState<ChatItem[]>([]);
     const [premiumItems, setPremiumItems] = useState<ChatItem[]>([]);
     const [chatLoading, setChatLoading] = useState(true);
+    const [hasPremium, setHasPremium] = useState(false);
 
     // Inventaire & économie
     const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set()); // items achetés à vie
@@ -66,9 +69,11 @@ export const QuickChat: React.FC<QuickChatProps> = ({ onSelectMessage, onSelectE
         const load = async () => {
             try {
                 const snap = await getDocs(query(collection(db, 'chat_messages'), orderBy('order', 'asc')));
+                const premium = await premiumService.hasActiveAccess();
+                setHasPremium(premium);
                 const all = snap.docs
                     .map(d => ({ firestoreId: d.id, usagesPerPurchase: 0, ...d.data() } as ChatItem))
-                    .filter(i => i.enabled);
+                    .filter(i => i.enabled && (i.access !== 'PREMIUM_ONLY' || premium));
 
                 const free_msgs = all.filter(i => i.category === 'message' && i.costType === 'free');
                 const free_emojis = all.filter(i => i.category === 'emoji' && i.costType === 'free');
@@ -169,6 +174,10 @@ export const QuickChat: React.FC<QuickChatProps> = ({ onSelectMessage, onSelectE
     };
 
     const sendItem = (item: ChatItem) => {
+        if (item.access === 'PREMIUM_ONLY' && !hasPremium) {
+            showMsg('Cet élément est réservé aux abonnés Premium.', true);
+            return;
+        }
         if (item.category === 'message') handleSelectMessage(item.text);
         else handleSelectEmoji(item.text);
     };

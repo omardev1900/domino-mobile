@@ -147,6 +147,7 @@ export class StoreService {
                     imageUrl: data.imageUrl,
                     skinConfig: data.skinConfig,
                     isPremium: data.isPremium === true,
+                    access: data.access === 'PREMIUM_ONLY' || data.isPremium === true ? 'PREMIUM_ONLY' : 'PUBLIC',
                 });
             });
             const merged = mergeBundledPremiumItems(catalog);
