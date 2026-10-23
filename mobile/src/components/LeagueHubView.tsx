@@ -19,6 +19,7 @@ import { authService } from '../core/services/auth.service';
 import { getAvatarImage } from '../core/avatars';
 import { getLeagueProgress, getMonthlyCochonsFromHistory } from '../core/leagueProgress';
 import { ShareTextButton, buildGradeShareText } from './ShareButton';
+import { perfEnd, perfError, perfMark, perfStart } from '../core/services/perf';
 
 type TabType = 'MA_LIGUE' | 'CLASSEMENT_MOIS' | 'CLASSEMENT_GLOBAL';
 export type LeagueHubTabType = TabType;
@@ -67,6 +68,7 @@ export const LeagueHubView: React.FC<LeagueHubViewProps> = ({
     const activeTab = controlledActiveTab ?? internalActiveTab;
 
     const handleTabChange = (tab: TabType) => {
+        perfMark('league.tabChange', { tab });
         if (onActiveTabChange) {
             onActiveTabChange(tab);
             return;
@@ -75,9 +77,21 @@ export const LeagueHubView: React.FC<LeagueHubViewProps> = ({
     };
 
     useEffect(() => {
-        statsService.getStats().then((stats) => {
-            setLeaguePoints(getMonthlyCochonsFromHistory(stats.matchHistory));
-        });
+        const statsStartedAt = perfStart();
+        statsService.getStats()
+            .then((stats) => {
+                const monthly = getMonthlyCochonsFromHistory(stats.matchHistory);
+                setLeaguePoints(monthly);
+                perfEnd('league.maLigue.stats', statsStartedAt, {
+                    monthly,
+                    matches: stats.matchHistory.length,
+                });
+            })
+            .catch((error) => {
+                // Sans ce catch, une lecture Firestore en échec laissait la page sur 0
+                // cochon sans aucune trace exploitable.
+                perfError('league.maLigue.stats.error', error);
+            });
         authService.getCurrentUser().then((user) => setCurrentUid(user?.uid ?? null));
     }, []);
 
@@ -94,20 +108,47 @@ export const LeagueHubView: React.FC<LeagueHubViewProps> = ({
 
         setClassementLoading(true);
 
+        const subscriptionStartedAt = perfStart();
+        let firstEntriesLogged = false;
+        let failed = false;
+
         const callback = (entries: LeaderboardEntry[]) => {
             setAllEntries(entries);
             setClassementLoading(false);
+            if (!firstEntriesLogged && !failed) {
+                firstEntriesLogged = true;
+                perfEnd('league.classement.dataReceived', subscriptionStartedAt, {
+                    tab: activeTab,
+                    category: classementCategory,
+                    entries: entries.length,
+                    empty: entries.length === 0,
+                });
+            }
+        };
+
+        const onError = (error: unknown) => {
+            // Le service appelle ensuite `callback([])` pour conserver le
+            // comportement d'affichage. Ce drapeau évite de journaliser cette
+            // liste vide comme un chargement réussi.
+            failed = true;
+            perfError('league.classement.error', error, {
+                tab: activeTab,
+                category: classementCategory,
+                ms: Date.now() - subscriptionStartedAt,
+            });
         };
 
         if (activeTab === 'CLASSEMENT_MOIS') {
             classementUnsubRef.current = leaderboardService.subscribeLeagueClassementMonthly(
                 classementCategory,
-                callback
+                callback,
+                onError
             );
         } else {
             classementUnsubRef.current = leaderboardService.subscribeLeagueClassementGlobal(
                 classementCategory,
-                callback
+                callback,
+                onError
             );
         }
 

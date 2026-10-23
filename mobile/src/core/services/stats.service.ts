@@ -1,11 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db } from './firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { PlayerInventory } from '../store.types';
 import { DEFAULT_INVENTORY } from '../store.constants';
 import { economyService } from './economy.service';
 import { LogService } from './LogService';
 import { leaderboardService } from './leaderboard.service';
+import { perfDefer, perfEnd, perfError, perfJsonSize, perfMark, perfStart } from './perf';
+import { userDocumentService } from './userDocument.service';
 
 const STORAGE_KEY_PLAYER_STATS = '@player_stats';
 const GUEST_STORAGE_SCOPE = 'guest';
@@ -72,6 +74,8 @@ const DEFAULT_STATS: PlayerStats = {
 class StatsService {
     private cachedStats: PlayerStats | null = null;
     private storageScope = GUEST_STORAGE_SCOPE;
+    private purgedLegacyStatsFor: string | null = null;
+    private readonly recentSyncAt = new Map<string, number>();
 
     private get storageKey(): string {
         return `${STORAGE_KEY_PLAYER_STATS}:${this.storageScope}`;
@@ -84,8 +88,11 @@ class StatsService {
             this.cachedStats = null;
         }
 
-        // Si l'utilisateur est authentifié, on nettoie son AsyncStorage pour cette clé
-        if (uid && !uid.startsWith('guest_')) {
+        // Si l'utilisateur est authentifié, on nettoie son AsyncStorage pour cette clé.
+        // `getCurrentUser` étant appelé plusieurs fois par écran, ne purger qu'une
+        // fois par uid évite une écriture AsyncStorage inutile à chaque appel.
+        if (uid && !uid.startsWith('guest_') && this.purgedLegacyStatsFor !== uid) {
+            this.purgedLegacyStatsFor = uid;
             const keyToRemove = `${STORAGE_KEY_PLAYER_STATS}:${uid}`;
             try {
                 await AsyncStorage.removeItem(keyToRemove);
@@ -126,20 +133,32 @@ class StatsService {
      * Load stats from Firestore (authenticated) or AsyncStorage (guest)
      */
     async getStats(): Promise<PlayerStats> {
-        if (this.cachedStats) return { ...this.cachedStats };
+        if (this.cachedStats) {
+            perfMark('stats.getStats', { path: 'cache', matches: this.cachedStats.matchHistory?.length ?? 0 });
+            return { ...this.cachedStats };
+        }
+
+        const startedAt = perfStart();
 
         // For authenticated users, read directly from Firestore instead of AsyncStorage
         if (this.storageScope !== GUEST_STORAGE_SCOPE) {
             try {
-                const userRef = doc(db, 'users', this.storageScope);
-                const userSnap = await getDoc(userRef);
-                
+                const userSnap = await userDocumentService.get(this.storageScope);
+                const receivedAt = Date.now();
+
                 if (!userSnap.exists() || !userSnap.data().stats) {
                     this.cachedStats = { ...DEFAULT_STATS };
+                    perfEnd('stats.getStats', startedAt, {
+                        path: 'firestore',
+                        fromCache: userSnap.metadata?.fromCache ?? false,
+                        hasStats: false,
+                        matches: 0,
+                    });
                     return { ...this.cachedStats };
                 }
                 
-                const remoteData = userSnap.data().stats;
+                const snapshotData = userSnap.data();
+                const remoteData = snapshotData.stats;
                 const history = remoteData.matchHistory ?? [];
                 const historyBreakdown = this.getBreakdownFromHistory(history);
                 this.cachedStats = {
@@ -164,9 +183,19 @@ class StatsService {
                     inventory: remoteData.inventory || DEFAULT_INVENTORY,
                 };
                 
+                perfEnd('stats.getStats', startedAt, {
+                    path: 'firestore',
+                    fromCache: userSnap.metadata?.fromCache ?? false,
+                    hasStats: true,
+                    matches: history.length,
+                    snapshotMs: receivedAt - startedAt,
+                    mapMs: Date.now() - receivedAt,
+                });
+                perfDefer('stats.getStats.payload', () => ({ jsonBytes: perfJsonSize(snapshotData) }));
                 return { ...this.cachedStats };
 
             } catch (error) {
+                perfError('stats.getStats.error', error);
                 LogService.error('StatsService', 'Failed to get secure stats from Firebase', error);
                 throw error; // On bloque au lieu d'utiliser des zéros par défaut uniquement si c'est une vraie erreur (ex: réseau)
             }
@@ -366,18 +395,33 @@ class StatsService {
      * TÉLÉCHARGE les statistiques depuis Firebase (Pull-only).
      * Le serveur est la source de vérité absolue.
      */
-    async syncWithFirebase(uid: string): Promise<void> {
+    async syncWithFirebase(uid: string, options: { force?: boolean } = {}): Promise<void> {
         if (uid.startsWith('guest_')) return;
 
+        // Au démarrage, AuthService et Home demandent la même synchronisation à
+        // quelques centaines de millisecondes d'intervalle. Sans cette fenêtre,
+        // le même document `users/{uid}` était relu juste après avoir été lu.
+        const recentlySyncedAt = this.recentSyncAt.get(uid) ?? 0;
+        if (!options.force && Date.now() - recentlySyncedAt < 8000) {
+            perfMark('stats.sync', { skipped: 'recent', fromCache: false });
+            return;
+        }
+
+        const startedAt = perfStart();
+
         try {
-            const userRef = doc(db, 'users', uid);
-            const userSnap = await getDoc(userRef);
+            const userSnap = await userDocumentService.get(uid);
+            const receivedAt = Date.now();
 
             if (!userSnap.exists() || !userSnap.data().stats) {
                 // Le compte existe mais l'objet stats est vide (ou le doc n'existe pas encore).
                 // On charge les valeurs par défaut EN MÉMOIRE uniquement. On ne push RIEN.
                 this.cachedStats = { ...DEFAULT_STATS };
                 await this.persistStats();
+                perfEnd('stats.sync', startedAt, {
+                    matched: false,
+                    fromCache: userSnap.metadata?.fromCache ?? false,
+                });
                 LogService.info('StatsService', 'Stats introuvables sur le serveur, utilisation des valeurs par défaut en mémoire.');
                 return;
             }
@@ -409,10 +453,21 @@ class StatsService {
             };
 
             this.cachedStats = downloadedStats;
+            this.recentSyncAt.set(uid, Date.now());
+            const persistStartedAt = Date.now();
             await this.persistStats();
+            perfEnd('stats.sync', startedAt, {
+                matched: true,
+                fromCache: userSnap.metadata?.fromCache ?? false,
+                matches: history.length,
+                snapshotMs: receivedAt - startedAt,
+                persistMs: Date.now() - persistStartedAt,
+            });
+            perfDefer('stats.sync.payload', () => ({ jsonBytes: perfJsonSize(userSnap.data()) }));
             LogService.info('StatsService', 'Stats téléchargées avec succès depuis Firebase (Pull-only).');
 
         } catch (error) {
+            perfError('stats.sync.error', error);
             LogService.error('StatsService', 'Échec de syncWithFirebase (Pull-only)', error);
             throw error; // On propage l'erreur pour bloquer la connexion uniquement si c'est une vraie erreur réseau
         }

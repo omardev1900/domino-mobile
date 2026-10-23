@@ -208,5 +208,11 @@ service cloud.firestore {
           ? request.resource.data.userId == request.auth.uid 
           : (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid));
     }
+
+    // Projection légère maintenue exclusivement par Cloud Functions.
+    match /users_global_stats/{statId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
   }
 }

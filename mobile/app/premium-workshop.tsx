@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SkinConfig } from '../src/core/store.types';
 import { premiumService } from '../src/core/services/premium.service';
 import { storeService } from '../src/core/services/store.service';
+import { perfMark, perfStart } from '../src/core/services/perf';
 import { PremiumColorPicker } from '../src/features/premium-workshop/PremiumColorPicker';
 import { PremiumWorkshopPreview } from '../src/features/premium-workshop/PremiumWorkshopPreview';
 
@@ -51,10 +52,12 @@ export default function PremiumWorkshopScreen() {
   const [activePalette, setActivePalette] = useState<PaletteId>('TABLE');
 
   const load = useCallback(async () => {
+    const startedAt = perfStart();
     const [inventory, premium] = await Promise.all([
       storeService.getInventory(),
       premiumService.hasActiveAccess(),
     ]);
+    perfMark('workshop.load', { ms: Date.now() - startedAt, premium, owned: inventory.ownedItems.length });
     if (!premium || !inventory.ownedItems.includes('skin_premium_atelier')) {
       Alert.alert('Skin Creator indisponible', 'Le Skin Creator nécessite un accès Premium actif et doit être acheté dans la boutique.');
       router.back();

@@ -1,5 +1,15 @@
 # Taches terminees
 
+### 2026-10-23
+
+- [x] `PERF-SCREENS-01` Lenteurs Boutique, Premium, Creators, Ma Ligue et
+  classements diagnostiquees sur APK release instrumentee. Lectures `users/{uid}`
+  mutualisees (une seule lecture au cold start), synchronisations Home
+  dedupliquees, lectures Premium concurrentes fusionnees, compteur de run
+  Boutique corrige. Classement global migre vers la projection
+  `users_global_stats` (backfill 879/879, `legacyFallback=false`) : 40,4 Ko au
+  lieu d'environ 2 Mo pour 100 joueurs. Functions, Rules et index deployes.
+
 ### 2026-10-22
 
 - [x] `UI-DAILY-GIFT-01` Cadeau quotidien crédité automatiquement avant

@@ -79,6 +79,7 @@ beforeEach(() => {
     // Forcer le service à repartir d'un état vierge
     (statsService as any).cachedStats = null;
     (statsService as any).storageScope = 'guest';
+    (statsService as any).recentSyncAt?.clear?.();
     mockGetItem.mockResolvedValue(null);
     mockSetItem.mockClear();
     mockGetItem.mockClear();

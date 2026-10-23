@@ -24,11 +24,13 @@ import { economyService } from './economy.service';
 import { LogService } from './LogService';
 import { playerNameSchema } from '../validation/schemas';
 import { AVATAR_IMAGES } from '../avatars';
+import { perfEnd, perfError, perfStart } from './perf';
 
 const STORAGE_KEY_SESSION = '@user_session_active';
 
 class AuthService {
     private currentUser: PlayerProfile | null = null;
+    private currentUserRequest: Promise<PlayerProfile | null> | null = null;
     private profileListeners = new Set<(profile: PlayerProfile) => void>();
 
     subscribeToProfileUpdates(listener: (profile: PlayerProfile) => void): () => void {
@@ -159,8 +161,13 @@ class AuthService {
                 `[BUG-WELCOME-COINS] Flag de protection posé: ${defaultEconomy.coins} coins.`
             );
         } else {
-            await statsService.syncWithFirebase(profile.uid);
-            await economyService.syncFromFirebase(profile.uid);
+            // stats et economy lisent le même document `users/{uid}` :
+            // les lancer en parallèle permet à userDocumentService de les
+            // fusionner en une seule lecture réseau.
+            await Promise.all([
+                statsService.syncWithFirebase(profile.uid),
+                economyService.syncFromFirebase(profile.uid),
+            ]);
         }
 
         await economyService.syncProfileMetadata(
@@ -211,18 +218,39 @@ class AuthService {
      * Priority: 1. Memory, 2. Firebase (authenticated non-anonymous only)
      */
     async getCurrentUser(): Promise<PlayerProfile | null> {
+        const startedAt = perfStart();
+        // Une résolution Firebase en cours doit rester prioritaire même si elle a
+        // déjà posé `currentUser`: les autres appelants attendent ainsi la fin des
+        // synchronisations sécurisées au lieu d'observer une session partielle.
+        if (this.currentUserRequest) return this.currentUserRequest;
+
         const cachedUser = this.currentUser;
         if (cachedUser) {
             // Keep a stable reference across awaits: another screen may refresh or
             // clear the in-memory session while the storage scopes are switching.
             await statsService.useStorageScope(cachedUser.uid);
             await economyService.useStorageScope(cachedUser.uid);
+            perfEnd('auth.getCurrentUser', startedAt, { path: 'memory' });
             return cachedUser;
         }
+
+        const request = this.resolveCurrentUser(startedAt);
+        this.currentUserRequest = request;
+        try {
+            return await request;
+        } finally {
+            if (this.currentUserRequest === request) this.currentUserRequest = null;
+        }
+    }
+
+    private async resolveCurrentUser(startedAt: number): Promise<PlayerProfile | null> {
+
+        let authTimedOut = false;
 
         try {
             const firebaseUser = await new Promise<User | null>((resolve) => {
                 const timer = setTimeout(() => {
+                    authTimedOut = true;
                     LogService.warn('AuthService', 'onAuthStateChanged timeout — treating as logged out');
                     resolve(null);
                 }, 5000);
@@ -245,17 +273,22 @@ class AuthService {
                 try {
                     // VERIFICATION STRICTE : on force la récupération des données sécurisées.
                     // Si cela échoue (ex: réseau instable), on bloque la connexion.
-                    await statsService.syncWithFirebase(profile.uid);
-                    await economyService.syncFromFirebase(profile.uid);
+                    await Promise.all([
+                        statsService.syncWithFirebase(profile.uid),
+                        economyService.syncFromFirebase(profile.uid),
+                    ]);
                 } catch (syncError) {
+                    perfError('auth.getCurrentUser.syncError', syncError, { timedOut: authTimedOut });
                     LogService.error('AuthService', 'Échec de synchronisation au démarrage, blocage de la connexion par sécurité.', syncError);
                     this.currentUser = null;
                     await AsyncStorage.removeItem(STORAGE_KEY_SESSION);
                     await statsService.useStorageScope(null);
                     await economyService.useStorageScope(null);
+                    perfEnd('auth.getCurrentUser', startedAt, { path: 'firebase', timedOut: authTimedOut, synced: false });
                     return null;
                 }
                 
+                perfEnd('auth.getCurrentUser', startedAt, { path: 'firebase', timedOut: authTimedOut, synced: true });
                 return profile;
             }
 
@@ -272,7 +305,9 @@ class AuthService {
                 await statsService.useStorageScope(null);
                 await economyService.useStorageScope(null);
             }
+            perfEnd('auth.getCurrentUser', startedAt, { path: 'anonymous', timedOut: authTimedOut });
         } catch (error) {
+            perfError('auth.getCurrentUser.error', error);
             LogService.error('AuthService', 'getCurrentUser error:', error);
         }
 

@@ -35,6 +35,7 @@ import { LogService } from '@/core/services/LogService';
 import { AndroidStoreBanner } from '@/components/AndroidStoreBanner';
 import { PremiumExpiryModal } from '@/components/PremiumExpiryModal';
 import { lastActivityService } from '@/core/services/lastActivity.service';
+import { perfMark } from '@/core/services/perf';
 
 // Keep the native splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -106,6 +107,7 @@ export default function RootLayout() {
   const { status: networkStatus, retry: retryNetwork } = useStableNetworkStatus();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const authPerfLogged = useRef(false);
 
   // ── Mise à jour forcée ──
   const forceUpdateInfo = useForceUpdate();
@@ -125,6 +127,12 @@ export default function RootLayout() {
         setIsAuthenticated(false);
       }
       setAuthLoading(false);
+      if (!authPerfLogged.current) {
+        authPerfLogged.current = true;
+        perfMark('app.authResolved', {
+          authenticated: Boolean(firebaseUser && !firebaseUser.isAnonymous && firebaseUser.email),
+        });
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -217,6 +225,11 @@ export default function RootLayout() {
     if (!appReady) return;
     previousPathname.current = pathname;
   }, [pathname, appReady]);
+
+  useEffect(() => {
+    if (!appReady) return;
+    perfMark('app.ready');
+  }, [appReady]);
 
   // Global Music Manager — switch BGM based on route
   useEffect(() => {

@@ -13,13 +13,16 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import type { DocumentSnapshot } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { auth, db } from './firebase';
 import { LogService } from './LogService';
 import { PlayerEconomy, MatchReward, LeagueGrade, RewardCalculationInput, LeagueFrameId } from '../economy.types';
 import { NEW_PLAYER_COINS, DAILY_REWARD_COINS, AD_REWARD_COINS, MINIMUM_COIN_RESERVE } from '../economy.constants';
 import { getLevelFromXP, getLeagueGrade } from '../RewardEngine';
+import { perfDefer, perfEnd, perfError, perfJsonSize, perfMark, perfStart } from './perf';
+import { userDocumentService } from './userDocument.service';
 
 /** Infos de profil minimales nécessaires pour les écrire dans Firestore avec l'économie */
 export interface EconomyProfileInfo {
@@ -57,6 +60,11 @@ class EconomyService {
     /** Nombre d'écritures Firestore en cours. Empêche le listener onSnapshot
      *  d'écraser le cache local avec des données périmées. */
     private pendingWrites = 0;
+    private readonly profileSyncs = new Map<string, Promise<void>>();
+    private readonly recentSyncAt = new Map<string, number>();
+    // Dernier snapshot `users/{uid}` lu par syncFromFirebase, réutilisé juste
+    // après par syncProfileMetadata pour éviter une lecture redondante.
+    private lastUserSnapshot: { uid: string; snapshot: DocumentSnapshot; at: number } | null = null;
 
     private get storageKey(): string {
         return `${STORAGE_KEY_ECONOMY}:${this.storageScope}`;
@@ -185,12 +193,21 @@ class EconomyService {
      * Lève une erreur si le profil n'est pas accessible.
      * Le serveur est la source de vérité absolue.
      */
-    async syncFromFirebase(uid: string): Promise<void> {
+    async syncFromFirebase(uid: string, options: { force?: boolean } = {}): Promise<void> {
         if (uid.startsWith('guest_')) return;
 
+        const recentlySyncedAt = this.recentSyncAt.get(uid) ?? 0;
+        if (!options.force && Date.now() - recentlySyncedAt < 8000) {
+            perfMark('economy.sync', { skipped: 'recent' });
+            return;
+        }
+
+        const startedAt = perfStart();
+
         try {
-            const userRef = doc(db, 'users', uid);
-            const snap = await getDoc(userRef);
+            const snap = await userDocumentService.get(uid);
+            this.lastUserSnapshot = { uid, snapshot: snap, at: Date.now() };
+            const receivedAt = Date.now();
 
             if (!snap.exists()) {
                 throw new Error("Document utilisateur introuvable dans Firestore (Economy).");
@@ -269,11 +286,20 @@ class EconomyService {
             }
 
             this.cached = downloadedEconomy;
+            this.recentSyncAt.set(uid, Date.now());
+            const persistStartedAt = Date.now();
             await this.persistLocal();
+            perfEnd('economy.sync', startedAt, {
+                fromCache: snap.metadata.fromCache,
+                snapshotMs: receivedAt - startedAt,
+                persistMs: Date.now() - persistStartedAt,
+            });
+            perfDefer('economy.sync.payload', () => ({ jsonBytes: perfJsonSize(snap.data()) }));
             // PLUS AUCUN PUSH. La DB est reine, on met à jour le client uniquement.
             LogService.info('EconomyService', 'Economy downloaded from Firebase (Pull-only).');
 
         } catch (e) {
+            perfError('economy.sync.error', e);
             LogService.error('EconomyService', 'syncFromFirebase error:', e);
             throw e; // Lève l'erreur pour que l'AuthService puisse bloquer la connexion
         }
@@ -669,9 +695,35 @@ class EconomyService {
      */
     async syncProfileMetadata(uid: string, displayName: string, avatarId: string): Promise<void> {
         if (uid.startsWith('guest_')) return;
+        const existingSync = this.profileSyncs.get(uid);
+        if (existingSync) return existingSync;
+
+        const sync = this.performProfileMetadataSync(uid, displayName, avatarId);
+        this.profileSyncs.set(uid, sync);
         try {
+            await sync;
+        } finally {
+            if (this.profileSyncs.get(uid) === sync) this.profileSyncs.delete(uid);
+        }
+    }
+
+    private async performProfileMetadataSync(uid: string, displayName: string, avatarId: string): Promise<void> {
+        const startedAt = perfStart();
+        try {
+            const cached = this.lastUserSnapshot;
+            const current = cached && cached.uid === uid && Date.now() - cached.at < 15000
+                ? cached.snapshot
+                : await userDocumentService.get(uid);
+            const currentData = current.data();
+            if (current.exists()
+                && currentData?.displayName === displayName
+                && currentData?.avatarId === avatarId) {
+                perfEnd('economy.syncProfileMetadata', startedAt, { ok: true, skipped: true });
+                return;
+            }
             const userRef = doc(db, 'users', uid);
             await setDoc(userRef, { displayName, avatarId }, { merge: true });
+            perfEnd('economy.syncProfileMetadata', startedAt, { ok: true, skipped: false });
             LogService.info('EconomyService', 'Profile metadata synced.', displayName);
 
             // Propagate profile metadata to monthly leaderboard document
@@ -679,11 +731,15 @@ class EconomyService {
                 const { statsService } = require('./stats.service');
                 const { leaderboardService } = require('./leaderboard.service');
                 const stats = await statsService.getStats();
+                const monthlyStartedAt = perfStart();
                 await leaderboardService.updateMonthlyStats(uid, stats, { displayName, avatarId });
+                perfEnd('economy.syncProfileMetadata.monthly', monthlyStartedAt, { ok: true });
             } catch (err) {
+                perfError('economy.syncProfileMetadata.monthly.error', err);
                 LogService.error('EconomyService', 'Failed to propagate profile metadata to monthly stats', err);
             }
         } catch (e) {
+            perfError('economy.syncProfileMetadata.error', e);
             LogService.error('EconomyService', 'syncProfileMetadata error:', e);
         }
     }

@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StoreItem, PlayerInventory, StoreItemType, StoreItemRarity } from '../store.types';
 import { economyService } from './economy.service';
@@ -8,6 +8,8 @@ import { DEFAULT_INVENTORY, DEFAULT_OWNED_ITEMS, STORE_CATALOG } from '../store.
 import { premiumService } from './premium.service';
 import { hasAvatarImage } from '../avatars';
 import { removeInventoryEntry } from '../inventoryDeletion';
+import { perfDefer, perfJsonSize, perfMark } from './perf';
+import { userDocumentService } from './userDocument.service';
 
 const STORE_COLLECTION = 'store_catalog';
 const STORAGE_KEY_GUEST_INVENTORY = '@guest_inventory';
@@ -68,10 +70,17 @@ export class StoreService {
 
         if (userId && !userId.startsWith('guest_')) {
             try {
-                const userRef = doc(db, 'users', userId);
-                const snap = await getDoc(userRef);
+                const snap = await userDocumentService.get(userId);
                 if (snap.exists() && snap.data().inventory) {
-                    return snap.data().inventory as PlayerInventory;
+                    const data = snap.data();
+                    const inventory = data.inventory as PlayerInventory;
+                    perfMark('store.inventory.source', {
+                        source: 'firestore',
+                        fromCache: snap.metadata.fromCache,
+                        owned: inventory.ownedItems?.length ?? 0,
+                    });
+                    perfDefer('store.inventory.payload', () => ({ jsonBytes: perfJsonSize(data) }));
+                    return inventory;
                 }
             } catch (e) {
                 console.error("Error reading inventory from Firebase", e);
@@ -81,12 +90,14 @@ export class StoreService {
         try {
             const json = await AsyncStorage.getItem(STORAGE_KEY_GUEST_INVENTORY);
             if (json) {
+                perfMark('store.inventory.source', { source: 'local', jsonBytes: json.length });
                 return JSON.parse(json) as PlayerInventory;
             }
         } catch (e) {
             console.error("Error reading guest inventory", e);
         }
 
+        perfMark('store.inventory.source', { source: 'default' });
         return DEFAULT_INVENTORY;
     }
 
@@ -138,9 +149,19 @@ export class StoreService {
                     isPremium: data.isPremium === true,
                 });
             });
-            return mergeBundledPremiumItems(catalog);
+            const merged = mergeBundledPremiumItems(catalog);
+            perfDefer('store.catalog.payload', () => ({
+                remoteDocs: catalog.length,
+                bundled: merged.length - catalog.length,
+                fromCache: querySnapshot.metadata.fromCache,
+                jsonBytes: perfJsonSize(merged),
+            }));
+            return merged;
         } catch (error) {
             console.error("Error fetching catalog from Firestore:", error);
+            perfMark('store.catalog.error', {
+                error: error instanceof Error ? error.message : String(error),
+            });
             return mergeBundledPremiumItems([]);
         }
     }

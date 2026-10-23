@@ -8,6 +8,7 @@ import { isPremiumActive, PremiumEntitlement, premiumService } from '../src/core
 import { economyService } from '../src/core/services/economy.service';
 import { authService } from '../src/core/services/auth.service';
 import { LogService } from '../src/core/services/LogService';
+import { perfMark, perfStart } from '../src/core/services/perf';
 
 const BENEFIT_TITLES = [
     'Skins Premiums',
@@ -94,8 +95,13 @@ export default function PremiumScreen() {
     const [showCodeModal, setShowCodeModal] = useState(false);
     const [showTrialConfirmation, setShowTrialConfirmation] = useState(false);
     const [celebration, setCelebration] = useState<{ expiresAt: Date; bonusCoins: number; isRenewal: boolean } | null>(null);
+    const focusRunRef = useRef(0);
+    const lastPaintedRunRef = useRef(0);
 
     const refresh = useCallback(async () => {
+        const run = ++focusRunRef.current;
+        const startedAt = perfStart();
+        perfMark('premium.focus', { run });
         setLoading(true);
         const [nextEntitlement, nextIsAdmin] = await Promise.all([
             premiumService.getEntitlement(),
@@ -104,6 +110,16 @@ export default function PremiumScreen() {
         setEntitlement(nextEntitlement);
         setIsAdmin(nextIsAdmin);
         setLoading(false);
+        perfMark('premium.dataReady', { run, ms: Date.now() - startedAt, hasEntitlement: Boolean(nextEntitlement) });
+        // Équivalent de `store.framePresented` : jalon JS émis après le commit
+        // qui affiche l'état Premium résolu, puis deux frames.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                if (lastPaintedRunRef.current === run) return;
+                lastPaintedRunRef.current = run;
+                perfMark('premium.firstPaint', { run, ms: Date.now() - startedAt });
+            });
+        });
     }, []);
 
     useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
@@ -177,7 +193,7 @@ export default function PremiumScreen() {
             // consommé et l'accès Premium confirmé par la Function. Il ne doit
             // jamais transformer ce succès en erreur visible pour le joueur.
             if (currentUser?.uid) {
-                void economyService.syncFromFirebase(currentUser.uid).catch(error => {
+                void economyService.syncFromFirebase(currentUser.uid, { force: true }).catch(error => {
                     LogService.warn('Premium', 'Synchronisation des coins différée.', error);
                 });
             }

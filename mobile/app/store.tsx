@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,9 +19,14 @@ import { useRewardedAd, AdMobIds } from '../src/core/services/AdMobAdapter';
 import { authService } from '../src/core/services/auth.service';
 import { RewardOverlay } from '../src/components/RewardOverlay';
 import { premiumService } from '../src/core/services/premium.service';
+import { perfDefer, perfJsonSize, perfMark, perfStart, perfTime } from '../src/core/services/perf';
 
 type TabType = 'PREMIUM' | 'WORKSHOP' | StoreItemType;
 const SKIN_WORKSHOP_ID = 'skin_premium_atelier';
+
+// Compteur de module : un retour Boutique remonte l'écran, ce qui réinitialise
+// les refs locales. Le run doit rester comparable au cold start (run=1 → run=2).
+let storeRunCounter = 0;
 const AVATAR_WORKSHOP_IMAGE = require('../src/assets/images/store/atelier-des-avatars.jpg');
 
 export default function StoreScreen() {
@@ -42,34 +47,62 @@ export default function StoreScreen() {
     const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
     const [previewedSkin, setPreviewedSkin] = useState<StoreItem | null>(null);
 
+    const runIdRef = useRef(storeRunCounter);
+    const dataVersionRef = useRef(0);
+    const [dataVersion, setDataVersion] = useState(0);
+    // Un seul jalon de layout par (run, version de données) : `onLayout` et
+    // `onContentSizeChange` peuvent se déclencher tous les deux, ou pas du tout
+    // si la géométrie est identique au focus précédent.
+    const laidOutRef = useRef<{ run: number; version: number } | null>(null);
+    const frameLoggedRunRef = useRef(0);
+    const renderSnapshotRef = useRef({ tab: activeTab, items: 0 });
+
     const loadData = async () => {
+        const runId = ++storeRunCounter;
+        runIdRef.current = runId;
+        const startedAt = perfStart();
         try {
             setPremiumStatusResolved(false);
             const [inv, cat, eco, premiumActive] = await Promise.all([
-                storeService.getInventory(),
-                storeService.getCatalog(),
-                economyService.getEconomy(),
-                premiumService.hasActiveAccess(),
+                perfTime('store.load.inventory', () => storeService.getInventory(), { run: runId }),
+                perfTime('store.load.catalog', () => storeService.getCatalog(), { run: runId }),
+                perfTime('store.load.economy', () => economyService.getEconomy(), { run: runId }),
+                perfTime('store.load.premium', () => premiumService.hasActiveAccess(), { run: runId }),
             ]);
             const visibleCatalog = premiumActive ? cat : cat.filter(item => !item.isPremium);
             setInventory(getAccessibleInventory(inv, cat, premiumActive));
             setCatalog(visibleCatalog);
             setEconomy(eco);
             setHasPremium(premiumActive);
+            dataVersionRef.current += 1;
+            setDataVersion(dataVersionRef.current);
+            perfMark('store.loadData.done', {
+                run: runId,
+                catalog: cat.length,
+                premium: premiumActive,
+            });
+            perfDefer('store.loadData.payload', () => ({
+                run: runId,
+                jsonBytes: perfJsonSize(visibleCatalog),
+            }));
         } catch (error) {
-            console.error('Failed to load store data', error);
+            perfMark('store.loadData.error', {
+                run: runId,
+                error: error instanceof Error ? error.message : String(error),
+            });
         } finally {
             setPremiumStatusResolved(true);
             setLoading(false);
+            perfMark('store.loadData.total', { run: runId, ms: Date.now() - startedAt });
         }
     };
 
     useFocusEffect(
         useCallback(() => {
+            perfMark('store.focus', { run: runIdRef.current + 1 });
             loadData();
         }, [])
     );
-
 
     const dynamicTabs = useMemo(() => {
         const types = Array.from(new Set(catalog.map(item => item.type)));
@@ -84,6 +117,32 @@ export default function StoreScreen() {
         if (types.includes('EMOTE')) tabs.push({ id: 'EMOTE', label: 'Emotions', icon: 'happy' });
         return tabs;
     }, [catalog, hasPremium]);
+
+    // Jalon JS, émis une fois par run : après le commit qui porte la nouvelle
+    // version de données, deux frames laissent passer la passe de layout.
+    // Il complète `store.contentLaidOut`, qui peut manquer si la géométrie ne
+    // change pas d'un focus à l'autre.
+    useEffect(() => {
+        if (dataVersion === 0) return;
+        const run = runIdRef.current;
+        let second = 0;
+        const first = requestAnimationFrame(() => {
+            second = requestAnimationFrame(() => {
+                if (frameLoggedRunRef.current === run) return;
+                frameLoggedRunRef.current = run;
+                perfMark('store.framePresented', {
+                    run,
+                    version: dataVersion,
+                    tab: renderSnapshotRef.current.tab,
+                    items: renderSnapshotRef.current.items,
+                });
+            });
+        });
+        return () => {
+            cancelAnimationFrame(first);
+            cancelAnimationFrame(second);
+        };
+    }, [dataVersion]);
 
     const { isLoaded, isClosed, isEarnedReward, error: rewardError, load, show } = useRewardedAd(AdMobIds.REWARDED_FIN_PARTIE);
     const [pendingStoreAdReward, setPendingStoreAdReward] = useState(false);
@@ -231,6 +290,25 @@ export default function StoreScreen() {
         : activeTab === 'PREMIUM'
             ? catalog.filter(item => item.isPremium && item.id !== SKIN_WORKSHOP_ID)
             : catalog.filter(item => item.type === activeTab && item.id !== SKIN_WORKSHOP_ID);
+
+    renderSnapshotRef.current = { tab: activeTab, items: filteredCatalog.length };
+
+    // Jalon natif : `onLayout` et `onContentSizeChange` sont tous deux émis
+    // après la passe de layout, mais pas forcément à chaque focus. On déduplique
+    // sur (run, version de données) pour n'avoir qu'un seul jalon valide par run.
+    const handleCatalogLayout = () => {
+        const run = runIdRef.current;
+        const version = dataVersionRef.current;
+        const last = laidOutRef.current;
+        if (last && last.run === run && last.version === version) return;
+        laidOutRef.current = { run, version };
+        perfMark('store.contentLaidOut', {
+            run,
+            version,
+            tab: renderSnapshotRef.current.tab,
+            items: renderSnapshotRef.current.items,
+        });
+    };
 
     const StoreAdCard = ({ playerEconomy }: { playerEconomy: any }) => {
         const { width: currentWidth, height: currentHeight } = useWindowDimensions();
@@ -502,6 +580,8 @@ export default function StoreScreen() {
                         horizontal
                         showsHorizontalScrollIndicator={false}
                         showsVerticalScrollIndicator={false}
+                        onLayout={handleCatalogLayout}
+                        onContentSizeChange={handleCatalogLayout}
                         contentContainerStyle={[styles.catalogGrid, isLandscape && styles.catalogGridLandscape]}
                         snapToInterval={width * 0.24 + 16}
                         decelerationRate="fast"

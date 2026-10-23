@@ -9,6 +9,13 @@
 // En environnement de test (Jest), __DEV__ est généralement défini, sinon on fallback sur true.
 const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : true;
 
+// Mesures de performance : visibles en DEV, ou dans un build de diagnostic
+// lancé avec EXPO_PUBLIC_PERF_LOG=1. Jamais actives en production normale.
+// Accès direct obligatoire, sinon Expo n'inline pas la variable.
+const perfFlag = typeof process !== 'undefined' ? process.env.EXPO_PUBLIC_PERF_LOG : undefined;
+const isTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+const isPerfEnabled = !isTest && (isDev || perfFlag === '1');
+
 export const LogService = {
   /**
    * Logs d'information généraux (Visible uniquement en DEV)
@@ -69,5 +76,18 @@ export const LogService = {
     if (isDev) {
       console.log(`⚡ [EVENT][${tag}] ${eventName}`, ...args);
     }
+  },
+
+  /**
+   * Mesures de performance (voir `perf.ts`). Format parsable en une ligne :
+   * `[PERF] since=1234ms evt=store.load.catalog ms=842 ok=true`
+   */
+  perf: (event: string, fields: Record<string, string | number | boolean | null | undefined> = {}) => {
+    if (!isPerfEnabled) return;
+    const details = Object.entries(fields)
+      .filter(([, value]) => value !== undefined && value !== null)
+      .map(([key, value]) => `${key}=${String(value)}`)
+      .join(' ');
+    console.log(`[PERF] evt=${event}${details ? ` ${details}` : ''}`);
   }
 };

@@ -1,5 +1,15 @@
 # Changelog
 
+### 2026-10-23
+
+- Le classement global de la Ligue des Cochons charge désormais une projection
+  allégée : environ 40 Ko au lieu de 2 Mo pour 100 joueurs, avec un affichage
+  environ 4 à 5 fois plus rapide sur réseau dégradé.
+
+- La Boutique, l'écran Premium et le Skin Creator s'ouvrent plus vite : les
+  données utilisateur ne sont plus relues plusieurs fois au démarrage, et les
+  synchronisations de l'accueil ne sont plus dupliquées.
+
 ### 2026-10-22
 
 - Le cadeau du jour est désormais ajouté automatiquement au solde. Une popup

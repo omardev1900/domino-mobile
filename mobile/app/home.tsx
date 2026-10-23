@@ -34,6 +34,7 @@ import { USE_NEW_SIDEBAR } from '../src/core/config/navigation.config';
 import { getLeagueProgress, getMonthlyCochonsFromHistory } from '../src/core/leagueProgress';
 import { PremiumButton } from '../src/components/common/PremiumButton';
 import { PremiumEntitlement, premiumService } from '../src/core/services/premium.service';
+import { perfMark, perfStart } from '../src/core/services/perf';
 
 let hasShownAppOpenAd = false;
 
@@ -95,6 +96,7 @@ export default function HomeScreen() {
 
     // Ref pour l'unsubscribe du listener Firestore — nettoyé au démontage du composant
     const economyListenerRef = useRef<(() => void) | null>(null);
+    const focusRunRef = useRef(0);
 
     const refreshMonthlyLeague = useCallback(async () => {
         const stats = await statsService.getStats();
@@ -138,6 +140,9 @@ export default function HomeScreen() {
     useFocusEffect(
         useCallback(() => {
             let cancelled = false;
+            const focusStartedAt = perfStart();
+            const run = ++focusRunRef.current;
+            perfMark('home.focus', { run });
 
             authService.getCurrentUser().then(async u => {
                 if (cancelled) return;
@@ -156,6 +161,7 @@ export default function HomeScreen() {
                     if (cancelled) return;
                     await refreshMonthlyLeague();
                     if (cancelled) return;
+                    perfMark('home.focus.dataReady', { run, ms: Date.now() - focusStartedAt });
 
                     // 2. Évaluation des cadeaux (base serveur fiable)
                     const isNewAccount = !(await economyService.hasClaimedWelcomeGift());

@@ -23,12 +23,14 @@ import {
     Unsubscribe,
     doc,
     setDoc,
+    getDocs,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { LeagueGrade } from '../economy.types';
 import { getStartOfCurrentMonthUtc, getYearMonthUtcString } from './leaderboard.time';
 import { LogService } from './LogService';
 import { toActivityMillis } from '../lastActivity';
+import { perfDefer, perfError, perfJsonSize, perfMark, perfStart } from './perf';
 
 export type ClassementCategory = 'PLUS_COCHONS' | 'MOINS_COCHONS' | 'PLUS_POINTS';
 
@@ -72,7 +74,48 @@ const CATEGORY_FIELD: Record<LeaderboardCategory, string> = {
     COCHONS: 'stats.totalCochonsInflicted',
 };
 
+interface GlobalLeaderboardDocument {
+    userId: string;
+    displayName?: string;
+    avatarId?: string;
+    activeFrame?: string | null;
+    xp?: number;
+    coins?: number;
+    level?: number;
+    leagueGrade?: LeagueGrade | null;
+    leaguePoints?: number;
+    cochonsGiven?: number;
+    cochonsSubis?: number;
+    pointsAccumulated?: number;
+    gamesPlayed?: number;
+    lastActiveAt?: unknown;
+}
+
 class LeaderboardService {
+    private mapGlobalProjectionToEntry(data: GlobalLeaderboardDocument, rank: number): LeaderboardEntry {
+        return {
+            uid: data.userId,
+            displayName: data.displayName || 'Joueur',
+            avatarId: data.avatarId || 'avatar_default',
+            activeFrame: data.activeFrame || undefined,
+            xp: data.xp || 0,
+            coins: data.coins || 0,
+            level: data.level || 1,
+            leagueGrade: data.leagueGrade || null,
+            leaguePoints: data.leaguePoints || 0,
+            cochonsGiven: data.cochonsGiven || 0,
+            cochonsGivenThisMonth: 0,
+            totalCochonsSubis: data.cochonsSubis || 0,
+            totalPointsAccumulated: data.pointsAccumulated || 0,
+            gamesPlayed: data.gamesPlayed || 0,
+            gamesPlayedThisMonth: 0,
+            totalCochonsSubisThisMonth: 0,
+            totalPointsAccumulatedThisMonth: 0,
+            lastActiveAt: toActivityMillis(data.lastActiveAt),
+            rank,
+        };
+    }
+
     private mapUserToEntry(docId: string, data: any, rank: number, startOfMonth: number): LeaderboardEntry | null {
         const economy = data.economy || {};
         const stats = data.stats || {};
@@ -151,8 +194,12 @@ class LeaderboardService {
         const field = CATEGORY_FIELD[category];
         const usersRef = collection(db, 'users');
         const q = query(usersRef, orderBy(field, 'desc'), limit(limitCount));
+        const startedAt = perfStart();
+        let snapshotCount = 0;
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
+            snapshotCount += 1;
+            const receivedAt = Date.now();
             const leaderboard: LeaderboardEntry[] = [];
             let currentRank = 1;
 
@@ -167,8 +214,22 @@ class LeaderboardService {
                 }
             });
 
+            perfMark('leaderboard.snapshot', {
+                n: snapshotCount,
+                category,
+                docs: leaderboard.length,
+                fromCache: snapshot.metadata.fromCache,
+                snapshotMs: receivedAt - startedAt,
+                mapMs: Date.now() - receivedAt,
+            });
             callback(leaderboard);
+            perfDefer('leaderboard.payload', () => ({
+                category,
+                n: snapshotCount,
+                jsonBytes: perfJsonSize(snapshot.docs.map(docSnap => docSnap.data())),
+            }));
         }, (error) => {
+            perfError('leaderboard.error', error, { category });
             LogService.error('LeaderboardService', 'onSnapshot error:', error);
             callback([]);
         });
@@ -234,10 +295,14 @@ class LeaderboardService {
      */
     subscribeLeagueClassementMonthly(
         category: ClassementCategory,
-        callback: (entries: LeaderboardEntry[]) => void
+        callback: (entries: LeaderboardEntry[]) => void,
+        onError?: (error: unknown) => void
     ): Unsubscribe {
         const yearMonth = getYearMonthUtcString();
         const monthlyRef = collection(db, 'users_monthly_stats');
+        const startedAt = perfStart();
+        let snapshotCount = 0;
+        let firstSnapshotLogged = false;
 
         let q;
         if (category === 'PLUS_COCHONS') {
@@ -265,6 +330,8 @@ class LeaderboardService {
         }
 
         return onSnapshot(q, (snapshot) => {
+            snapshotCount += 1;
+            const receivedAt = Date.now();
             const entries: LeaderboardEntry[] = [];
             let currentRank = 1;
 
@@ -295,9 +362,36 @@ class LeaderboardService {
                 });
             });
 
+            const mappedAt = Date.now();
+            const timing = {
+                category,
+                docs: entries.length,
+                fromCache: snapshot.metadata.fromCache,
+                snapshotMs: receivedAt - startedAt,
+                mapMs: mappedAt - receivedAt,
+            };
+
+            if (!firstSnapshotLogged) {
+                firstSnapshotLogged = true;
+                perfMark('league.monthly.firstSnapshot', timing);
+            } else {
+                perfMark('league.monthly.snapshot', { n: snapshotCount, ...timing });
+            }
+
             callback(entries);
+
+            // Sérialisation de diagnostic planifiée après la frame courante.
+            // `delayMs` et `jsonSizeMs` diront si elle a réellement atterri après
+            // le jalon de contenu, et ce qu'elle a coûté.
+            perfDefer('league.monthly.payload', () => ({
+                category,
+                n: snapshotCount,
+                jsonBytes: perfJsonSize(snapshot.docs.map(docSnap => docSnap.data())),
+            }));
         }, (error) => {
+            perfError('league.monthly.error', error, { category });
             LogService.error('LeaderboardService', 'subscribeLeagueClassementMonthly error:', error);
+            onError?.(error);
             callback([]);
         });
     }
@@ -307,51 +401,72 @@ class LeaderboardService {
      */
     subscribeLeagueClassementGlobal(
         category: ClassementCategory,
-        callback: (entries: LeaderboardEntry[]) => void
+        callback: (entries: LeaderboardEntry[]) => void,
+        onError?: (error: unknown) => void
     ): Unsubscribe {
-        const usersRef = collection(db, 'users');
+        const projectionRef = collection(db, 'users_global_stats');
+        const startedAt = perfStart();
+        let cancelled = false;
 
         let q;
         if (category === 'PLUS_COCHONS') {
-            // economy.cochonsGiven est présent sur tous les profils (champ source de la Ligue)
-            q = query(
-                usersRef,
-                orderBy('economy.cochonsGiven', 'desc'),
-                limit(100)
-            );
+            q = query(projectionRef, orderBy('cochonsGiven', 'desc'), limit(100));
         } else if (category === 'MOINS_COCHONS') {
-            // Tri par gamesPlayed desc pour avoir les joueurs actifs (proxy anti-inactifs)
-            // Le tri final cochonsSubis ASC est fait côté client dans LeagueHubView
-            q = query(
-                usersRef,
-                orderBy('stats.gamesPlayed', 'desc'),
-                limit(100)
-            );
+            q = query(projectionRef, orderBy('gamesPlayed', 'desc'), limit(100));
         } else {
-            q = query(
-                usersRef,
-                orderBy('stats.totalPointsAccumulated', 'desc'),
-                limit(100)
-            );
+            q = query(projectionRef, orderBy('pointsAccumulated', 'desc'), limit(100));
         }
 
-        return onSnapshot(q, (snapshot) => {
-            const entries: LeaderboardEntry[] = [];
-            const startOfMonth = getStartOfCurrentMonthUtc();
-            let currentRank = 1;
+        void (async () => {
+            try {
+                let snapshot = await getDocs(q);
+                let legacyFallback = false;
 
-            snapshot.forEach((docSnap) => {
-                const entry = this.mapUserToEntry(docSnap.id, docSnap.data(), currentRank++, startOfMonth);
-                if (entry) {
-                    entries.push(entry);
+                // Le repli garantit la compatibilité avant déploiement/backfill.
+                if (snapshot.empty) {
+                    legacyFallback = true;
+                    const usersRef = collection(db, 'users');
+                    const field = category === 'PLUS_COCHONS'
+                        ? 'economy.cochonsGiven'
+                        : category === 'MOINS_COCHONS'
+                            ? 'stats.gamesPlayed'
+                            : 'stats.totalPointsAccumulated';
+                    snapshot = await getDocs(query(usersRef, orderBy(field, 'desc'), limit(100)));
                 }
-            });
 
-            callback(entries);
-        }, (error) => {
-            LogService.error('LeaderboardService', 'subscribeLeagueClassementGlobal error:', error);
-            callback([]);
-        });
+                if (cancelled) return;
+                const receivedAt = Date.now();
+                const startOfMonth = getStartOfCurrentMonthUtc();
+                const entries = snapshot.docs
+                    .map((docSnap, index) => legacyFallback
+                        ? this.mapUserToEntry(docSnap.id, docSnap.data(), index + 1, startOfMonth)
+                        : this.mapGlobalProjectionToEntry(docSnap.data() as GlobalLeaderboardDocument, index + 1))
+                    .filter((entry): entry is LeaderboardEntry => entry !== null);
+
+                perfMark('league.global.firstSnapshot', {
+                    category,
+                    docs: entries.length,
+                    fromCache: snapshot.metadata.fromCache,
+                    snapshotMs: receivedAt - startedAt,
+                    mapMs: Date.now() - receivedAt,
+                    legacyFallback,
+                });
+                callback(entries);
+                perfDefer('league.global.payload', () => ({
+                    category,
+                    jsonBytes: perfJsonSize(snapshot.docs.map(docSnap => docSnap.data())),
+                    legacyFallback,
+                }));
+            } catch (error) {
+                if (cancelled) return;
+                perfError('league.global.error', error, { category });
+                LogService.error('LeaderboardService', 'subscribeLeagueClassementGlobal error:', error);
+                onError?.(error);
+                callback([]);
+            }
+        })();
+
+        return () => { cancelled = true; };
     }
 
     /**

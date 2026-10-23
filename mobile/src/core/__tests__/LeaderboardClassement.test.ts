@@ -10,7 +10,7 @@
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-import { onSnapshot } from 'firebase/firestore';
+import { getDocs, onSnapshot } from 'firebase/firestore';
 import { leaderboardService, LeaderboardEntry } from '../services/leaderboard.service';
 
 jest.mock('firebase/firestore', () => ({
@@ -20,6 +20,7 @@ jest.mock('firebase/firestore', () => ({
     limit: jest.fn(),
     where: jest.fn(),
     onSnapshot: jest.fn(),
+    getDocs: jest.fn(),
     getCountFromServer: jest.fn(),
     doc: jest.fn(),
     setDoc: jest.fn().mockResolvedValue(undefined),
@@ -60,7 +61,11 @@ const makeDoc = (uid: string, stats: FakeStatsOverrides = {}) => ({
 // Déclenche le callback onSnapshot avec les docs fournis
 const triggerSnapshot = (docs: ReturnType<typeof makeDoc>[]) => {
     const cb = (onSnapshot as jest.Mock).mock.calls[0][1];
-    cb({ forEach: (fn: (d: any) => void) => docs.forEach(fn) });
+    cb({
+        docs,
+        metadata: { fromCache: false },
+        forEach: (fn: (d: any) => void) => docs.forEach(fn),
+    });
 };
 
 // ─── Suite 1 : lecture des champs dans leaderboard.service ───────────────────
@@ -353,20 +358,23 @@ describe('LeaderboardService — subscribeLeagueClassementMonthly', () => {
         let monthlyEntries: LeaderboardEntry[] = [];
         
         (onSnapshot as jest.Mock).mockImplementation((_q, cb) => {
+            const monthlyDoc = {
+                data: () => ({
+                    userId: 'user1',
+                    displayName: 'Player One',
+                    avatarId: 'avatar_1',
+                    activeFrame: 'frame_gold',
+                    cochonsGiven: 5,
+                    cochonsSubis: 2,
+                    pointsAccumulated: 150,
+                    gamesPlayed: 10
+                })
+            };
             cb({
+                docs: [monthlyDoc],
+                metadata: { fromCache: false },
                 forEach: (fn: (d: any) => void) => {
-                    fn({
-                        data: () => ({
-                            userId: 'user1',
-                            displayName: 'Player One',
-                            avatarId: 'avatar_1',
-                            activeFrame: 'frame_gold',
-                            cochonsGiven: 5,
-                            cochonsSubis: 2,
-                            pointsAccumulated: 150,
-                            gamesPlayed: 10
-                        })
-                    });
+                    fn(monthlyDoc);
                 }
             });
             return jest.fn(); // unsubscribe
@@ -394,5 +402,45 @@ describe('LeaderboardService — subscribeLeagueClassementMonthly', () => {
         }));
         
         unsub();
+    });
+});
+
+describe('LeaderboardService — classement global léger', () => {
+    it('lit la projection globale sans historique utilisateur', async () => {
+        const projectedDoc = {
+            data: () => ({
+                userId: 'user-light',
+                displayName: 'Projection',
+                avatarId: 'avatar_1',
+                cochonsGiven: 12,
+                cochonsSubis: 3,
+                pointsAccumulated: 400,
+                gamesPlayed: 8,
+            }),
+        };
+        (getDocs as jest.Mock).mockResolvedValue({
+            empty: false,
+            docs: [projectedDoc],
+            metadata: { fromCache: false },
+        });
+
+        let entries: LeaderboardEntry[] = [];
+        const unsubscribe = leaderboardService.subscribeLeagueClassementGlobal(
+            'PLUS_COCHONS',
+            value => { entries = value; }
+        );
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(entries).toEqual([
+            expect.objectContaining({
+                uid: 'user-light',
+                cochonsGiven: 12,
+                totalCochonsSubis: 3,
+                totalPointsAccumulated: 400,
+            }),
+        ]);
+        expect(getDocs).toHaveBeenCalledTimes(1);
+        unsubscribe();
     });
 });

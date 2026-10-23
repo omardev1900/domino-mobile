@@ -22,6 +22,10 @@ import { createStripeWebhook } from './premiumStripeWebhook';
 import { createRechargeCodeEmailSender } from './premiumBrevoEmail';
 import { createPremiumRechargeCodeReader } from './premiumRechargeCode';
 import { createStripeCustomerPortal } from './premiumStripePortal';
+import {
+    createBackfillGlobalLeaderboard,
+    createGlobalLeaderboardProjection,
+} from './globalLeaderboard';
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -36,6 +40,8 @@ export const stripePremiumWebhook = createStripeWebhook(db);
 export const sendPremiumRechargeEmail = createRechargeCodeEmailSender(db);
 export const getPremiumRechargeCode = createPremiumRechargeCodeReader(db);
 export const createPremiumCustomerPortal = createStripeCustomerPortal(db);
+export const projectGlobalLeaderboard = createGlobalLeaderboardProjection(db);
+export const backfillGlobalLeaderboard = createBackfillGlobalLeaderboard(db);
 
 const LOCAL_WEB_ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
