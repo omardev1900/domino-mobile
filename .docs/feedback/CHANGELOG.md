@@ -2,6 +2,10 @@
 
 ### 2026-10-23
 
+- L'application enregistre la plateforme utilisée (Android, iOS ou Web) au plus
+  une fois par jour, afin que l'administration puisse distinguer les joueurs
+  Android, iOS, Web et multiplateformes après leur prochaine connexion.
+
 - Le classement global de la Ligue des Cochons charge désormais une projection
   allégée : environ 40 Ko au lieu de 2 Mo pour 100 joueurs, avec un affichage
   environ 4 à 5 fois plus rapide sur réseau dégradé.

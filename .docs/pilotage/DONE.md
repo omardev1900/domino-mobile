@@ -170,6 +170,12 @@
 - [x] Snapshot `MANCHE_END` corrige dans un commit independant (`be08bbe`).
 # Taches terminees
 
+### 2026-10-23
+
+- [x] `ADMIN-PLAYER-PLATFORMS-01` Les plateformes Android, iOS et Web utilisees
+  par chaque joueur sont enregistrees au plus une fois par jour et exposees a
+  l'administration avec la derniere plateforme connue.
+
 ### 2026-10-11
 
 - [x] `PRESENCE-06` Recette multijoueur terminee sur trois clients (telephone

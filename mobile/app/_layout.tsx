@@ -36,6 +36,7 @@ import { AndroidStoreBanner } from '@/components/AndroidStoreBanner';
 import { PremiumExpiryModal } from '@/components/PremiumExpiryModal';
 import { lastActivityService } from '@/core/services/lastActivity.service';
 import { perfMark } from '@/core/services/perf';
+import { platformTrackingService } from '@/core/services/platformTracking.service';
 
 // Keep the native splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -150,6 +151,24 @@ export default function RootLayout() {
     recordActivity();
     const subscription = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state === 'active') recordActivity();
+    });
+
+    return () => subscription.remove();
+  }, [isAuthenticated]);
+
+  // Plateforme utilisée (Android, iOS, Web) : au plus une écriture toutes les 24 h
+  // et par plateforme, pour que l'administration sache où le joueur a joué.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const recordPlatform = () => {
+      const uid = auth.currentUser?.uid;
+      if (uid) void platformTrackingService.record(uid);
+    };
+
+    recordPlatform();
+    const subscription = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') recordPlatform();
     });
 
     return () => subscription.remove();
