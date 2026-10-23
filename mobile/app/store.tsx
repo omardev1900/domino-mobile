@@ -395,7 +395,10 @@ export default function StoreScreen() {
         const cardLandscape = currentWidth > currentHeight;
         const [isExpanded, setIsExpanded] = useState(false);
         const isWorkshop = item.id === SKIN_WORKSHOP_ID;
-        const isOwned = isWorkshop || (item.type !== 'CURRENCY_PACK' && playerInventory.ownedItems.includes(item.id));
+        // Le Skin Creator est un article Premium achetable comme les autres.
+        // Il ne doit être considéré comme possédé qu'après son achat effectif;
+        // sinon le bouton d'achat disparaît et l'écran du créateur refuse l'accès.
+        const isOwned = item.type !== 'CURRENCY_PACK' && playerInventory.ownedItems.includes(item.id);
         const isEquipped = !isWorkshop && (item.type === 'AVATAR'
             ? playerInventory.equipped.avatar === item.id
             : item.type === 'SKIN'
