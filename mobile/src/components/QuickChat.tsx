@@ -69,11 +69,11 @@ export const QuickChat: React.FC<QuickChatProps> = ({ onSelectMessage, onSelectE
         const load = async () => {
             try {
                 const snap = await getDocs(query(collection(db, 'chat_messages'), orderBy('order', 'asc')));
-                const premium = await premiumService.hasActiveAccess();
-                setHasPremium(premium);
+                const hasPremiumAccess = await premiumService.hasActiveAccess();
+                setHasPremium(hasPremiumAccess);
                 const all = snap.docs
                     .map(d => ({ firestoreId: d.id, usagesPerPurchase: 0, ...d.data() } as ChatItem))
-                    .filter(i => i.enabled && (i.access !== 'PREMIUM_ONLY' || premium));
+                    .filter(i => i.enabled && (i.access !== 'PREMIUM_ONLY' || hasPremiumAccess));
 
                 const free_msgs = all.filter(i => i.category === 'message' && i.costType === 'free');
                 const free_emojis = all.filter(i => i.category === 'emoji' && i.costType === 'free');
