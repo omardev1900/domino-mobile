@@ -195,8 +195,9 @@ export default function RootLayout() {
         // Enregistre le token FCM pour les notifications push
         registerPushToken();
 
-        // Preload audio assets
-        await SoundManager.preloadSounds();
+        // Audio is loaded on its first use. Creating every native ExoPlayer here
+        // delays the first visible screen and creates many worker threads during
+        // startup, which can trigger an Android "no focused window" ANR.
 
         // Android Immersive Mode — appel initial
         if (Platform.OS === 'android') {
