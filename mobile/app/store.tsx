@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef, useContext } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +19,9 @@ import { useRewardedAd, AdMobIds } from '../src/core/services/AdMobAdapter';
 import { authService } from '../src/core/services/auth.service';
 import { RewardOverlay } from '../src/components/RewardOverlay';
 import { premiumService } from '../src/core/services/premium.service';
+import { CampaignBlockContext } from '../src/core/campaigns/CampaignBlockContext';
+import { useCampaign } from '../src/core/campaigns/useCampaign';
+import { CampaignModal } from '../src/components/CampaignModal';
 import { perfDefer, perfJsonSize, perfMark, perfStart, perfTime } from '../src/core/services/perf';
 
 type TabType = 'PREMIUM' | 'WORKSHOP' | StoreItemType;
@@ -148,6 +151,9 @@ export default function StoreScreen() {
     const [pendingStoreAdReward, setPendingStoreAdReward] = useState(false);
     const [isProcessingAd, setIsProcessingAd] = useState(false);
     const [showRewardOverlay, setShowRewardOverlay] = useState(false);
+    const globalCampaignBlock = useContext(CampaignBlockContext);
+    const campaignEnabled = !loading && premiumStatusResolved && !globalCampaignBlock && !purchaseSuccessItem && !previewedSkin && !pendingStoreAdReward && !isProcessingAd && !showRewardOverlay;
+    const { campaign, dismiss: dismissCampaign } = useCampaign('STORE', campaignEnabled);
 
     useEffect(() => {
         if (premiumStatusResolved && !hasPremium) {
@@ -539,6 +545,7 @@ export default function StoreScreen() {
                 <EconomyHeader refreshTrigger={economyRefresh} hideXp={true} />
             </View>
 
+            <CampaignModal campaign={campaignEnabled ? campaign : null} onClose={dismissCampaign} />
             <PurchaseSuccessModal
                 visible={!!purchaseSuccessItem}
                 itemName={purchaseSuccessItem?.name || ''}

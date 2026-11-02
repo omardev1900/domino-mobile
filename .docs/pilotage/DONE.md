@@ -1,5 +1,9 @@
 # Taches terminees
 
+### 2026-11-02
+
+- [x] `INFO-CAMPAIGNS-01` Campagnes popup administrables, ciblage et programmation, affichage à l’accueil et en boutique.
+
 ### 2026-10-23
 
 - [x] `PERF-SCREENS-01` Lenteurs Boutique, Premium, Creators, Ma Ligue et

@@ -1,5 +1,9 @@
 # Changelog
 
+### 2026-11-02
+
+- Des campagnes d’information ciblées peuvent présenter des offres à l’accueil ou dans la boutique.
+
 ### 2026-10-23
 
 - L'application enregistre la plateforme utilisée (Android, iOS ou Web) au plus

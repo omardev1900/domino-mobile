@@ -56,3 +56,5 @@ export const AdMobIds = {
     REWARDED_FIN_PARTIE: TestIds.REWARDED,
     APP_OPEN: TestIds.APP_OPEN,
 };
+
+export const isAdMobEnabled = false;

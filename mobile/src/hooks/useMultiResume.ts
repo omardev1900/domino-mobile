@@ -16,15 +16,18 @@ export type MultiResumeInfo = {
 export function useMultiResume(currentPath: string) {
     const [resumeInfo, setResumeInfo] = useState<MultiResumeInfo | null>(null);
     const isCheckingRef = useRef(false);
+    const [checking, setChecking] = useState(true);
 
     const check = useCallback(async () => {
         // Ne pas déclencher si on est déjà en jeu
         if (currentPath.startsWith('/game') || currentPath.startsWith('/join')) {
             setResumeInfo(null);
+            setChecking(false);
             return;
         }
         if (isCheckingRef.current) return;
         isCheckingRef.current = true;
+        setChecking(true);
 
         try {
             const user = await authService.getCurrentUser();
@@ -74,6 +77,7 @@ export function useMultiResume(currentPath: string) {
             setResumeInfo(null);
         } finally {
             isCheckingRef.current = false;
+            setChecking(false);
         }
     }, [currentPath]);
 
@@ -144,5 +148,5 @@ export function useMultiResume(currentPath: string) {
         }
     }, []);
 
-    return { resumeInfo, dismiss, abandon };
+    return { resumeInfo, dismiss, abandon, checking };
 }

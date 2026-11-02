@@ -34,6 +34,7 @@ import { USE_NEW_SIDEBAR, SIDEBAR_HIDDEN_ROUTES, SIDEBAR_HIDDEN_PREFIXES } from 
 import { LogService } from '@/core/services/LogService';
 import { AndroidStoreBanner } from '@/components/AndroidStoreBanner';
 import { PremiumExpiryModal } from '@/components/PremiumExpiryModal';
+import { CampaignBlockContext } from '@/core/campaigns/CampaignBlockContext';
 import { lastActivityService } from '@/core/services/lastActivity.service';
 import { perfMark } from '@/core/services/perf';
 import { platformTrackingService } from '@/core/services/platformTracking.service';
@@ -114,10 +115,12 @@ export default function RootLayout() {
   const forceUpdateInfo = useForceUpdate();
 
   // ── Reprise de partie solo ──
-  const { resumeInfo: soloResumeInfo, dismiss: dismissResume, abandon: abandonSolo } = useSoloResume(pathname);
+  const { resumeInfo: soloResumeInfo, dismiss: dismissResume, abandon: abandonSolo, checking: soloChecking } = useSoloResume(pathname);
 
   // ── Reprise de partie multi ──
-  const { resumeInfo: multiResumeInfo, dismiss: dismissMulti, abandon: abandonMulti } = useMultiResume(pathname);
+  const { resumeInfo: multiResumeInfo, dismiss: dismissMulti, abandon: abandonMulti, checking: multiChecking } = useMultiResume(pathname);
+
+  const [expiryBlocking, setExpiryBlocking] = useState(true);
 
   // Auth observer subscription
   useEffect(() => {
@@ -334,6 +337,7 @@ export default function RootLayout() {
 
             {/* Stack principal — prend toute la largeur restante */}
             <View style={{ flex: 1 }}>
+              <CampaignBlockContext.Provider value={soloChecking || multiChecking || !!soloResumeInfo || !!multiResumeInfo || expiryBlocking}>
               <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
                 <Stack.Screen name="index" />
                 <Stack.Screen name="login" />
@@ -367,6 +371,7 @@ export default function RootLayout() {
                   }}
                 />
               </Stack>
+              </CampaignBlockContext.Provider>
             </View>
 
           </View>
@@ -407,7 +412,7 @@ export default function RootLayout() {
           )}
 
           <NetworkStatusBanner status={networkStatus} onRetry={() => void retryNetwork()} />
-          {isAuthenticated && <PremiumExpiryModal />}
+          {isAuthenticated && <PremiumExpiryModal onBlockingChange={setExpiryBlocking} />}
 
           <StatusBar hidden={true} />
         </LinearGradient>

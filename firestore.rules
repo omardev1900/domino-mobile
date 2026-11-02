@@ -151,6 +151,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Campagnes informatives : lecture pour les joueurs, gestion réservée aux admins.
+    match /campaigns/{campaignId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
     // Messages et emojis du tchat en jeu.
     // Lecture authentifiée (mobile), écriture admin uniquement.
     match /chat_messages/{id} {

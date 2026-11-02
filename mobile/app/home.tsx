@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useContext } from 'react';
 import {
     View,
     StyleSheet,
@@ -29,12 +29,16 @@ import { HelpOverlay } from '../src/components/HelpOverlay';
 import { LeagueProgressWidget } from '../src/components/LeagueProgressWidget';
 import { ShareTextButton } from '../src/components/ShareButton';
 import { NewsService, NewsItem } from '../src/core/services/news.service';
-import { useAppOpenAd, AdMobIds } from '../src/core/services/AdMobAdapter';
+import { useAppOpenAd, AdMobIds, isAdMobEnabled } from '../src/core/services/AdMobAdapter';
 import { USE_NEW_SIDEBAR } from '../src/core/config/navigation.config';
 import { getLeagueProgress, getMonthlyCochonsFromHistory } from '../src/core/leagueProgress';
 import { PremiumButton } from '../src/components/common/PremiumButton';
 import { PremiumEntitlement, premiumService } from '../src/core/services/premium.service';
 import { perfMark, perfStart } from '../src/core/services/perf';
+import { CampaignBlockContext } from '../src/core/campaigns/CampaignBlockContext';
+import { useCampaign } from '../src/core/campaigns/useCampaign';
+import { CampaignModal } from '../src/components/CampaignModal';
+import { LogService } from '../src/core/services/LogService';
 
 let hasShownAppOpenAd = false;
 
@@ -55,9 +59,21 @@ export default function HomeScreen() {
     const [hasPremium, setHasPremium] = useState(false);
     const [premiumEntitlement, setPremiumEntitlement] = useState<PremiumEntitlement | null>(null);
     const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
-    const { isLoaded: isAppOpenLoaded, load: loadAppOpen, show: showAppOpen } = useAppOpenAd(AdMobIds.APP_OPEN);
+    const [homePrepared, setHomePrepared] = useState(false);
+    const [appOpenDone, setAppOpenDone] = useState(!isAdMobEnabled || hasShownAppOpenAd);
+    const globalCampaignBlock = useContext(CampaignBlockContext);
+    const { isLoaded: isAppOpenLoaded, isClosed: isAppOpenClosed, isShowing: isAppOpenShowing, error: appOpenError, load: loadAppOpen, show: showAppOpen } = useAppOpenAd(AdMobIds.APP_OPEN);
 
     const lowCoinsPromptShownRef = useRef(false);
+    const campaignEnabled = !!user && premiumStatusResolved && homePrepared && appOpenDone && !isAppOpenShowing && !globalCampaignBlock && !showHelp && !showDailyReward && !showWelcomeReward && !showLowCoinsPrompt;
+    const { campaign, dismiss: dismissCampaign } = useCampaign('HOME', campaignEnabled);
+
+    useEffect(() => {
+        if (!premiumStatusResolved || !user) return;
+        if (hasPremium || !isAdMobEnabled || isAppOpenClosed || appOpenError) { if (appOpenError) hasShownAppOpenAd = true; setAppOpenDone(true); return; }
+        const timer = setTimeout(() => { if (!hasShownAppOpenAd) { hasShownAppOpenAd = true; setAppOpenDone(true); } }, 8000);
+        return () => clearTimeout(timer);
+    }, [premiumStatusResolved, user, hasPremium, isAppOpenShowing, isAppOpenClosed, appOpenError]);
 
     useFocusEffect(
         useCallback(() => {
@@ -87,9 +103,10 @@ export default function HomeScreen() {
         if (premiumStatusResolved && !hasPremium && user && isAppOpenLoaded && !hasShownAppOpenAd) {
             hasShownAppOpenAd = true;
             try {
-                showAppOpen();
+                Promise.resolve(showAppOpen()).catch(error => { LogService.warn('Home', 'Pub indisponible.', error); setAppOpenDone(true); });
             } catch (error) {
-                console.warn('Erreur affichage pub App Open:', error);
+                LogService.warn('Home', 'Erreur affichage pub App Open.', error);
+                setAppOpenDone(true);
             }
         }
     }, [hasPremium, isAppOpenLoaded, premiumStatusResolved, showAppOpen, user]);
@@ -140,6 +157,7 @@ export default function HomeScreen() {
     useFocusEffect(
         useCallback(() => {
             let cancelled = false;
+            setHomePrepared(false);
             const focusStartedAt = perfStart();
             const run = ++focusRunRef.current;
             perfMark('home.focus', { run });
@@ -195,6 +213,8 @@ export default function HomeScreen() {
                         }
                     }
                 }
+            }).catch(error => LogService.warn('Home', 'Préparation de l’accueil impossible.', error)).finally(() => {
+                setTimeout(() => { if (!cancelled) setHomePrepared(true); }, 1200);
             });
             NewsService.getFeaturedNews(5).then(setNewsList);
 
@@ -486,6 +506,8 @@ export default function HomeScreen() {
                     </Animated.View>
                 </View>
             </ScrollView>
+
+            <CampaignModal campaign={campaignEnabled ? campaign : null} onClose={dismissCampaign} />
 
             {/* Help Overlay */}
             <HelpOverlay 

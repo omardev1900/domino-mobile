@@ -12,7 +12,7 @@ const expirationNoticeKey = (userId: string, expiresAt: Date) =>
     `@premium_expiration_notice:${userId}:${expiresAt.getTime()}`;
 
 /** Displays the end-of-trial notice once and routes directly to code activation. */
-export function PremiumExpiryModal() {
+export function PremiumExpiryModal({ onBlockingChange }: { onBlockingChange?: (blocked: boolean) => void }) {
     const router = useRouter();
     const [visible, setVisible] = useState(false);
     const [checking, setChecking] = useState(true);
@@ -50,6 +50,8 @@ export function PremiumExpiryModal() {
             subscription.remove();
         };
     }, []);
+
+    useEffect(() => { onBlockingChange?.(checking || visible); }, [checking, visible, onBlockingChange]);
 
     if (checking) return null;
 

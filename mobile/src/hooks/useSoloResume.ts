@@ -24,16 +24,19 @@ export type SoloResumeInfo = {
 export function useSoloResume(currentPath: string) {
     const [resumeInfo, setResumeInfo] = useState<SoloResumeInfo | null>(null);
     const isCheckingRef = useRef(false);
+    const [checking, setChecking] = useState(true);
 
     const check = useCallback(async () => {
         // Ne pas déclencher si on est déjà en jeu
         if (currentPath.startsWith('/game')) {
             setResumeInfo(null);
+            setChecking(false);
             return;
         }
         // Éviter les appels simultanés
         if (isCheckingRef.current) return;
         isCheckingRef.current = true;
+        setChecking(true);
 
         try {
             const user = await authService.getCurrentUser();
@@ -64,6 +67,7 @@ export function useSoloResume(currentPath: string) {
             setResumeInfo(null);
         } finally {
             isCheckingRef.current = false;
+            setChecking(false);
         }
     }, [currentPath]);
 
@@ -94,5 +98,5 @@ export function useSoloResume(currentPath: string) {
         setResumeInfo(null);
     }, []);
 
-    return { resumeInfo, dismiss, abandon };
+    return { resumeInfo, dismiss, abandon, checking };
 }
