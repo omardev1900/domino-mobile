@@ -177,7 +177,7 @@ export const createRoom = async (
     if (passcode !== undefined && passcode !== '' && (passcode.length < 4 || passcode.length > 12 || !/^[a-zA-Z0-9]+$/.test(passcode))) {
         throw new Error('Le code doit contenir entre 4 et 12 caractères alphanumériques');
     }
-    const buyIn = options?.buyIn ?? 50;
+    const buyIn = options?.buyIn ?? 100;
     if (!Number.isInteger(buyIn) || buyIn < 0 || buyIn > 100000) {
         throw new Error('Mise invalide');
     }
@@ -206,7 +206,7 @@ export const createRoom = async (
             winningCondition: options?.winningCondition || 6,
             turnDuration: options?.turnDuration ?? 1,
             startingHandSize,
-            buyIn: options?.buyIn || 50, // Default to 50 Coins MVP
+            buyIn, // Mise standard : 100 coins
         };
 
         // Firestore rejects a whole write if a profile contains even one

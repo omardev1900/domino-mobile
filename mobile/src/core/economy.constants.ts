@@ -65,8 +65,8 @@ export const BASE_REWARDS = {
 
 export const TABLE_CONFIGS: Record<string, TableConfig> = {
     DEBUTANT: { tier: 'DEBUTANT', buyIn: 100, label: 'Table Débutant', icon: '🌱' },
-    EXPERT: { tier: 'EXPERT', buyIn: 1000, label: 'Table Expert', icon: '⚔️' },
-    LEGENDE: { tier: 'LEGENDE', buyIn: 10000, label: 'Table Légende', icon: '👑' },
+    EXPERT: { tier: 'EXPERT', buyIn: 100, label: 'Table Expert', icon: '⚔️' },
+    LEGENDE: { tier: 'LEGENDE', buyIn: 100, label: 'Table Légende', icon: '👑' },
 };
 
 /** Taxe de table prélevée sur le pot total — 0% (vainqueur prend tout) */
@@ -81,7 +81,7 @@ export const POT_DISTRIBUTION = {
 
 /** Gain fixe d'une victoire Solo, quelle que soit la difficulté. */
 export const SOLO_WIN_FLAT_REWARD = 250; // 🪙
-/** Le Premium double uniquement la récompense de victoire Solo. */
+/** Le Premium double la récompense de victoire, en Solo comme en Multi. */
 export const SOLO_PREMIUM_WIN_FLAT_REWARD = 500; // 🪙
 
 // ─── Cadeau de bienvenue ─────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { buildPlayerFinalization, getMatchParticipantIds, resolveTableTier } from './matchFinalizer';
+import { TABLE_CONFIGS } from './core/economy.constants';
 import { finalRoom } from './matchFinalizer.testUtils';
 
 describe('matchFinalizer', () => {
@@ -25,8 +26,9 @@ describe('matchFinalizer', () => {
         assert.deepEqual(getMatchParticipantIds(room), ['p1']);
     });
 
-    it('derive la table depuis la mise et utilise un fallback sur Debutant', () => {
-        assert.equal(resolveTableTier(1000), 'EXPERT');
+    it('garde une mise de 100 coins et utilise un fallback sur Debutant', () => {
+        assert.deepEqual(Object.values(TABLE_CONFIGS).map(table => table.buyIn), [100, 100, 100]);
+        assert.equal(resolveTableTier(100), 'DEBUTANT');
         assert.equal(resolveTableTier(123), 'DEBUTANT');
     });
 
@@ -55,9 +57,9 @@ describe('matchFinalizer', () => {
             stats: { gamesPlayed: 2, gamesWon: 1, matchHistory: [] },
         }, 'match:final-room:30:1:3', Date.UTC(2026, 6, 23), true);
 
-        assert.equal(normal.reward.coinsEarned, 300);
-        assert.equal(premium.reward.coinsEarned, 600);
-        assert.equal(premium.economy.coins, 650);
+        assert.equal(normal.reward.coinsEarned, 250);
+        assert.equal(premium.reward.coinsEarned, 500);
+        assert.equal(premium.economy.coins, 550);
     });
 
     it('classe toujours le joueur ayant abandonne comme perdant', () => {

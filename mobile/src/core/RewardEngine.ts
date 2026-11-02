@@ -226,7 +226,7 @@ export const RewardEngine = {
         if (rank === 1) {
             // En solo, la récompense est fixe et indépendante de la difficulté.
             // Premium double toute récompense de victoire, quel que soit le mode.
-            const baseWinReward = isSolo ? SOLO_WIN_FLAT_REWARD : 300;
+            const baseWinReward = SOLO_WIN_FLAT_REWARD;
             potCoins = isSolo && isPremium
                 ? SOLO_PREMIUM_WIN_FLAT_REWARD
                 : isPremium

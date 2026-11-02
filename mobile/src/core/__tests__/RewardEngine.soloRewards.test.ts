@@ -55,9 +55,9 @@ describe('RewardEngine — récompenses Solo', () => {
             playerCount: 3,
         });
 
-        expect(reward.coinsEarned).toBe(600);
+        expect(reward.coinsEarned).toBe(500);
         expect(reward.breakdown).toEqual(expect.arrayContaining([
-            expect.objectContaining({ id: 'premium_match_win', coins: 600 }),
+            expect.objectContaining({ id: 'premium_match_win', coins: 500 }),
         ]));
     });
 });
