@@ -2,6 +2,7 @@ import { DominoSide } from './types';
 
 export type StoreItemType = 'SKIN' | 'AVATAR' | 'CURRENCY_PACK' | 'EMOTE';
 export type StoreItemRarity = 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+export type StoreAccess = 'PUBLIC' | 'PREMIUM_ONLY';
 
 export interface SkinConfig {
     tableBackgroundColor: string;
@@ -35,6 +36,7 @@ export interface StoreItem {
     skinConfig?: SkinConfig;
     /** Reserved for subscriber-only catalogue items. */
     isPremium?: boolean;
+    access?: StoreAccess;
 }
 
 export interface PlayerInventory {

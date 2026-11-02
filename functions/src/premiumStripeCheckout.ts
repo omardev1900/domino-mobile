@@ -6,6 +6,10 @@ import { getPremiumSaleProduct, PremiumSaleProduct } from './premiumSalesCatalog
 
 const stripeSecretKey = defineSecret('STRIPE_SECRET_KEY');
 const WEB_APP_ORIGIN = 'https://www.domino-martinique.online';
+const CORS_WEB_ORIGINS = new Set([
+    WEB_APP_ORIGIN,
+    'https://domino-martinique.online',
+]);
 const LOCAL_WEB_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 const checkoutInputSchema = z.object({
@@ -25,6 +29,7 @@ export function buildStripeCheckoutForm(
         success_url: `${WEB_APP_ORIGIN}/premium/succes?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${WEB_APP_ORIGIN}/premium/annule`,
         client_reference_id: saleId,
+        allow_promotion_codes: 'true',
         'line_items[0][quantity]': '1',
         'line_items[0][price_data][currency]': product.currency.toLowerCase(),
         'line_items[0][price_data][unit_amount]': String(product.priceCents),
@@ -50,9 +55,13 @@ export function requireSubscriptionEmail(product: PremiumSaleProduct, email: str
     return email;
 }
 
+export function isAllowedCorsOrigin(origin: string | undefined): boolean {
+    return origin !== undefined && (CORS_WEB_ORIGINS.has(origin) || LOCAL_WEB_ORIGIN.test(origin));
+}
+
 function applyCors(req: functions.https.Request, res: functions.Response<any>): boolean {
     const origin = req.headers.origin;
-    if (origin === WEB_APP_ORIGIN || (origin !== undefined && LOCAL_WEB_ORIGIN.test(origin))) {
+    if (isAllowedCorsOrigin(origin)) {
         res.set('Access-Control-Allow-Origin', origin);
         res.set('Vary', 'Origin');
     }
