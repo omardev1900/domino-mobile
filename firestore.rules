@@ -196,6 +196,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Les mains et les reçus des replays ne sont accessibles que par les fonctions serveur.
+    match /replay_libraries/{userId}/{document=**} {
+      allow read, write: if false;
+    }
+    match /replay_candidates/{userId}/{document=**} {
+      allow read, write: if false;
+    }
+    match /replay_sessions/{sessionId}/{document=**} {
+      allow read, write: if false;
+    }
+
     // Les codes ne doivent jamais être exposés aux clients. Leur consommation
     // est validée par une Cloud Function transactionnelle.
     match /premium_codes/{codeId} {

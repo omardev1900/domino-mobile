@@ -55,6 +55,7 @@ export interface UseActionDispatcherProps {
     clearAllTurnTimers: () => void;
     setOvertime: React.Dispatch<React.SetStateAction<number | null>>;
     onTilePlayed?: (tile: Domino) => void;
+    onSoloTransition?: (before: GameState, after: GameState) => void;
 }
 
 export const useActionDispatcher = ({
@@ -72,7 +73,8 @@ export const useActionDispatcher = ({
     setGameState,
     clearAllTurnTimers,
     setOvertime,
-    onTilePlayed
+    onTilePlayed,
+    onSoloTransition
 }: UseActionDispatcherProps) => {
 
     const dispatch = useCallback(async (command: ActionCommand): Promise<DispatchResult> => {
@@ -281,6 +283,7 @@ export const useActionDispatcher = ({
                 }
 
                 if (isSoloMode || !gameId) {
+                    if (isSoloMode) onSoloTransition?.(gameState, newState);
                     setGameState(newState);
                     return { status: 'applied', state: newState };
                 } else {
@@ -346,7 +349,8 @@ export const useActionDispatcher = ({
         setGameState,
         clearAllTurnTimers,
         setOvertime,
-        onTilePlayed
+        onTilePlayed,
+        onSoloTransition
     ]);
 
     return { dispatch };

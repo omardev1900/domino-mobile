@@ -16,12 +16,13 @@ interface FlyingDominoProps {
     data: FlyingDominoData & { width?: number; height?: number };
     onFinished: () => void;
     skinConfig?: SkinConfig;
+    durationMs?: number;
 }
 
 // Animation duration in ms — fast and snappy
 const ANIMATION_DURATION = 400;
 
-export const FlyingDomino: React.FC<FlyingDominoProps> = ({ data, onFinished, skinConfig }) => {
+export const FlyingDomino: React.FC<FlyingDominoProps> = ({ data, onFinished, skinConfig, durationMs = ANIMATION_DURATION }) => {
     const progress = useSharedValue(0);
     const finishedRef = useRef(false);
     const onFinishedRef = useRef(onFinished);
@@ -45,13 +46,13 @@ export const FlyingDomino: React.FC<FlyingDominoProps> = ({ data, onFinished, sk
             return;
         }
 
-        const watchdog = setTimeout(finishOnce, ANIMATION_DURATION + 450);
+        const watchdog = setTimeout(finishOnce, durationMs + 450);
 
         // If endPoint is not available (layout measurement failed, common on Web),
         // keep the fallback neutral and finish without a visual pop.
         if (!data.endPoint) {
             progress.value = withTiming(1, {
-                duration: ANIMATION_DURATION,
+                duration: durationMs,
                 easing: Easing.out(Easing.back(1.5)),
             }, (finished) => {
                 if (finished) runOnJS(finishOnce)();
@@ -60,14 +61,14 @@ export const FlyingDomino: React.FC<FlyingDominoProps> = ({ data, onFinished, sk
         }
 
         progress.value = withTiming(1, {
-            duration: ANIMATION_DURATION,
+            duration: durationMs,
             easing: Easing.bezier(0.25, 0.1, 0.25, 1),
         }, (finished) => {
             if (finished) runOnJS(finishOnce)();
         });
 
         return () => clearTimeout(watchdog);
-    }, [data, progress]);
+    }, [data, progress, durationMs]);
 
     const animatedStyle = useAnimatedStyle(() => {
         if (data.holdAtStart) {

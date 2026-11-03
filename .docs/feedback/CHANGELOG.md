@@ -1,6 +1,13 @@
 # Changelog
 
+### 2026-11-03 — backend phase 1 déployé
+
+- Correction mobile du message persistant « Le solde de fin de match n’est pas encore confirmé » lorsque seule la copie locale du solde était périmée.
+
+- Replay de fin de match solo/multijoueur pour les membres Premium, avec confirmation de 1 000 coins à chaque ouverture. Lecteur avec avatars, mains, animations, pause, navigation entre manches/parties et vitesses ×1/×2/×4.
+
 ### 2026-11-02
+
 
 - Des campagnes d’information ciblées peuvent présenter des offres à l’accueil ou dans la boutique.
 

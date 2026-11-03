@@ -17,6 +17,9 @@ import { PlayerAvatar } from '../components/PlayerAvatar';
 import { GameHeader } from '../components/game/GameHeader';
 import { GameOptionsMenu } from '../components/game/GameOptionsMenu';
 import { GameOverlays } from '../components/game/GameOverlays';
+import { SoloReplay } from '../components/game/SoloReplay';
+import { PaidReplayEntry } from '../components/game/PaidReplayEntry';
+import { confirmReplaySettlement } from '../core/services/replaySettlement';
 import { PlayerArea } from '../components/game/PlayerArea';
 import { NetworkRequiredScreen } from '../components/NetworkRequiredScreen';
 import { HandSortMode } from '../components/PlayerHand';
@@ -708,6 +711,15 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         }
     }, [gameState?.history, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, localPlayerId, width, height]);
 
+    const replayFramesRef = useRef<GameState[]>([]);
+    const matchSettlementRef = useRef<Promise<void> | null>(null);
+    const [showSoloReplay, setShowSoloReplay] = useState(false);
+    const recordSoloTransition = useCallback((_before: GameState, after: GameState) => {
+        if (replayFramesRef.current.length > 0) {
+            replayFramesRef.current.push(structuredClone(after));
+        }
+    }, []);
+
     const handleReplay = async () => {
         if (isSoloMode) {
             boudeSessionEpochRef.current += 1;
@@ -781,7 +793,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         clearAllTurnTimers,
         setOvertime,
         setTimeLeft,
-        onReplay: handleReplay
+        onReplay: handleReplay,
+        onSoloTransition: recordSoloTransition
     });
 
     // Wire the timer timeout cb directly to the returned handleTimeout function
@@ -1340,12 +1353,16 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                             mode: isSoloMode ? 'SOLO' : 'MULTIPLAYER',
                             userId: persistenceUserId
                         });
+
                     } catch (err) {
                         LogService.error('GameScreen', 'Match end processing failed:', err);
+                        throw err;
                     }
                 };
 
-                processMatchEnd();
+                const settlement = processMatchEnd();
+                matchSettlementRef.current = settlement;
+                void settlement.catch(() => {});
                 statsRecordedRef.current = true;
             }
         } else if (gameState?.phase !== 'MATCH_END' && gameState?.phase !== 'MANCHE_END') {
@@ -1926,6 +1943,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                                 // On laisse tomber la restauration → nouvelle partie ci-dessous
                             } else {
                                 LogService.info('GameScreen', `[SOLO] Restored saved solo game state for ${gameId}`);
+                                replayFramesRef.current = [];
                                 setGameState(parsedState);
                                 return; // Restauration réussie, quitter startSoloGame
                             }
@@ -2006,6 +2024,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             if (!fullState.startingHandSize) fullState.startingHandSize = startingHandSize || 7;
             if (!fullState.talonMort) fullState.talonMort = [];
 
+            replayFramesRef.current = [structuredClone(fullState)];
+            matchSettlementRef.current = null;
             setGameState(fullState);
         } catch (error) {
             LogService.error('GameScreen', 'Error starting solo game:', error);
@@ -2535,12 +2555,34 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 onOverlayContinue={interceptOverlayContinue}
                 onLeaveRoom={handleLeaveRoom}
                 onReplay={handleReplay}
+                onWatchReplay={undefined}
                 roomData={roomData}
                 bannerState={bannerState}
                 isPaused={isPaused}
                 onResume={() => setIsPaused(false)}
                 matchReward={matchReward}
             />
+
+            <PaidReplayEntry
+                key={isSoloMode ? replayFramesRef.current[0]?.lastActionTimestamp : (roomData as (GameRoom & { replaySessionId?: string }) | null)?.replaySessionId}
+                enabled={hasPremium && !showSoloReplay && !isTrainingMode && gameState?.phase === 'MATCH_END' && showScoreOverlay}
+                solo={isSoloMode}
+                matchId={isSoloMode ? `${gameId ?? 'solo'}_${replayFramesRef.current[0]?.lastActionTimestamp ?? 0}` : gameId ?? 'multi'}
+                sessionId={(roomData as (GameRoom & { replaySessionId?: string }) | null)?.replaySessionId}
+                finalized={roomData?.finalization?.status === 'COMPLETED'}
+                settle={async () => {
+                    if (!matchSettlementRef.current) throw new Error('Le résultat du match est encore en cours de traitement.');
+                    if (!persistenceUserId) throw new Error('Connexion requise.');
+                    await confirmReplaySettlement(matchSettlementRef.current, persistenceUserId);
+                }}
+                onOpened={frames => {
+                    if (frames) replayFramesRef.current = frames;
+                    setShowSoloReplay(true);
+                }}
+                hasFrames={replayFramesRef.current.length > 1}
+            />
+
+            <SoloReplay visible={showSoloReplay} frames={replayFramesRef.current} onClose={() => setShowSoloReplay(false)} localPlayerId={localPlayerId} theme={tableTheme} skinConfig={playerSkinConfig} />
 
             <RewardOverlay
                 visible={showRewardOverlay && !!matchReward}

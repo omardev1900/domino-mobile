@@ -3,6 +3,7 @@ import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
 
 import { GameRoom } from './gameCore/types';
+import { recordReplayTransition } from './replayCapture';
 import {
     computeTurnDecision,
     getCoordinatedTurnDelayMs,
@@ -67,6 +68,7 @@ export const applyCoordinatedTurn = async (
         const decision = computeTurnDecision(room.gameState);
         if (!decision) return false;
 
+        recordReplayTransition(db, transaction, roomId, room, room.gameState, decision.nextState);
         transaction.update(roomRef, {
             gameState: removeUndefinedValues(decision.nextState),
             coordinator: {

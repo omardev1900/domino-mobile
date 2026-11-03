@@ -1,5 +1,7 @@
 # Taches actives
 
+- [ ] `REPLAY-02` Différé - Sauvegarde gratuite, 10 slots, liste depuis l’accueil, suppression et conservation sans accès après expiration Premium. Hors phase 1.
+- [ ] `COINS-SERVER` Différé - Migration générale des opérations de coins vers l’autorité serveur. Hors phase 1.
 
 - [ ] `WEB-PREMIUM-SALES-01` En cours - Carte Trello « [Web] Vente de recharges et abonnements Premium » : parcours de paiement web, confirmation serveur, codes et abonnements securises.
 - [ ] `UI-IN-GAME-SKINS-01` En cours - Carte Trello « Modifier skin du jeu lors

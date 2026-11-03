@@ -30,6 +30,7 @@ interface UnifiedResultOverlayProps {
     onContinue: () => void;
     onLeave?: () => void;
     onReplay?: () => void;
+    onWatchReplay?: () => void;
     isSoloMode?: boolean;
     allReady?: boolean;
     onAnimationFinished?: () => void;
@@ -46,6 +47,7 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
     onContinue,
     onLeave,
     onReplay,
+    onWatchReplay,
     isSoloMode,
     isHost = true,
     matchReward,
@@ -451,6 +453,15 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
                                 <Ionicons name="refresh" size={22} color="#FFD700" />
                             </View>
                             <Text style={styles.topNavActionText}>{isSoloMode ? 'Rejouer' : 'Revanche'}</Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {onWatchReplay && (
+                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={onWatchReplay} accessibilityLabel="Voir le replay">
+                            <View style={styles.quitBtn}>
+                                <Ionicons name="play" size={22} color="#FFD700" />
+                            </View>
+                            <Text style={styles.topNavActionText}>Replay</Text>
                         </TouchableOpacity>
                     )}
 

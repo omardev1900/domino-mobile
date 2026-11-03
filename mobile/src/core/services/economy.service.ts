@@ -790,6 +790,12 @@ class EconomyService {
     /**
      * Invalide le cache en mémoire (utile après déconnexion).
      */
+    async applyConfirmedReplayBalance(coins: number): Promise<void> {
+        if (!Number.isSafeInteger(coins) || coins < 0) throw new Error('Solde serveur invalide.');
+        this.cached = { ...await this.getEconomy(), coins };
+        await this.persistLocal();
+    }
+
     clearCache(): void {
         this.cached = null;
     }

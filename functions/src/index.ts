@@ -17,6 +17,8 @@ import {
     createRedeemPremiumCode,
     isActivePremiumEntitlement,
 } from './premiumAccess';
+import { createChargeCurrentReplay } from './replayOpen';
+import { createOpenMultiplayerReplay } from './replayMultiplayer';
 import { createStripeCheckout } from './premiumStripeCheckout';
 import { createStripeWebhook } from './premiumStripeWebhook';
 import { createRechargeCodeEmailSender } from './premiumBrevoEmail';
@@ -30,6 +32,9 @@ import {
 admin.initializeApp();
 const db = admin.firestore();
 const rtdb = admin.database();
+
+export const chargeCurrentReplay = createChargeCurrentReplay(db);
+export const openMultiplayerReplay = createOpenMultiplayerReplay(db);
 
 export const activatePremiumTrial = createActivatePremiumTrial(db);
 export const grantPremiumAccess = createGrantPremiumAccess(db);

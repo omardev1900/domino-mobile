@@ -456,6 +456,7 @@ export const startGame = async (roomId: string, initialGameState: GameState, cal
             participantIds,
             participantProfiles: currentRoom?.players ?? [],
             finalization: null,
+            replaySessionId: doc(collection(db, 'replay_sessions')).id,
         });
 
         // Enregistrer la room comme active uniquement pour l'appelant (l'hôte).

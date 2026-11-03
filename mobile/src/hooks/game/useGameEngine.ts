@@ -27,6 +27,7 @@ export interface UseGameEngineProps {
     onTilePlayed?: (tile: Domino) => void;
     onRestartMatch?: () => void;
     onReplay?: () => void;
+    onSoloTransition?: (before: GameState, after: GameState) => void;
 }
 
 export const useGameEngine = ({
@@ -46,7 +47,8 @@ export const useGameEngine = ({
     setTimeLeft,
     onTilePlayed,
     onRestartMatch,
-    onReplay
+    onReplay,
+    onSoloTransition
 }: UseGameEngineProps) => {
     const [pendingDomino, setPendingDomino] = useState<Domino | null>(null);
 
@@ -75,7 +77,8 @@ export const useGameEngine = ({
         setGameState: setGameState as any,
         clearAllTurnTimers,
         setOvertime,
-        onTilePlayed
+        onTilePlayed,
+        onSoloTransition
     });
 
     // 3. Activer la réflexion autonome des bots

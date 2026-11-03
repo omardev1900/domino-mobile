@@ -106,6 +106,26 @@ describe('submitGameAction avec Firestore Emulator', () => {
         assert.equal(room?.coordinator.lastHumanActionId.includes(':p1:PLAY_TILE:'), true);
     });
 
+    it('enregistre atomiquement la position initiale et le coup multijoueur', async () => {
+        const roomRef = db.collection('rooms').doc('replay-human-test');
+        await roomRef.set({
+            coordinatorVersion: 1, coordinator: { version: 1 },
+            playerIds: ['p1', 'p2', 'p3'], participantIds: ['p1', 'p2', 'p3'],
+            replaySessionId: 'session-one', status: 'PLAYING',
+            gameState: { ...gameState(), gameId: roomRef.id }, lastActivity: 1000,
+        });
+        await submitGameActionTransaction(db, 'p1', {
+            roomId: roomRef.id, expectedStateVersion: 12, expectedTurnId: 8,
+            action: { type: 'PLAY_TILE', dominoId: 'p1-6-5', side: 'right' },
+        });
+        const capture = db.collection('replay_sessions').doc('replay-human-test_session-one');
+        const frames = await capture.collection('frames').orderBy('version').get();
+        assert.deepEqual(frames.docs.map(frame => frame.data().version), [12, 13]);
+        assert.equal(frames.docs[0].data().state.players[0].hand.length, 2);
+        assert.equal(frames.docs[1].data().state.players[0].hand.length, 1);
+        assert.deepEqual((await capture.get()).data()?.participants, ['p1', 'p2', 'p3']);
+    });
+
     it('retire atomiquement un joueur actif tout en conservant les participants du match', async () => {
         const roomRef = db.collection('rooms').doc('atomic-surrender-integration');
         const userRef = db.collection('users').doc('p1');

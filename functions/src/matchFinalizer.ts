@@ -6,6 +6,7 @@ import { RewardEngine } from './core/RewardEngine';
 import { hasTransitionFingerprint, TransitionFingerprint } from './gameCoordinator';
 import { GameRoom, PlayerProfile } from './gameCore/types';
 import { isActivePremiumEntitlement } from './premiumAccess';
+import { finishReplayCapture } from './replayCapture';
 
 type DocumentData = Record<string, unknown>;
 
@@ -222,6 +223,7 @@ export const finalizeCoordinatedMatch = async (
             );
         });
 
+        finishReplayCapture(db, transaction, roomId, room);
         transaction.update(roomRef, {
             status: 'FINISHED',
             finalization: {

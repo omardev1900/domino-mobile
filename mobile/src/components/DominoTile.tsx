@@ -22,6 +22,7 @@ interface DominoTileProps {
     animateOnMount?: boolean;
     disablePressScale?: boolean;
     pipScale?: number;
+    flat?: boolean;
 }
 
 // Logic for pip positions
@@ -52,6 +53,7 @@ export const DominoTile: React.FC<DominoTileProps> = ({
     animateOnMount = true,
     disablePressScale = false,
     pipScale = 1,
+    flat = false,
 }) => {
     const isVertical = orientation === 'vertical';
     const width = isVertical ? size : size * 2;
@@ -87,7 +89,7 @@ export const DominoTile: React.FC<DominoTileProps> = ({
             shadowColor: '#FFD700',
             shadowOpacity: withTiming(isPlayable ? 1 : 0), // Max opacity
             shadowRadius: 15 + glowValue.value * 25, // Massive glow radius
-            elevation: isPlayable ? 20 : 5, // Android elevation boost
+            elevation: flat ? 0 : isPlayable ? 20 : 5, // Android elevation boost
             borderColor: interpolateColor(
                 glowValue.value,
                 [0, 1],
@@ -161,10 +163,11 @@ export const DominoTile: React.FC<DominoTileProps> = ({
                     noMargin ? { margin: 0 } : { margin: 4 },
                     { width, height, flexDirection: isVertical ? 'column' : 'row' },
                     animatedGlowStyle,
+                    flat && styles.flat,
                 ]}
             >
                 {/* Left/Top Half */}
-                <View style={styles.half}>
+                <View style={[styles.half, flat && styles.flatHalf]}>
                     {renderHalfSVG(left, !isVertical)}
                 </View>
 
@@ -179,7 +182,7 @@ export const DominoTile: React.FC<DominoTileProps> = ({
                 </View>
 
                 {/* Right/Bottom Half */}
-                <View style={styles.half}>
+                <View style={[styles.half, flat && styles.flatHalf]}>
                     {renderHalfSVG(right, !isVertical)}
                 </View>
 
@@ -213,6 +216,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         padding: 2,
     },
+    flat: { borderWidth: 0, borderRadius: 3, shadowOpacity: 0, elevation: 0 },
+    flatHalf: { padding: 0 },
     pips: {
         zIndex: 1,
     },

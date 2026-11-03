@@ -54,6 +54,7 @@ interface GameTableProps {
     onSideSelect?: (side: 'left' | 'right') => void;
     skinConfig?: SkinConfig; // Cosmetic skin configuration
     hiddenDominoId?: string | null;
+    replayMode?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -246,11 +247,12 @@ function computeBidirectionalLayout(
 //  COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 export const GameTable = React.forwardRef<GameTableRef, GameTableProps>((
-    { gameState, pendingDomino, onSideSelect, skinConfig, hiddenDominoId },
+    { gameState, pendingDomino, onSideSelect, skinConfig, hiddenDominoId, replayMode = false },
     ref
 ) => {
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const isLandscape = screenWidth > screenHeight;
+    const [replaySize, setReplaySize] = React.useState({ width: 0, height: 0 });
     const pulse = useSharedValue(1);
     const tileRefs = React.useRef<{ [key: string]: View | null }>({});
 
@@ -328,11 +330,11 @@ export const GameTable = React.forwardRef<GameTableRef, GameTableProps>((
     const safeXPadd = isLandscape ? 200 : 180; // Zone plus restrictive pour éviter les blocs avatars sur les côtés
     const safeYPadd = isLandscape ? 120 : 180; // Espace supplémentaire en haut et bas pour les avatars
 
-    const availW = screenWidth - safeXPadd;
+    const availW = replayMode ? Math.max(1, replaySize.width - 20) : screenWidth - safeXPadd;
 
     // Approximating safe area height by removing typical HUD dimensions (header + bottom bar)
     const hudOffset = isLandscape ? 140 : 250; // Breathing room for bottom controls 
-    const availH = screenHeight - hudOffset - safeYPadd;
+    const availH = replayMode ? Math.max(1, replaySize.height - 20) : screenHeight - hudOffset - safeYPadd;
 
     // Scale down to fit available space. Cap at 1.0 to ensure tiles start large but never exceed safe area.
     // Ajout explicite d'un * 0.93 pour s'assurer que si ça touche les limites calculées, il y a encore du "vide" protecteur
@@ -353,7 +355,10 @@ export const GameTable = React.forwardRef<GameTableRef, GameTableProps>((
     }, [placedTiles]);
 
     return (
-        <View style={[styles.container, isLandscape && styles.containerLandscape, skinConfig ? { backgroundColor: skinConfig.boardColor ?? skinConfig.tableBackgroundColor } : {}]}>
+        <View onLayout={replayMode ? event => {
+            const { width, height } = event.nativeEvent.layout;
+            setReplaySize(previous => previous.width === width && previous.height === height ? previous : { width, height });
+        } : undefined} style={[styles.container, isLandscape && styles.containerLandscape, replayMode && styles.replayContainer, skinConfig ? { backgroundColor: skinConfig.boardColor ?? skinConfig.tableBackgroundColor } : {}]}>
             {/* Outer wrapper at SCALED size to preserve document flow & auto-centering */}
             <View style={{ width: scaledW, height: scaledH, justifyContent: 'center', alignItems: 'center' }}>
                 {/* Inner canvas at NATURAL size but scaled via transform */}
@@ -451,6 +456,7 @@ const styles = StyleSheet.create({
         paddingTop: 40,
         paddingBottom: 80,
     },
+    replayContainer: { padding: 0 },
     scrollContent: {
         alignItems: 'center',
         justifyContent: 'center',

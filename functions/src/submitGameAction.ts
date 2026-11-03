@@ -3,6 +3,7 @@ import * as functions from 'firebase-functions';
 import { ZodError } from 'zod';
 
 import { GameRoom } from './gameCore/types';
+import { recordReplayTransition } from './replayCapture';
 import {
     computeHumanGameAction,
     getHumanActionId,
@@ -118,6 +119,7 @@ export const submitGameActionTransaction = async (
                 transaction.set(userRef, { activeRoomId: null }, { merge: true });
             }
         }
+        recordReplayTransition(db, transaction, input.roomId, room, state, nextState);
         transaction.update(roomRef, roomUpdate);
 
         return {

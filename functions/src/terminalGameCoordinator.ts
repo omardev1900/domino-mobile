@@ -7,6 +7,7 @@ import {
     hasTransitionFingerprint,
 } from './gameCoordinator';
 import { GameRoom } from './gameCore/types';
+import { recordReplayTransition } from './replayCapture';
 import { finalizeCoordinatedMatch } from './matchFinalizer';
 
 // L'animation client révèle le vainqueur après son entrée. Six secondes lui
@@ -65,6 +66,7 @@ export const applyTerminalTransition = async (
 
         if (decision.kind === 'FINALIZE_MATCH') return false;
 
+        recordReplayTransition(db, transaction, roomId, currentRoom, currentState, decision.nextState);
         transaction.update(roomRef, {
             gameState: removeUndefinedValues(decision.nextState),
             coordinator,
