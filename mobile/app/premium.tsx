@@ -9,15 +9,10 @@ import { economyService } from '../src/core/services/economy.service';
 import { authService } from '../src/core/services/auth.service';
 import { LogService } from '../src/core/services/LogService';
 import { perfMark, perfStart } from '../src/core/services/perf';
-
-const BENEFIT_TITLES = [
-    'Skins Premiums',
-    'Entraînement avancé',
-    'Stratégie',
-    'Pas de pub',
-    'Gains doubles',
-    'Replay de matchs',
-] as const;
+import { PremiumHomeFeatures } from '../src/components/PremiumHomeFeatures';
+import { ReplayLibraryModal } from '../src/components/game/ReplayLibraryModal';
+import { storeService } from '../src/core/services/store.service';
+import { PremiumBenefitsCarousel } from '../src/components/PremiumBenefitsCarousel';
 
 const CELEBRATION_PARTICLES = [
     { x: -118, y: -178, color: '#FFD700' },
@@ -93,6 +88,7 @@ export default function PremiumScreen() {
     const [processing, setProcessing] = useState<'trial' | 'code' | 'portal' | null>(null);
     const [code, setCode] = useState('');
     const [showCodeModal, setShowCodeModal] = useState(false);
+    const [showReplays, setShowReplays] = useState(false);
     const [showTrialConfirmation, setShowTrialConfirmation] = useState(false);
     const [celebration, setCelebration] = useState<{ expiresAt: Date; bonusCoins: number; isRenewal: boolean } | null>(null);
     const focusRunRef = useRef(0);
@@ -207,66 +203,52 @@ export default function PremiumScreen() {
 
     const premiumActive = isPremiumActive(entitlement);
     const trialAlreadyUsed = Boolean(entitlement?.trialUsedAt);
-    const CodeOrShopTrigger = () => (
-        <TouchableOpacity
-            style={[styles.offerCard, styles.codeTrigger, { width: Math.min(220, Math.max(170, width * 0.52)) }]}
-            onPress={() => premiumActive ? router.push('/store?tab=PREMIUM' as never) : setShowCodeModal(true)}
-        >
-            <View style={styles.codeTriggerIcon}><Ionicons name={premiumActive ? 'storefront-outline' : 'key-outline'} size={22} color="#FFD700" /></View>
-            <View style={styles.codeTriggerCopy}>
-                <Text style={styles.codeTriggerText}>{premiumActive ? 'Boutique Premium' : 'Vous avez un code ?'}</Text>
-                <Text style={styles.codeTriggerHint}>{premiumActive ? 'Découvrir les offres' : 'L’activer'}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={19} color="#FFD700" />
-        </TouchableOpacity>
-    );
 
     return (
         <SafeAreaView style={styles.container}>
             <LinearGradient colors={['#2D1B4E', '#15102A']} style={StyleSheet.absoluteFillObject} />
             <View style={styles.topBar}>
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityLabel="Retour"><Ionicons name="arrow-back" size={23} color="#FFF" /></TouchableOpacity>
-                <Text style={styles.topTitle}>PREMIUM</Text>
+                <View style={styles.titleBlock}>
+                    <Text style={styles.topTitle}>PREMIUM</Text>
+                    {premiumActive && entitlement && <Text style={styles.statusText}>Actif jusqu’au {formatDate(entitlement.expiresAt)}</Text>}
+                </View>
                 <View style={styles.backButton} />
             </View>
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.offerRow}>
-                    {!premiumActive && <CodeOrShopTrigger />}
-
-                    <LinearGradient colors={['#F6C844', '#D88618']} style={[styles.offerCard, { width: cardWidth }]}>
+                {!premiumActive && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.offerRow}>
+                    {!loading && !premiumActive && <PremiumBenefitsCarousel width={cardWidth} />}
+                    {!premiumActive && <LinearGradient colors={['#F6C844', '#D88618']} style={[styles.offerCard, { width: cardWidth }]}>
                         <Ionicons name="star" size={39} color="#2A1648" />
                         <View style={styles.offerCopy}>
                             <Text style={styles.offerEyebrow}>DOMINO MARTINIQUAIS</Text>
                             <Text style={styles.offerTitle}>Premium</Text>
                             <Text style={styles.offerText}>Plus de style, d’entraînement et de stratégie.</Text>
                         </View>
-                    </LinearGradient>
+                    </LinearGradient>}
 
                     <View style={[styles.offerCard, styles.trialCard, { width: cardWidth }]}>
-                        {loading ? <ActivityIndicator color="#FFD700" /> : premiumActive ? (
-                            <><Ionicons name="checkmark-circle" size={34} color="#7EE081" /><View style={styles.offerCopy}><Text style={styles.activeTitle}>Premium actif</Text><Text style={styles.activeText}>Jusqu’au {formatDate(entitlement!.expiresAt)}.</Text></View></>
-                        ) : (
+                        {loading ? <ActivityIndicator color="#FFD700" /> : (
                             <><View style={styles.offerCopy}><Text style={styles.trialEyebrow}>{trialAlreadyUsed ? 'PREMIUM EXPIRÉ' : 'DÉCOUVRIR PREMIUM'}</Text><Text style={styles.trialTitle}>{trialAlreadyUsed ? 'Un code ?' : '3 jours gratuits'}</Text><Text style={styles.trialText}>{trialAlreadyUsed ? 'Réactive Premium avec un code.' : 'Sans carte bancaire.'}</Text></View>
                             <TouchableOpacity style={[styles.trialButton, processing !== null && styles.disabled]} onPress={trialAlreadyUsed ? () => setShowCodeModal(true) : confirmTrial} disabled={processing !== null}>{processing === 'trial' ? <ActivityIndicator color="#24143F" /> : <Text style={styles.trialButtonText}>{trialAlreadyUsed ? 'CODE' : 'ESSAYER'}</Text>}</TouchableOpacity></>
                         )}
                     </View>
 
-                    {premiumActive && <CodeOrShopTrigger />}
-                </ScrollView>
+                </ScrollView>}
 
                 {premiumActive && entitlement?.source === 'SUBSCRIPTION' && <TouchableOpacity style={[styles.subscriptionManage, processing === 'portal' && styles.disabled]} onPress={() => void manageSubscription()} disabled={processing !== null}>
                     {processing === 'portal' ? <ActivityIndicator color="#FFD700" /> : <><Ionicons name="card-outline" size={18} color="#FFD700" /><Text style={styles.subscriptionManageText}>Gérer mon abonnement</Text></>}
                 </TouchableOpacity>}
 
-                <View style={styles.benefitsCard}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.benefitsCarousel}>
-                        {BENEFIT_TITLES.map(title => <View key={title} style={styles.benefitSlide}><Text style={styles.benefitTitle}>{title}</Text></View>)}
-                    </ScrollView>
-                </View>
+                <PremiumHomeFeatures active={premiumActive} onPremium={() => Alert.alert('Avantage Premium', 'Active Premium pour accéder à cette fonctionnalité.')} onReplays={() => setShowReplays(true)} onShop={() => router.push('/store?tab=PREMIUM' as never)} onWorkshop={() => {
+                    void storeService.getInventory().then(inventory => router.push((inventory.ownedItems.includes('skin_premium_atelier') ? '/premium-workshop' : '/store?tab=WORKSHOP') as never)).catch(() => router.push('/store?tab=WORKSHOP' as never));
+                }} onTraining={() => router.push('/training?tab=PRACTICE' as never)} />
 
                 {isAdmin && <TouchableOpacity onPress={() => router.push('/premium-codes' as never)}><Text style={styles.adminLink}>Gérer les codes Premium</Text></TouchableOpacity>}
             </ScrollView>
+
+            <ReplayLibraryModal visible={showReplays} onClose={() => setShowReplays(false)} />
 
             <Modal visible={showCodeModal} transparent animationType="fade" onRequestClose={() => setShowCodeModal(false)}>
                 <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -307,7 +289,9 @@ const styles = StyleSheet.create({
     topBar: { height: 50, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     backButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
     topTitle: { color: '#FFF', fontSize: 16, fontWeight: '900', letterSpacing: 1.2 },
+    titleBlock: { alignItems: 'center' },
     content: { padding: 18, paddingBottom: 34, gap: 16 },
+    statusText: { color: '#AEE9BB', fontSize: 13, fontWeight: '700' },
     offerRow: { gap: 12, paddingRight: 18 },
     offerCard: { height: 132, flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 18, gap: 13 },
     offerCopy: { flex: 1 },
@@ -320,18 +304,7 @@ const styles = StyleSheet.create({
     trialText: { marginTop: 3, color: 'rgba(255,255,255,0.7)', fontSize: 12 },
     trialButton: { minWidth: 82, minHeight: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFD700' },
     trialButtonText: { color: '#24143F', fontSize: 12, fontWeight: '900' },
-    activeTitle: { color: '#7EE081', fontSize: 19, fontWeight: '900' },
-    activeText: { marginTop: 3, color: '#FFF', fontSize: 12 },
     disabled: { opacity: 0.58 },
-    benefitsCard: { minHeight: 82, padding: 10, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.3)' },
-    benefitsCarousel: { gap: 9, paddingRight: 2 },
-    benefitSlide: { width: 178, minHeight: 60, paddingHorizontal: 13, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,215,0,0.11)' },
-    benefitTitle: { color: '#FFF', fontSize: 14, fontWeight: '900', textAlign: 'center' },
-    codeTrigger: { backgroundColor: 'rgba(63,41,95,0.7)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.42)' },
-    codeTriggerIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,215,0,0.13)' },
-    codeTriggerCopy: { flex: 1 },
-    codeTriggerText: { color: '#FFF', fontSize: 14, fontWeight: '900' },
-    codeTriggerHint: { marginTop: 2, color: 'rgba(255,255,255,0.67)', fontSize: 12 },
     notice: { color: 'rgba(255,255,255,0.5)', fontSize: 11, lineHeight: 16, textAlign: 'center' },
     adminLink: { color: '#FFD700', fontSize: 12, fontWeight: '800', textAlign: 'center', textDecorationLine: 'underline' },
     modalOverlay: { flex: 1, justifyContent: 'center', padding: 22, backgroundColor: 'rgba(0,0,0,0.68)' },

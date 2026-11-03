@@ -45,6 +45,11 @@ it('affiche les coups de la partie et navigue dans les deux sens', () => {
     expect(within(view.getByTestId('replay-local-hand')).getByText('main 6-6')).toBeTruthy();
     expect(view.queryByLabelText('Fermer le replay')).toBeNull();
     fireEvent.press(view.getByLabelText('Quitter le replay'));
+    expect(view.getByText('Quitter le replay ?')).toBeTruthy();
+    fireEvent.press(view.getByText('Annuler'));
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.press(view.getByLabelText('Quitter le replay'));
+    fireEvent.press(view.getByLabelText('Confirmer la sortie du replay'));
     expect(close).toHaveBeenCalledTimes(1);
 });
 
@@ -187,6 +192,7 @@ it('montre la main adverse et la met à jour après son coup', () => {
     const initial = { ...base, players: [base.players[0], { ...base.players[1], hand: [tile, spare], handSize: 2 }] };
     const after = handleTurn(initial, 'bot1', tile);
     const view = render(<SoloReplay visible frames={[initial, after]} localPlayerId="player1" onClose={jest.fn()} />);
+    fireEvent.press(view.getByLabelText('Afficher les dominos adverses'));
     expect(within(view.getByTestId('replay-hand-bot1')).getByText('main 6-6')).toBeTruthy();
     fireEvent.press(view.getByLabelText('Suivant'));
     expect(within(view.getByTestId('replay-hand-bot1')).queryByText('main 6-6')).toBeNull();
@@ -203,14 +209,24 @@ it('masque puis réaffiche les mains adverses sans masquer celle du joueur', () 
     const after = handleTurn(initial, 'bot1', tile);
     const view = render(<SoloReplay visible frames={[initial, after]} localPlayerId="player1" onClose={jest.fn()} />);
     const toggle = () => view.getByLabelText('Afficher les dominos adverses');
-    expect(toggle().props.accessibilityState.checked).toBe(true);
-    expect(view.getByTestId('replay-hand-bot1')).toBeTruthy();
-    fireEvent.press(toggle());
     expect(toggle().props.accessibilityState.checked).toBe(false);
     expect(view.queryByTestId('replay-hand-bot1')).toBeNull();
     expect(within(view.getByTestId('replay-local-hand')).getByText('main 1-1')).toBeTruthy();
+    fireEvent.press(toggle());
+    expect(toggle().props.accessibilityState.checked).toBe(true);
+    expect(view.getByTestId('replay-hand-bot1')).toBeTruthy();
+    fireEvent.press(toggle());
     fireEvent.press(view.getByLabelText('Suivant'));
     fireEvent.press(toggle());
     expect(within(view.getByTestId('replay-hand-bot1')).queryByText('main 6-6')).toBeNull();
     expect(within(view.getByTestId('replay-hand-bot1')).getByText('main 1-1')).toBeTruthy();
+});
+
+it('sauvegarde un replay ouvert avec le bouton dédié', async () => {
+    const initial = createBaseGameState();
+    const save = jest.fn().mockResolvedValue(undefined);
+    const view = render(<SoloReplay visible frames={[initial]} localPlayerId="player1" onClose={jest.fn()} onSave={save} />);
+    await act(async () => { fireEvent.press(view.getByLabelText('Sauvegarder le replay')); });
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(view.getByText('Replay sauvegardé')).toBeTruthy();
 });

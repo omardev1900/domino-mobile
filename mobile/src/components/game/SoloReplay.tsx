@@ -18,14 +18,19 @@ interface Props {
     localPlayerId: string;
     theme?: TableTheme;
     skinConfig?: SkinConfig;
+    onSave?: () => Promise<void>;
 }
 
-export const SoloReplay = ({ visible, frames, onClose, localPlayerId, theme, skinConfig }: Props) => {
+export const SoloReplay = ({ visible, frames, onClose, localPlayerId, theme, skinConfig, onSave }: Props) => {
     const { width } = useWindowDimensions();
     const [index, setIndex] = useState(0);
     const [playing, setPlaying] = useState(false);
     const [speed, setSpeed] = useState<1 | 2 | 4>(1);
-    const [showOpponentHands, setShowOpponentHands] = useState(true);
+    const [showOpponentHands, setShowOpponentHands] = useState(false);
+    const [confirmQuit, setConfirmQuit] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+    const [saveMessage, setSaveMessage] = useState('');
     const { boardRef, tableRef, avatarRefs, flight, hiddenDominoId, finishFlight } = useReplayFlight(frames, index, visible);
     const state = frames[index];
     const phase = state?.phase;
@@ -36,7 +41,8 @@ export const SoloReplay = ({ visible, frames, onClose, localPlayerId, theme, ski
         .map(frame => frame.roundNumber))), [frames, state?.mancheNumber]);
 
     useEffect(() => {
-        if (visible) setIndex(0);
+        if (visible) { setIndex(0); setSaved(false); setSaveMessage(''); setShowOpponentHands(false); }
+        setConfirmQuit(false);
         setPlaying(false);
     }, [visible]);
     useEffect(() => {
@@ -77,9 +83,10 @@ export const SoloReplay = ({ visible, frames, onClose, localPlayerId, theme, ski
         if (target >= 0) { setPlaying(false); setIndex(target); }
     };
     const step = (offset: number) => { setPlaying(false); setIndex(current => Math.max(0, Math.min(frames.length - 1, current + offset))); };
+    const requestQuit = () => { setPlaying(false); setConfirmQuit(true); };
 
     return (
-        <Modal visible={visible} animationType="fade" onRequestClose={onClose} supportedOrientations={['portrait', 'landscape']} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'} allowSwipeDismissal={Platform.OS === 'ios'}>
+        <Modal visible={visible} animationType="fade" onRequestClose={requestQuit} supportedOrientations={['portrait', 'landscape']} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}>
             <View style={styles.container}>
                 {skinConfig?.boardColor || skinConfig?.tableBackgroundColor
                     ? <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: skinConfig.boardColor ?? skinConfig.tableBackgroundColor }]} />
@@ -107,7 +114,7 @@ export const SoloReplay = ({ visible, frames, onClose, localPlayerId, theme, ski
                     </View>
                 </View>
                 <View style={styles.progressHeader}>
-                    <Text style={styles.actionText} numberOfLines={1}>{description}</Text>
+                    <Text style={styles.actionText} accessibilityLiveRegion="polite" numberOfLines={1}>{saveMessage || (saving ? 'Sauvegarde…' : description)}</Text>
                     <TouchableOpacity
                         accessibilityRole="switch"
                         accessibilityLabel="Afficher les dominos adverses"
@@ -132,10 +139,25 @@ export const SoloReplay = ({ visible, frames, onClose, localPlayerId, theme, ski
                     {localPlayer && <ScrollView horizontal style={styles.hand} contentContainerStyle={styles.handContent} showsHorizontalScrollIndicator={false} testID="replay-local-hand">
                         {localPlayer.hand.map(domino => <DominoTile key={domino.id} left={domino.left} right={domino.right} size={28} orientation="vertical" disabled noMargin flat pipScale={1.6} animateOnMount={false} skinConfig={skinConfig} />)}
                     </ScrollView>}
-                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Quitter le replay" onPress={onClose} style={styles.quit}><Text style={styles.buttonText}>Quitter</Text></TouchableOpacity>
+                    <View style={styles.bottomActions}>
+                        {onSave && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Sauvegarder le replay" disabled={saving || saved} onPress={() => {
+                            setSaving(true); setSaveMessage('');
+                            void onSave().then(() => { setSaved(true); setSaveMessage('Replay sauvegardé'); }).catch((error: unknown) => { setSaveMessage(error instanceof Error ? error.message : 'Sauvegarde impossible.'); }).finally(() => setSaving(false));
+                        }} style={[styles.actionButton, saved && styles.savedButton]}><Ionicons name={saved ? 'checkmark' : 'bookmark-outline'} size={20} color="#fff" /></TouchableOpacity>}
+                        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Quitter le replay" onPress={requestQuit} style={styles.actionButton}><Ionicons name="exit-outline" size={20} color="#fff" /></TouchableOpacity>
+                    </View>
                     {flight && <FlyingDomino key={flight.animationId} data={flight} onFinished={finishFlight} skinConfig={skinConfig} durationMs={400 / speed} />}
                     {roundEnded && !hiddenDominoId && <View pointerEvents="none" style={styles.roundEnd}><Text style={styles.roundEndText}>Fin du Round</Text>{winner && <Text style={styles.winnerText}>Vainqueur : {winner.name} · {winningScore}</Text>}</View>}
                 </View>
+                {confirmQuit && <View style={styles.confirmBackdrop} accessibilityViewIsModal>
+                    <View style={styles.confirmCard}>
+                        <Text style={styles.confirmTitle}>Quitter le replay ?</Text>
+                        <View style={styles.confirmActions}>
+                            <TouchableOpacity accessibilityRole="button" onPress={() => setConfirmQuit(false)} style={styles.confirmButton}><Text style={styles.buttonText}>Annuler</Text></TouchableOpacity>
+                            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Confirmer la sortie du replay" onPress={() => { setConfirmQuit(false); onClose(); }} style={styles.confirmButton}><Text style={styles.buttonText}>Quitter</Text></TouchableOpacity>
+                        </View>
+                    </View>
+                </View>}
             </View>
         </Modal>
     );
@@ -165,7 +187,13 @@ const styles = StyleSheet.create({
     compactTableArea: { marginHorizontal: 105 },
     hand: { position: 'absolute', left: 95, right: 95, bottom: 0, flexGrow: 0, zIndex: 1 },
     handContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 7, paddingHorizontal: 3, paddingVertical: 4 },
-    quit: { position: 'absolute', right: 0, bottom: 12, backgroundColor: '#286c58', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, zIndex: 2 },
+    bottomActions: { position: 'absolute', right: 0, bottom: 12, flexDirection: 'row', gap: 8, zIndex: 2 },
+    actionButton: { backgroundColor: '#286c58', borderRadius: 8, padding: 9 },
+    confirmBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 5000, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center' },
+    confirmCard: { backgroundColor: '#123c32', borderRadius: 12, padding: 20, gap: 16, minWidth: 240 },
+    confirmTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+    confirmActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
+    confirmButton: { backgroundColor: '#286c58', borderRadius: 8, padding: 10 },
     empty: { position: 'absolute', alignSelf: 'center', top: '45%', color: '#b5cec2' },
     roundEnd: { position: 'absolute', alignSelf: 'center', top: '38%', backgroundColor: 'rgba(0, 0, 0, 0.82)', borderColor: '#ffd700', borderWidth: 1, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10 },
     roundEndText: { color: '#ffd700', fontSize: 20, fontWeight: 'bold' },
@@ -173,6 +201,7 @@ const styles = StyleSheet.create({
     controls: { flexDirection: 'row', justifyContent: 'flex-end', gap: 6 },
     button: { backgroundColor: '#286c58', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
     play: { backgroundColor: '#a57710' },
+    savedButton: { backgroundColor: '#387b4b' },
     disabled: { opacity: 0.4 },
     buttonText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
 });

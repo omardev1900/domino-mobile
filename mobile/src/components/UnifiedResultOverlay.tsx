@@ -483,9 +483,9 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
 
                 <View style={styles.matchCenter}>
                     <Text style={styles.matchModeLabel} numberOfLines={1}>{getMatchModeLabel()}</Text>
-                    {onWatchReplay && <TouchableOpacity onPress={onWatchReplay} accessibilityRole="button" accessibilityLabel="Ouvrir un replay pour 1 000 coins" style={styles.watchReplayButton}>
+                    {onWatchReplay && <TouchableOpacity onPress={onWatchReplay} accessibilityRole="button" accessibilityLabel="Ouvrir un replay pour 2 000 coins" style={styles.watchReplayButton}>
                         <Ionicons name="play" size={16} color="#FFD700" />
-                        <Text style={styles.watchReplayText}>Replay · 1 000 coins</Text>
+                        <Text style={styles.watchReplayText}>Replay · 2 000 coins</Text>
                     </TouchableOpacity>}
                 </View>
 

@@ -2,15 +2,16 @@ import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import { z } from 'zod';
 import { isActivePremiumEntitlement } from './premiumAccess';
-import { decideReplayOpening } from './replayPolicy';
+import { decideReplayOpening, REPLAY_OPEN_COST } from './replayPolicy';
 import { ZodError } from 'zod';
+import { gunzipSync } from 'node:zlib';
 
 const idSchema = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/);
-const inputSchema = z.object({ replayId: idSchema, requestId: idSchema, source: z.enum(['candidate', 'saved']).default('saved') }).strict();
-const currentSchema = z.object({ matchId: idSchema, requestId: idSchema }).strict();
+const inputSchema = z.object({ replayId: idSchema, requestId: idSchema, source: z.enum(['candidate', 'saved']).default('saved'), acceptedCost: z.number().optional() }).strict();
+const currentSchema = z.object({ matchId: idSchema, requestId: idSchema, acceptedCost: z.number().optional() }).strict();
 
 export async function chargeCurrentReplay(db: admin.firestore.Firestore, uid: string, rawInput: unknown, now = Date.now()): Promise<{ remainingCoins: number }> {
-    const { matchId, requestId } = currentSchema.parse(rawInput);
+    const { matchId, requestId, acceptedCost } = currentSchema.parse(rawInput);
     const entitlementRef = db.collection('premium_entitlements').doc(uid);
     const userRef = db.collection('users').doc(uid);
     const receiptRef = db.collection('replay_libraries').doc(uid).collection('opening_receipts').doc(requestId);
@@ -23,8 +24,9 @@ export async function chargeCurrentReplay(db: admin.firestore.Firestore, uid: st
             if (receipt.data()?.replayId !== matchId || receipt.data()?.source !== 'current') throw new functions.https.HttpsError('already-exists', 'Identifiant de demande déjà utilisé.');
             return { remainingCoins: receipt.data()!.remainingCoins as number };
         }
+        if (acceptedCost !== REPLAY_OPEN_COST) throw new functions.https.HttpsError('failed-precondition', 'Le prix du replay a changé. Mets à jour l’application avant de réessayer.');
         const decision = decideReplayOpening(true, user.data()?.economy?.coins);
-        if (!decision.allowed) throw new functions.https.HttpsError('failed-precondition', decision.reason === 'INSUFFICIENT_COINS' ? 'Solde insuffisant : 1 000 coins sont nécessaires.' : 'Solde indisponible.');
+        if (!decision.allowed) throw new functions.https.HttpsError('failed-precondition', decision.reason === 'INSUFFICIENT_COINS' ? 'Solde insuffisant : 2 000 coins sont nécessaires.' : 'Solde indisponible.');
         transaction.update(userRef, { 'economy.coins': decision.remainingCoins });
         transaction.create(receiptRef, { replayId: matchId, source: 'current', remainingCoins: decision.remainingCoins, createdAt: admin.firestore.FieldValue.serverTimestamp() });
         return { remainingCoins: decision.remainingCoins };
@@ -48,7 +50,7 @@ export async function openReplay(
     rawInput: unknown,
     now = Date.now(),
 ): Promise<{ replay: admin.firestore.DocumentData; remainingCoins: number }> {
-    const { replayId, requestId, source } = inputSchema.parse(rawInput);
+    const { replayId, requestId, source, acceptedCost } = inputSchema.parse(rawInput);
     const entitlementRef = db.collection('premium_entitlements').doc(uid);
     const userRef = db.collection('users').doc(uid);
     const replayRef = source === 'saved'
@@ -65,16 +67,29 @@ export async function openReplay(
             throw new functions.https.HttpsError('permission-denied', 'Un abonnement Premium actif est requis.');
         }
         if (!replay.exists) throw new functions.https.HttpsError('not-found', 'Replay introuvable.');
+        const data = replay.data()!;
+        let replayData: admin.firestore.DocumentData = data;
+        if (typeof data.framesGzip === 'string') {
+            try {
+                const frames: unknown = JSON.parse(gunzipSync(Buffer.from(data.framesGzip, 'base64'), { maxOutputLength: 8_000_000 }).toString('utf8'));
+                if (!Array.isArray(frames)) throw new Error('invalid replay');
+                const { framesGzip: _compressed, ...rest } = data;
+                replayData = { ...rest, frames };
+            } catch {
+                throw new functions.https.HttpsError('failed-precondition', 'Replay sauvegardé illisible.');
+            }
+        }
         if (receipt.exists) {
             if (receipt.data()?.replayId !== replayId || receipt.data()?.source !== source) {
                 throw new functions.https.HttpsError('already-exists', 'Identifiant de demande déjà utilisé.');
             }
-            return { replay: replay.data()!, remainingCoins: receipt.data()!.remainingCoins as number };
+            return { replay: replayData, remainingCoins: receipt.data()!.remainingCoins as number };
         }
+        if (acceptedCost !== REPLAY_OPEN_COST) throw new functions.https.HttpsError('failed-precondition', 'Le prix du replay a changé. Mets à jour l’application avant de réessayer.');
         const decision = decideReplayOpening(true, user.data()?.economy?.coins);
         if (!decision.allowed) {
             throw new functions.https.HttpsError('failed-precondition', decision.reason === 'INSUFFICIENT_COINS'
-                ? 'Solde insuffisant : 1 000 coins sont nécessaires.' : 'Solde indisponible.');
+                ? 'Solde insuffisant : 2 000 coins sont nécessaires.' : 'Solde indisponible.');
         }
         transaction.update(userRef, { 'economy.coins': decision.remainingCoins });
         transaction.create(receiptRef, {
@@ -83,6 +98,6 @@ export async function openReplay(
             remainingCoins: decision.remainingCoins,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-        return { replay: replay.data()!, remainingCoins: decision.remainingCoins };
+        return { replay: replayData, remainingCoins: decision.remainingCoins };
     });
 }

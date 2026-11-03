@@ -1,5 +1,5 @@
 /** Shared server-side decisions for replay access and saved slots. */
-export const REPLAY_OPEN_COST = 1_000;
+export const REPLAY_OPEN_COST = 2_000;
 export const REPLAY_SLOT_LIMIT = 10;
 
 export type ReplayAccessDecision =

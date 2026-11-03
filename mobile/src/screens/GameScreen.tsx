@@ -20,6 +20,7 @@ import { GameOverlays } from '../components/game/GameOverlays';
 import { SoloReplay } from '../components/game/SoloReplay';
 import { PaidReplayEntry, PaidReplayEntryHandle } from '../components/game/PaidReplayEntry';
 import { confirmReplaySettlement } from '../core/services/replaySettlement';
+import { savePurchasedReplay } from '../core/services/replayLibrary.service';
 import { PlayerArea } from '../components/game/PlayerArea';
 import { NetworkRequiredScreen } from '../components/NetworkRequiredScreen';
 import { HandSortMode } from '../components/PlayerHand';
@@ -716,6 +717,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const paidReplayEntryRef = useRef<PaidReplayEntryHandle>(null);
     const matchSettlementRef = useRef<Promise<void> | null>(null);
     const [showSoloReplay, setShowSoloReplay] = useState(false);
+    const [replayPurchaseRequestId, setReplayPurchaseRequestId] = useState<string | null>(null);
     const recordSoloTransition = useCallback((_before: GameState, after: GameState) => {
         if (replayFramesRef.current.length > 0) {
             replayFramesRef.current.push(structuredClone(after));
@@ -2582,14 +2584,15 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     if (!persistenceUserId) throw new Error('Connexion requise.');
                     await confirmReplaySettlement(matchSettlementRef.current, persistenceUserId);
                 }}
-                onOpened={frames => {
+                onOpened={(frames, requestId) => {
                     if (frames) replayFramesRef.current = frames;
+                    setReplayPurchaseRequestId(requestId);
                     setShowSoloReplay(true);
                 }}
                 hasFrames={replayFramesRef.current.length > 1}
             />
 
-            <SoloReplay visible={showSoloReplay} frames={replayFramesRef.current} onClose={() => setShowSoloReplay(false)} localPlayerId={localPlayerId} theme={tableTheme} skinConfig={playerSkinConfig} />
+            <SoloReplay visible={showSoloReplay} frames={replayFramesRef.current} onClose={() => setShowSoloReplay(false)} localPlayerId={localPlayerId} theme={tableTheme} skinConfig={playerSkinConfig} onSave={replayPurchaseRequestId ? async () => { await savePurchasedReplay(replayPurchaseRequestId, localPlayerId, replayFramesRef.current, isSoloMode); } : undefined} />
 
             <RewardOverlay
                 visible={showRewardOverlay && !!matchReward}

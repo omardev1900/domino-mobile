@@ -14,7 +14,7 @@ interface Props {
     finalized: boolean;
     hasFrames: boolean;
     settle: () => Promise<void>;
-    onOpened: (frames?: GameState[]) => void;
+    onOpened: (frames: GameState[] | undefined, requestId: string) => void;
     hideEntry?: boolean;
 }
 
@@ -44,15 +44,16 @@ export const PaidReplayEntry = forwardRef<PaidReplayEntryHandle, Props>(({ enabl
             attempt.current ??= `${Date.now()}-${Math.random().toString(36).slice(2)}`;
             const call = httpsCallable<unknown, { remainingCoins: number; frames?: GameState[] }>(gameFunctions, solo ? 'chargeCurrentReplay' : 'openMultiplayerReplay');
             const result = await call(solo
-                ? { matchId: matchId.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80), requestId: attempt.current }
-                : { sessionId: `${matchId}_${sessionId}`, requestId: attempt.current });
+                ? { matchId: matchId.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80), requestId: attempt.current, acceptedCost: 2000 }
+                : { sessionId: `${matchId}_${sessionId}`, requestId: attempt.current, acceptedCost: 2000 });
             // The confirmed balance is cached locally only; never push the old economy back.
             const confirmedCoins = await readConfirmedReplayBalance(uid);
             if (auth.currentUser?.uid !== uid) throw new Error('Le compte connecté a changé.');
             await economyService.applyConfirmedReplayBalance(confirmedCoins);
+            const completedRequestId = attempt.current;
             attempt.current = null;
             setConfirm(false);
-            onOpened(result.data.frames);
+            onOpened(result.data.frames, completedRequestId);
         } catch (failure) {
             setError(failure instanceof Error ? failure.message : 'Ouverture impossible. Réessaie.');
         } finally {
@@ -61,15 +62,15 @@ export const PaidReplayEntry = forwardRef<PaidReplayEntryHandle, Props>(({ enabl
         }
     };
     return <>
-        {enabled && !hideEntry && <TouchableOpacity style={styles.entry} onPress={show} accessibilityLabel="Ouvrir un replay pour 1 000 coins"><Text style={styles.text}>Replay · 1 000 coins</Text></TouchableOpacity>}
+        {enabled && !hideEntry && <TouchableOpacity style={styles.entry} onPress={show} accessibilityLabel="Ouvrir un replay pour 2 000 coins"><Text style={styles.text}>Replay · 2 000 coins</Text></TouchableOpacity>}
         <Modal visible={confirm} transparent animationType="fade" onRequestClose={() => { if (!busy) setConfirm(false); }}>
             <View style={styles.backdrop}><View style={styles.card}>
-                <Text style={styles.title}>Ouvrir ce replay pour 1 000 coins ?</Text>
-                <Text style={styles.text}>Chaque ouverture coûte 1 000 coins.</Text>
+                <Text style={styles.title}>Ouvrir ce replay pour 2 000 coins ?</Text>
+                <Text style={styles.text}>Chaque ouverture coûte 2 000 coins.</Text>
                 {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
                 <View style={styles.row}>
                     <TouchableOpacity disabled={busy} onPress={() => setConfirm(false)} style={styles.button}><Text style={styles.text}>Annuler</Text></TouchableOpacity>
-                    <TouchableOpacity disabled={busy} onPress={() => { void open(); }} style={styles.button} accessibilityLabel="Confirmer l’ouverture à 1 000 coins"><Text style={styles.text}>{busy ? 'Chargement…' : 'Ouvrir · 1 000 coins'}</Text></TouchableOpacity>
+                    <TouchableOpacity disabled={busy} onPress={() => { void open(); }} style={styles.button} accessibilityLabel="Confirmer l’ouverture à 2 000 coins"><Text style={styles.text}>{busy ? 'Chargement…' : 'Ouvrir · 2 000 coins'}</Text></TouchableOpacity>
                 </View>
             </View></View>
         </Modal>

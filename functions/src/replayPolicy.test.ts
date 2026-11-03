@@ -3,11 +3,10 @@ import { describe, it } from 'node:test';
 import { canSaveReplay, decideReplayOpening } from './replayPolicy';
 
 describe('replay policy', () => {
-    it('charges 1000 coins per opening and accepts the exact balance', () => {
-        assert.deepEqual(decideReplayOpening(true, 1000), { allowed: true, remainingCoins: 0 });
-        assert.deepEqual(decideReplayOpening(true, 2500), { allowed: true, remainingCoins: 1500 });
-        assert.deepEqual(decideReplayOpening(true, 1500), { allowed: true, remainingCoins: 500 });
-        assert.deepEqual(decideReplayOpening(true, 500), { allowed: false, reason: 'INSUFFICIENT_COINS' });
+    it('charges 2000 coins per opening and accepts the exact balance', () => {
+        assert.deepEqual(decideReplayOpening(true, 2000), { allowed: true, remainingCoins: 0 });
+        assert.deepEqual(decideReplayOpening(true, 2500), { allowed: true, remainingCoins: 500 });
+        assert.deepEqual(decideReplayOpening(true, 1999), { allowed: false, reason: 'INSUFFICIENT_COINS' });
     });
     it('refuses non-premium users and invalid balances', () => {
         assert.deepEqual(decideReplayOpening(false, 5000), { allowed: false, reason: 'PREMIUM_REQUIRED' });

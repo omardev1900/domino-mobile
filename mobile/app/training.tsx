@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -171,6 +171,7 @@ const premiumExercises: Record<'PRACTICE' | 'EXPERT', PremiumExercise[]> = {
 
 export default function TrainingScreen() {
     const router = useRouter();
+    const { tab } = useLocalSearchParams<{ tab?: string }>();
     const [activeTab, setActiveTab] = useState<TrainingTab>('HOME');
     const [lessonIndex, setLessonIndex] = useState(0);
     const [exerciseIndex, setExerciseIndex] = useState(0);
@@ -206,10 +207,14 @@ export default function TrainingScreen() {
     useFocusEffect(useCallback(() => {
         let active = true;
         void premiumService.getEntitlement().then(entitlement => {
-            if (active) setHasPremium(isPremiumActive(entitlement));
+            if (active) {
+                const premium = isPremiumActive(entitlement);
+                setHasPremium(premium);
+                if (premium && tab === 'PRACTICE') { setActiveTab('PRACTICE'); setShowPracticeOnboarding(true); }
+            }
         });
         return () => { active = false; };
-    }, []));
+    }, [tab]));
 
     const selectTab = (tab: CourseTab) => {
         if ((tab === 'PRACTICE' || tab === 'EXPERT') && !hasPremium) {

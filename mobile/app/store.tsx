@@ -168,7 +168,7 @@ export default function StoreScreen() {
     }, [activeTab, dynamicTabs]);
 
     useEffect(() => {
-        if (tab === 'PREMIUM' && hasPremium) setActiveTab('PREMIUM');
+        if ((tab === 'PREMIUM' || tab === 'WORKSHOP') && hasPremium) setActiveTab(tab);
     }, [hasPremium, tab]);
 
     useEffect(() => {

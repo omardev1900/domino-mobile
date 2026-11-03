@@ -2,14 +2,14 @@ import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import { z } from 'zod';
 import { isActivePremiumEntitlement } from './premiumAccess';
-import { decideReplayOpening } from './replayPolicy';
+import { decideReplayOpening, REPLAY_OPEN_COST } from './replayPolicy';
 
 const identifier = z.string().regex(/^[A-Za-z0-9_-]{1,161}$/);
-const inputSchema = z.object({ sessionId: identifier, requestId: identifier }).strict();
+const inputSchema = z.object({ sessionId: identifier, requestId: identifier, acceptedCost: z.number().optional() }).strict();
 
 /** Returns only a complete, finished replay to its Premium participant. */
 export async function openMultiplayerReplay(db: admin.firestore.Firestore, uid: string, rawInput: unknown, now = Date.now()): Promise<{ frames: admin.firestore.DocumentData[]; remainingCoins: number }> {
-    const { sessionId, requestId } = inputSchema.parse(rawInput);
+    const { sessionId, requestId, acceptedCost } = inputSchema.parse(rawInput);
     const session = db.collection('replay_sessions').doc(sessionId);
     const framesSnapshot = await session.collection('frames').orderBy('version').get();
     const frames = framesSnapshot.docs.map(frame => frame.data().state as admin.firestore.DocumentData);
@@ -31,8 +31,9 @@ export async function openMultiplayerReplay(db: admin.firestore.Firestore, uid: 
             if (receiptSnap.data()?.replayId !== sessionId || receiptSnap.data()?.source !== 'multiplayer') throw new functions.https.HttpsError('already-exists', 'Identifiant de demande déjà utilisé.');
             return receiptSnap.data()!.remainingCoins as number;
         }
+        if (acceptedCost !== REPLAY_OPEN_COST) throw new functions.https.HttpsError('failed-precondition', 'Le prix du replay a changé. Mets à jour l’application avant de réessayer.');
         const decision = decideReplayOpening(true, userSnap.data()?.economy?.coins);
-        if (!decision.allowed) throw new functions.https.HttpsError('failed-precondition', decision.reason === 'INSUFFICIENT_COINS' ? 'Solde insuffisant : 1 000 coins sont nécessaires.' : 'Solde indisponible.');
+        if (!decision.allowed) throw new functions.https.HttpsError('failed-precondition', decision.reason === 'INSUFFICIENT_COINS' ? 'Solde insuffisant : 2 000 coins sont nécessaires.' : 'Solde indisponible.');
         transaction.update(user, { 'economy.coins': decision.remainingCoins });
         transaction.create(receipt, { replayId: sessionId, source: 'multiplayer', remainingCoins: decision.remainingCoins, createdAt: admin.firestore.FieldValue.serverTimestamp() });
         return decision.remainingCoins;
