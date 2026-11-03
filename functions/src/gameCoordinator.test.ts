@@ -75,6 +75,18 @@ describe('gameCoordinator', () => {
         assert.equal(decision.nextState.stateVersion, 13);
     });
 
+    it('conserve la taille réservée à l’hôte lors de la redonne serveur', () => {
+        const game = state('PARTIE_END');
+        game.startingHandSize = 3;
+        game.startingHandPlayerId = 'p2';
+        const decision = computeCoordinatorDecision(game);
+        assert.equal(decision?.kind, 'ADVANCE');
+        if (!decision || decision.kind !== 'ADVANCE') return;
+        assert.deepEqual(decision.nextState.players.map(player => player.hand.length), [7, 3, 7]);
+        assert.equal(decision.nextState.startingHandPlayerId, 'p2');
+        assert.equal(decision.nextState.talonMort.length, 11);
+    });
+
     it('avance MANCHE_END vers la manche suivante', () => {
         const decision = computeCoordinatorDecision(state('MANCHE_END'));
 

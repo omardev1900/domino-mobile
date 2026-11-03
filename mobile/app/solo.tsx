@@ -49,6 +49,7 @@ export default function SoloScreen() {
     const [winningCondition, setWinningCondition] = useState(__DEV__ ? 1 : 2);
     const [turnDuration, setTurnDuration] = useState(TURN_DURATION_SECONDS);
     const [startingHandSize, setStartingHandSize] = useState(DEFAULT_STARTING_HAND_SIZE);
+    const [playerOnlyHandSize, setPlayerOnlyHandSize] = useState(false);
     const [user, setUser] = useState<PlayerProfile | null>(null);
     const [tableTier] = useState<TableTier>('DEBUTANT');
     const [economyRefresh, setEconomyRefresh] = useState(0);
@@ -177,6 +178,7 @@ export default function SoloScreen() {
                 winningCondition: winningCondition,
                 turnDuration: turnDuration,
                 startingHandSize: startingHandSize,
+                playerOnlyHandSize: playerOnlyHandSize ? 'true' : 'false',
                 tableTier: tableTier,  // Passé pour le calcul des récompenses au MATCH_END
                 soloBuyInDebited: 'true',
             }
@@ -382,7 +384,16 @@ export default function SoloScreen() {
                                                             </TouchableOpacity>
                                                         ))}
                                                     </View>
-                                                    <Text style={styles.paramSubtext}>par joueur</Text>
+                                                    <View style={[styles.diffToggleSmall, { marginTop: 6 }]}>
+                                                        {([false, true] as const).map(playerOnly => (
+                                                            <TouchableOpacity key={String(playerOnly)} accessibilityRole="button" accessibilityState={{ selected: playerOnlyHandSize === playerOnly }}
+                                                                onPress={() => setPlayerOnlyHandSize(playerOnly)}
+                                                                style={[styles.diffBtnSmall, playerOnlyHandSize === playerOnly && styles.activeDiffBtnSmall]}>
+                                                                <Text style={[styles.handSizeScopeText, playerOnlyHandSize === playerOnly && styles.handSizeOptionTextActive]}>{playerOnly ? 'Moi' : 'Tous'}</Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </View>
+                                                    <Text style={styles.paramSubtext}>{playerOnlyHandSize ? 'autres : 7' : 'par joueur'}</Text>
                                                 </View>
                                             )}
                                         </View>
@@ -640,6 +651,7 @@ const styles = StyleSheet.create({
     diffIconSmall: {
         fontSize: 18,
     },
+    handSizeScopeText: { color: '#FFF', fontSize: 11, fontWeight: '900' },
     handSizeOptionText: {
         color: '#FFF',
         fontSize: 16,

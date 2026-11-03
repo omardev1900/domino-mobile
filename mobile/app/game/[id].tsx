@@ -15,6 +15,7 @@ export default function GameRoute() {
         winningCondition?: string;
         turnDuration?: string;
         startingHandSize?: string;
+        playerOnlyHandSize?: string;
         tableTier?: string; // 🪙 Table tier pour le calcul du buy-in et des rewards
         soloBuyInDebited?: string;
         training?: string;
@@ -75,6 +76,7 @@ export default function GameRoute() {
             winningCondition={params.winningCondition ? Number(params.winningCondition) : undefined}
             turnDuration={params.turnDuration ? Number(params.turnDuration) : undefined}
             startingHandSize={params.startingHandSize ? Number(params.startingHandSize) : undefined}
+            playerOnlyHandSize={params.playerOnlyHandSize === 'true'}
             tableTier={params.tableTier}
             soloBuyInDebited={params.soloBuyInDebited === 'true'}
             training={params.training === 'basics' || params.training === 'table' ? params.training : undefined}

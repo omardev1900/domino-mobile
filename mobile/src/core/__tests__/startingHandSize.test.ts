@@ -1,4 +1,4 @@
-import { resolveStartingHandSize } from '../startingHandSize';
+import { resolveHostHandSizeIndex, resolveStartingHandSize } from '../startingHandSize';
 import { dealGame } from '../LogicEngine';
 
 describe('resolveStartingHandSize', () => {
@@ -25,5 +25,21 @@ describe('resolveStartingHandSize', () => {
         expect(state.players?.every(player => player.hand.length === size)).toBe(true);
         expect(state.talonMort).toHaveLength(28 - (3 * size));
         expect(state.startingHandSize).toBe(size);
+    });
+});
+
+
+describe('distribution multijoueur de développement', () => {
+    const players = [{ uid: 'invite' }, { uid: 'hote' }, { uid: 'autre' }];
+    it('applique la taille sélectionnée à l’hôte même s’il est en deuxième position', () => {
+        const index = resolveHostHandSizeIndex(true, 'hote', players, true);
+        const dealt = dealGame(['Invité', 'Hôte', 'Autre'], 3, index);
+        expect(dealt.players?.map(player => player.hand.length)).toEqual([7, 3, 7]);
+        expect(dealt.talonMort).toHaveLength(11);
+    });
+    it('utilise la distribution normale si le réglage est désactivé, si l’hôte manque ou en production', () => {
+        expect(resolveHostHandSizeIndex(false, 'hote', players, true)).toBeUndefined();
+        expect(resolveHostHandSizeIndex(true, 'absent', players, true)).toBeUndefined();
+        expect(resolveHostHandSizeIndex(true, 'hote', players, false)).toBeUndefined();
     });
 });

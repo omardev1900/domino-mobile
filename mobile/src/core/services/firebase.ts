@@ -150,6 +150,7 @@ export interface RoomOptions {
     winningCondition?: number;
     turnDuration?: number;
     startingHandSize?: number;
+    handSizeForHostOnly?: boolean;
     buyIn?: number;
 }
 
@@ -206,6 +207,7 @@ export const createRoom = async (
             winningCondition: options?.winningCondition || 6,
             turnDuration: options?.turnDuration ?? 1,
             startingHandSize,
+            ...(__DEV__ && options?.handSizeForHostOnly ? { handSizeForHostOnly: true } : {}),
             buyIn, // Mise standard : 100 coins
         };
 

@@ -107,6 +107,7 @@ export default function LobbyScreen() {
     const [startingHandSize, setStartingHandSize] = useState(
         DEFAULT_STARTING_HAND_SIZE,
     );
+    const [handSizeForHostOnly, setHandSizeForHostOnly] = useState(false);
     // Phase 7 : le sélecteur de table sera dans l'UI — fixé à DEBUTANT pour l'instant
     const [tableTier] = useState<TableTier>("DEBUTANT");
     const [debitFeedback, setDebitFeedback] = useState<string | null>(null);
@@ -385,6 +386,7 @@ export default function LobbyScreen() {
                 winningCondition,
                 turnDuration,
                 startingHandSize,
+                handSizeForHostOnly,
             };
             const newRoomId = await createRoom(
                 enrichedProfile,
@@ -850,8 +852,18 @@ export default function LobbyScreen() {
                                                 ),
                                             )}
                                         </View>
+                                        <View style={[styles.diffToggleSmall, { marginTop: 6 }]}>
+                                            {([false, true] as const).map(hostOnly => (
+                                                <TouchableOpacity key={String(hostOnly)} accessibilityRole="button"
+                                                    accessibilityState={{ selected: handSizeForHostOnly === hostOnly }}
+                                                    onPress={() => setHandSizeForHostOnly(hostOnly)}
+                                                    style={[styles.diffBtnSmall, handSizeForHostOnly === hostOnly && styles.activeDiffBtnSmall]}>
+                                                    <Text style={[styles.handSizeScopeText, handSizeForHostOnly === hostOnly && styles.handSizeOptionTextActive]}>{hostOnly ? 'Moi' : 'Tous'}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
                                         <Text style={styles.paramSubtext}>
-                                            par joueur
+                                            {handSizeForHostOnly ? 'autres : 7' : 'par joueur'}
                                         </Text>
                                     </View>
                                 )}
@@ -1384,6 +1396,7 @@ const styles = StyleSheet.create({
     diffIconSmall: {
         fontSize: 18,
     },
+    handSizeScopeText: { color: "#FFF", fontSize: 11, fontWeight: "900" },
     handSizeOptionText: {
         color: "#FFF",
         fontSize: 16,

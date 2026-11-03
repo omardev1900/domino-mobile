@@ -73,6 +73,7 @@ export interface GameState {
     roundNumber: number; // NEW: Numéro du round/partie en cours dans la manche
     mancheNumber: number; // NEW: Numéro de la manche en cours
     startingHandSize: number;
+    startingHandPlayerId?: PlayerId; // Réglage de test : les autres joueurs reçoivent sept dominos.
     reDealCount?: number; // ✅ NOUVEAU : Compteur de redonnes consécutives (C5)
     boudePlayerId?: PlayerId | null; // R2-B1 : joueur actuellement boudé (visible par tous les clients via Firestore)
     tiedPlayerIds?: PlayerId[]; // R2-B2 : joueurs à égalité sur la partie bloquée — forcés à jouer leur plus grand double au prochain round
@@ -134,6 +135,7 @@ export interface GameRoom {
     turnDuration?: number; // NEW: Durée du tour
     difficulty?: 'TI_MANMAY' | 'MAPIPI' | 'GRAN_MOUN'; // NEW: Difficulté des bots
     startingHandSize?: number;
+    handSizeForHostOnly?: boolean;
     buyIn?: number; // 🪙 Quantité de coins nécessaires pour entrer
     quickChats?: { [playerId: string]: { content: string; timestamp: number; nonce?: string } | null }; // NEW: Decoupled chat
     // Timestamp Firestore serveur depuis PRESENCE-03. `unknown` conserve la

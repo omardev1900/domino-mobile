@@ -1,5 +1,5 @@
 
-import { dealGame, checkValidMove, determineFirstPlayer, determineWinnerOnBoudé, calculateHandPoints, passTurn, handleTurn, getForcedOpeningDominoId, getForcedTieBreakDominoId, surrenderPlayer } from '../LogicEngine';
+import { dealGame, dealGameSolo, checkValidMove, determineFirstPlayer, determineWinnerOnBoudé, calculateHandPoints, passTurn, handleTurn, getForcedOpeningDominoId, getForcedTieBreakDominoId, surrenderPlayer } from '../LogicEngine';
 import { Domino, Player, DominoSide, GameState } from '../types';
 import { determineTieBreakStarter, computeNextRoundState, resolveBoude } from '../LogicEngine';
 import { createBaseGameState } from '../../hooks/game/__tests__/testUtils';
@@ -43,6 +43,32 @@ describe('LogicEngine', () => {
                 expect(player.hand).toHaveLength(7);
             });
             expect(game.talonMort).toHaveLength(7);
+        });
+    });
+
+    describe('distribution solo de test', () => {
+        it.each([3, 5, 7])('distribue %i dominos au joueur et 7 aux bots sans doublon', size => {
+            const state = dealGameSolo('joueur', 'Joueur', undefined, 'MAPIPI', size, true);
+            expect(state.players!.map(player => player.hand.length)).toEqual([size, 7, 7]);
+            expect(state.players!.map(player => player.handSize)).toEqual([size, 7, 7]);
+            const all = [...state.players!.flatMap(player => player.hand), ...state.talonMort!];
+            expect(all).toHaveLength(28);
+            expect(new Set(all.map(tile => tile.id)).size).toBe(28);
+        });
+        it('garde la taille choisie pour tous lorsque cette option est sélectionnée', () => {
+            const state = dealGameSolo('joueur', 'Joueur', undefined, 'MAPIPI', 3);
+            expect(state.players!.map(player => player.hand.length)).toEqual([3, 3, 3]);
+            expect(state.startingHandPlayerId).toBeUndefined();
+        });
+        it('conserve la distribution asymétrique après une redonne et une nouvelle manche', () => {
+            const dealt = dealGameSolo('joueur', 'Joueur', undefined, 'MAPIPI', 5, true);
+            for (const phase of ['PARTIE_END', 'MANCHE_END'] as const) {
+                const state = createBaseGameState({ ...dealt, phase, firstPlayerOfRound: 'joueur' });
+                const next = computeNextRoundState(state);
+                expect(next.players.map(player => player.hand.length)).toEqual([5, 7, 7]);
+                expect(next.startingHandPlayerId).toBe('joueur');
+                expect(next.talonMort.length).toBe(9);
+            }
         });
     });
 

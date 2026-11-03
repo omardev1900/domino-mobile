@@ -189,6 +189,14 @@ function rebuildStateFromGame(gameState: GameState, botId: string): MeytKayaliSt
         .map(p => p.id);
 
     let state = initMeytKayali(botPlayer.hand, opponentIds, gameState.startingHandSize || 7);
+    if (gameState.startingHandPlayerId) {
+        for (const opponentId of opponentIds) {
+            const size = opponentId === gameState.startingHandPlayerId ? gameState.startingHandSize : 7;
+            state.tracker.handSizes.set(opponentId, size);
+            const profile = state.profiles.get(opponentId);
+            if (profile) state.profiles.set(opponentId, { ...profile, handSize: size });
+        }
+    }
 
     const seqByDominoId = new Map<string, { sideAtTable: 'left' | 'right'; isReversed: boolean }>();
     for (const se of gameState.table.sequence) {

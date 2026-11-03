@@ -42,7 +42,7 @@ import { GameState, Player, PlayerId, GamePhase, Domino, GameRoom, GameMode } fr
 import { leaveRoom, startGame, clearRematchVotes, updatePlayerChat, resetRoomToLobby, markPlayerAsDebited, markRoomAsFinished, setUserActiveRoom, deleteWaitingRoomIfOwner, voteForRematch } from '../core/services/firebase';
 import SoundManager from '../core/audio/SoundManager';
 import HapticManager from '../core/audio/HapticManager';
-import { resolveStartingHandSize } from '../core/startingHandSize';
+import { resolveHostHandSizeIndex, resolveStartingHandSize } from '../core/startingHandSize';
 import SettingsManager from '../core/SettingsManager';
 import { TableTheme } from '../core/themes/tableThemes';
 import { authService } from '../core/services/auth.service';
@@ -85,6 +85,7 @@ interface GameScreenProps {
     winningCondition?: number;
     turnDuration?: number;
     startingHandSize?: number;
+    playerOnlyHandSize?: boolean;
     tableTier?: string; // TableTier passé depuis solo.tsx / lobby.tsx
     soloBuyInDebited?: boolean;
     training?: 'basics' | 'table';
@@ -106,7 +107,7 @@ type BoudeRecoveryEntry = {
     automaticAttempts: number;
 };
 
-export default function GameScreen({ gameId, userId, authUid, mode, difficulty, gameMode, winningCondition, turnDuration, startingHandSize: propStartingHandSize, tableTier: propTableTier, soloBuyInDebited = false, training }: GameScreenProps) {
+export default function GameScreen({ gameId, userId, authUid, mode, difficulty, gameMode, winningCondition, turnDuration, startingHandSize: propStartingHandSize, playerOnlyHandSize = false, tableTier: propTableTier, soloBuyInDebited = false, training }: GameScreenProps) {
     const { width, height } = useWindowDimensions();
     const insets = useSafeAreaInsets();
     const isLandscape = width > height;
@@ -1984,7 +1985,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 resolvedPlayerName,
                 playerAvatarId as string,
                 botDifficulty,
-                startingHandSize || 7
+                startingHandSize || 7,
+                __DEV__ && playerOnlyHandSize
             ) as GameState;
 
             // Configure local player and bots avatars
@@ -2034,7 +2036,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         } finally {
             setIsStarting(false);
         }
-    }, [isStarting, difficulty, playerDisplayName, gameMode, winningCondition, turnDuration, startingHandSize, playerAvatarId, setGameState, setIsStarting]);
+    }, [isStarting, difficulty, playerDisplayName, gameMode, winningCondition, turnDuration, startingHandSize, playerOnlyHandSize, playerAvatarId, setGameState, setIsStarting]);
 
     // Multiplayer Start Handler
     const handleStartGame = async () => {
@@ -2075,7 +2077,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             }
 
             const multiplayerStartingHandSize = resolveStartingHandSize(roomData.startingHandSize);
-            const fullState = dealGame(playerNames, multiplayerStartingHandSize) as GameState;
+            const hostHandIndex = resolveHostHandSizeIndex(roomData.handSizeForHostOnly, roomData.createdBy, roomData.players);
+            const fullState = dealGame(playerNames, multiplayerStartingHandSize, hostHandIndex) as GameState;
+            if (hostHandIndex !== undefined) fullState.startingHandPlayerId = roomData.createdBy;
 
             // Apply room settings manually to the partial state if needed
             fullState.gameMode = roomData.gameMode || 'MANCHE';

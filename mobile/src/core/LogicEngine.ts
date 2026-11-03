@@ -116,26 +116,32 @@ export const shuffleDeck = (): Domino[] => {
 /**
  * Distribution initiale : 3 joueurs x 7 dominos + 7 talon mort
  */
-export const dealGame = (playerNames: string[], handSize: number = HAND_SIZE): Partial<GameState> => {
+export const dealGame = (playerNames: string[], handSize: number = HAND_SIZE, customPlayerIndex?: number): Partial<GameState> => {
     const deck = shuffleDeck();
-    const players: Player[] = playerNames.map((name, i) => ({
-        id: `p${i + 1}`,
-        name,
-        hand: deck.slice(i * handSize, (i + 1) * handSize),
-        handSize: handSize,
-        currentMancheStars: 0,
-        mancheWins: 0,
-        totalRoundWins: 0,
-        totalPoints: 0,
-        isCochon: false,
-        totalCochons: 0,
-        totalCochonsInfliges: 0,
-        totalCochonsSubis: 0,
-        status: 'HUMAN',
-        wins: 0,
-    }));
+    let offset = 0;
+    const players: Player[] = playerNames.map((name, i) => {
+        const playerHandSize = customPlayerIndex === undefined || customPlayerIndex === i ? handSize : HAND_SIZE;
+        const hand = deck.slice(offset, offset + playerHandSize);
+        offset += playerHandSize;
+        return {
+            id: `p${i + 1}`,
+            name,
+            hand,
+            handSize: playerHandSize,
+            currentMancheStars: 0,
+            mancheWins: 0,
+            totalRoundWins: 0,
+            totalPoints: 0,
+            isCochon: false,
+            totalCochons: 0,
+            totalCochonsInfliges: 0,
+            totalCochonsSubis: 0,
+            status: 'HUMAN',
+            wins: 0,
+        };
+    });
 
-    const talonMort = deck.slice(players.length * handSize);
+    const talonMort = deck.slice(offset);
 
     return {
         players,
@@ -159,8 +165,9 @@ export const dealGame = (playerNames: string[], handSize: number = HAND_SIZE): P
 /**
  * Distribution pour Solo Mode : 3 joueurs (1 humain + 2 bots) x 7 dominos
  */
-export const dealGameSolo = (playerId: string, playerName: string, avatarId: string | undefined, botDifficulty: 'TI_MANMAY' | 'MAPIPI' | 'GRAN_MOUN' | 'METKAYALI' = 'MAPIPI', handSize: number = HAND_SIZE): Partial<GameState> => {
+export const dealGameSolo = (playerId: string, playerName: string, avatarId: string | undefined, botDifficulty: 'TI_MANMAY' | 'MAPIPI' | 'GRAN_MOUN' | 'METKAYALI' = 'MAPIPI', handSize: number = HAND_SIZE, playerOnly: boolean = false): Partial<GameState> => {
     const deck = shuffleDeck();
+    const botHandSize = playerOnly ? HAND_SIZE : handSize;
 
     const getBots = (diff: string) => {
         switch (diff) {
@@ -216,8 +223,8 @@ export const dealGameSolo = (playerId: string, playerName: string, avatarId: str
             id: 'bot-1',
             name: bots[0].name,
             avatarId: bots[0].avatarId,
-            hand: deck.slice(handSize, handSize * 2),
-            handSize: handSize,
+            hand: deck.slice(handSize, handSize + botHandSize),
+            handSize: botHandSize,
             currentMancheStars: 0,
             mancheWins: 0,
             totalRoundWins: 0,
@@ -234,8 +241,8 @@ export const dealGameSolo = (playerId: string, playerName: string, avatarId: str
             id: 'bot-2',
             name: bots[1].name,
             avatarId: bots[1].avatarId,
-            hand: deck.slice(handSize * 2, handSize * 3),
-            handSize: handSize,
+            hand: deck.slice(handSize + botHandSize, handSize + botHandSize * 2),
+            handSize: botHandSize,
             currentMancheStars: 0,
             mancheWins: 0,
             totalRoundWins: 0,
@@ -250,7 +257,7 @@ export const dealGameSolo = (playerId: string, playerName: string, avatarId: str
         },
     ];
 
-    const talonMort = deck.slice(handSize * 3);
+    const talonMort = deck.slice(handSize + botHandSize * 2);
 
     return {
         players,
@@ -269,6 +276,7 @@ export const dealGameSolo = (playerId: string, playerName: string, avatarId: str
         firstPlayerOfRound: null,
         mancheResult: null,
         startingHandSize: handSize,
+        ...(playerOnly ? { startingHandPlayerId: playerId } : {}),
         roundNumber: 1,
         mancheNumber: 1,
         stateVersion: 1, // FIX-MULTI-P1
@@ -617,7 +625,10 @@ export const computeNextRoundState = (activeState: GameState, fallbackHandSize: 
 
     const playerNames = activeState.players.map(p => p.name);
     // On génère la nouvelle distribution pure
-    const partialState = dealGame(playerNames, handSize);
+    const customPlayerIndex = activeState.startingHandPlayerId
+        ? activeState.players.findIndex(player => player.id === activeState.startingHandPlayerId)
+        : -1;
+    const partialState = dealGame(playerNames, handSize, customPlayerIndex >= 0 ? customPlayerIndex : undefined);
 
     const safeOldPlayersArray = (Array.isArray(activeState.players) ? activeState.players : Object.values(activeState.players || {})) as Player[];
 
