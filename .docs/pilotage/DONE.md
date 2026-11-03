@@ -2,6 +2,12 @@
 
 ### 2026-11-03
 
+- Prix du replay porté à 2 000 coins dans le code mobile et serveur ; confirmation explicite du prix avant tout nouveau débit.
+
+- Fenêtre Premium : cartes d’accès aux replays, à l’atelier des skins et à l’entraînement avancé, disposées sur une rangée et adaptées au statut Premium.
+
+- Replay : confirmation avant de quitter, icônes de sauvegarde et de sortie réunies, mains adverses masquées à l’ouverture.
+
 - [x] `REPLAY-01-HIDE-HANDS` Ajouter une commande permettant de masquer ou afficher les dominos adverses pendant la lecture.
 
 - [x] `REPLAY-01-VISUAL` Harmoniser le fond du replay avec la table, améliorer les mains adverses, ajouter une progression et mettre en évidence les actions et joueurs concernés.
@@ -14,6 +20,7 @@
 
 ### 2026-11-02
 
+- [x] `DEV-SOLO-HAND-01` Option de distribution solo de développement pour tous les joueurs ou seulement le joueur humain.
 
 - [x] `INFO-CAMPAIGNS-01` Campagnes popup administrables, ciblage et programmation, affichage à l’accueil et en boutique.
 

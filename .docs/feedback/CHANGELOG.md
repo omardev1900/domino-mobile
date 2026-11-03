@@ -2,6 +2,14 @@
 
 ### 2026-11-03 — backend phase 1 déployé
 
+- Le prix d’ouverture d’un replay passe à 2 000 coins dans la prochaine version mobile et serveur.
+
+- Fenêtre Premium : cartes dédiées aux replays, au Skin Creator et à l’entraînement avancé, sur une rangée.
+
+- Replay : sortie avec confirmation, sauvegarde à côté de la sortie et dominos adverses cachés par défaut.
+
+- Backend déployé, parcours mobile à valider : sauvegarde gratuite d’un replay acheté et bibliothèque de 10 emplacements depuis le bloc Premium. Chaque réouverture reste soumise à confirmation et coûte 1 000 coins.
+
 - Une commande permet de masquer ou de réafficher les mains adverses dans le replay.
 
 - Le replay affiche une barre de progression et l’action en cours, avec des mains adverses plus lisibles et un fond harmonisé avec la partie.
@@ -14,6 +22,7 @@
 
 ### 2026-11-02
 
+- En développement, la distribution solo personnalisée peut concerner tous les joueurs ou seulement le joueur humain.
 
 - Des campagnes d’information ciblées peuvent présenter des offres à l’accueil ou dans la boutique.
 
