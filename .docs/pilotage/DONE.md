@@ -2,6 +2,12 @@
 
 ### 2026-11-03
 
+- Page Premium : cartes réservées aux abonnés et carrousel des avantages illustré pour les autres joueurs.
+
+- Écran Premium : attendre la vérification du statut avant d’afficher l’offre ou les avantages, avec possibilité de réessayer en cas d’erreur.
+
+- Notes de version 2.4.0 consultables depuis l’écran de lancement, la fenêtre du logo et l’aide.
+
 - Prix du replay porté à 2 000 coins dans le code mobile et serveur ; confirmation explicite du prix avant tout nouveau débit.
 
 - Fenêtre Premium : cartes d’accès aux replays, à l’atelier des skins et à l’entraînement avancé, disposées sur une rangée et adaptées au statut Premium.

@@ -8,6 +8,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../core/services/firebase';
 import { authService } from '../core/services/auth.service';
 import Constants from 'expo-constants';
+import { ReleaseNotesPanel } from './ReleaseNotesPanel';
 
 interface MdcFeedbackModalProps {
     visible: boolean;
@@ -22,6 +23,7 @@ export const MdcFeedbackModal: React.FC<MdcFeedbackModalProps> = ({ visible, onC
     const [sending, setSending] = useState(false);
     const [sent, setSent] = useState(false);
     const [error, setError] = useState(false);
+    const [showReleaseNotes, setShowReleaseNotes] = useState(false);
 
     const handleSend = async () => {
         if (!text.trim() || sending) return;
@@ -50,6 +52,7 @@ export const MdcFeedbackModal: React.FC<MdcFeedbackModalProps> = ({ visible, onC
     };
 
     const handleClose = () => {
+        setShowReleaseNotes(false);
         setText('');
         setSent(false);
         setError(false);
@@ -62,7 +65,7 @@ export const MdcFeedbackModal: React.FC<MdcFeedbackModalProps> = ({ visible, onC
     };
 
     return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={showReleaseNotes ? () => setShowReleaseNotes(false) : handleClose} supportedOrientations={['portrait', 'landscape']}>
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.overlay}
@@ -84,6 +87,9 @@ export const MdcFeedbackModal: React.FC<MdcFeedbackModalProps> = ({ visible, onC
                             </View>
                             <Text style={styles.appName}>Domino Martiniquais</Text>
                             <Text style={styles.version}>Version {APP_VERSION}</Text>
+                            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Notes de version" style={styles.releaseNotesLink} onPress={() => setShowReleaseNotes(true)}>
+                                <Text style={styles.releaseNotesLinkText}>Notes de version</Text><Ionicons name="arrow-forward" size={16} color="#FFD700" />
+                            </TouchableOpacity>
                         </View>
 
                         <View style={styles.contactBox}>
@@ -153,12 +159,15 @@ export const MdcFeedbackModal: React.FC<MdcFeedbackModalProps> = ({ visible, onC
                         </View>
                     </ScrollView>
                 </View>
+                {showReleaseNotes && <ReleaseNotesPanel onClose={() => setShowReleaseNotes(false)} />}
             </KeyboardAvoidingView>
         </Modal>
     );
 };
 
 const styles = StyleSheet.create({
+    releaseNotesLink: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10 },
+    releaseNotesLinkText: { color: '#FFD700', fontSize: 13, fontWeight: '700' },
     overlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.7)',

@@ -9,6 +9,7 @@ import {
     useWindowDimensions,
     Animated,
     Easing,
+    Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -16,6 +17,9 @@ import Constants from 'expo-constants';
 import { authService } from '@/core/services/auth.service';
 import SettingsManager from '@/core/SettingsManager';
 import SoundManager from '@/core/audio/SoundManager';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ReleaseNotesPanel } from '@/components/ReleaseNotesPanel';
 
 // ─── Timings ─────────────────────────────────────────────────────────────────
 // Delay before bar starts (logo entrance time)
@@ -35,6 +39,8 @@ const APP_VERSION = Constants.expoConfig?.version ?? '1.0.3';
 export default function PremiumSplashScreen() {
     const router = useRouter();
     const { height } = useWindowDimensions();
+    const insets = useSafeAreaInsets();
+    const [showReleaseNotes, setShowReleaseNotes] = useState(false);
     const authResultRef = useRef<'home' | 'login'>('login');
 
     // ── RN Animated values (work reliably on web) ─────────────────
@@ -230,6 +236,12 @@ export default function PremiumSplashScreen() {
 
             {/* Version info */}
             <Text style={styles.versionText}>version {APP_VERSION}</Text>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Notes de version" onPress={() => setShowReleaseNotes(true)} style={[styles.releaseNotesButton, { bottom: Math.max(insets.bottom, 12), right: Math.max(insets.right, 12) }]}>
+                <Text style={styles.releaseNotesText}>Notes de version</Text><Ionicons name="arrow-forward" size={17} color="#FFD700" />
+            </TouchableOpacity>
+            <Modal visible={showReleaseNotes} transparent animationType="fade" onRequestClose={() => setShowReleaseNotes(false)} supportedOrientations={['portrait', 'landscape']}>
+                <ReleaseNotesPanel onClose={() => setShowReleaseNotes(false)} />
+            </Modal>
         </LinearGradient>
     );
 }
@@ -308,4 +320,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         letterSpacing: 1.2,
     },
+    releaseNotesButton: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 10, borderRadius: 9, backgroundColor: 'rgba(0,0,0,0.35)' },
+    releaseNotesText: { color: '#FFD700', fontSize: 12, fontWeight: '700' },
 });

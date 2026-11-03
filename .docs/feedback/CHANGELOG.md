@@ -2,6 +2,12 @@
 
 ### 2026-11-03 — backend phase 1 déployé
 
+- Le carrousel de découverte Premium présente chaque avantage avec ses couleurs et son motif ; les cartes d’accès sont réservées aux abonnés.
+
+- Suppression du clignotement de l’offre non Premium pendant le chargement de la page Premium.
+
+- Les notes de version 2.4.0 sont accessibles depuis le lancement et la fenêtre du logo.
+
 - Le prix d’ouverture d’un replay passe à 2 000 coins dans la prochaine version mobile et serveur.
 
 - Fenêtre Premium : cartes dédiées aux replays, au Skin Creator et à l’entraînement avancé, sur une rangée.

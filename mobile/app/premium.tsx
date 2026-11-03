@@ -84,6 +84,7 @@ export default function PremiumScreen() {
     const cardWidth = Math.min(330, Math.max(245, width * 0.76));
     const [entitlement, setEntitlement] = useState<PremiumEntitlement | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
     const [processing, setProcessing] = useState<'trial' | 'code' | 'portal' | null>(null);
     const [code, setCode] = useState('');
@@ -99,10 +100,20 @@ export default function PremiumScreen() {
         const startedAt = perfStart();
         perfMark('premium.focus', { run });
         setLoading(true);
-        const [nextEntitlement, nextIsAdmin] = await Promise.all([
-            premiumService.getEntitlement(),
-            premiumService.isCurrentUserAdmin(),
-        ]);
+        setLoadError(false);
+        let nextEntitlement: PremiumEntitlement | null;
+        let nextIsAdmin: boolean;
+        try {
+            [nextEntitlement, nextIsAdmin] = await Promise.all([
+                premiumService.getEntitlement(),
+                premiumService.isCurrentUserAdmin(),
+            ]);
+        } catch (error) {
+            LogService.warn('Premium', 'Chargement du statut Premium impossible.', error);
+            setLoadError(true);
+            setLoading(false);
+            return;
+        }
         setEntitlement(nextEntitlement);
         setIsAdmin(nextIsAdmin);
         setLoading(false);
@@ -211,14 +222,14 @@ export default function PremiumScreen() {
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityLabel="Retour"><Ionicons name="arrow-back" size={23} color="#FFF" /></TouchableOpacity>
                 <View style={styles.titleBlock}>
                     <Text style={styles.topTitle}>PREMIUM</Text>
-                    {premiumActive && entitlement && <Text style={styles.statusText}>Actif jusqu’au {formatDate(entitlement.expiresAt)}</Text>}
+                    {!loading && !loadError && premiumActive && entitlement && <Text style={styles.statusText}>Actif jusqu’au {formatDate(entitlement.expiresAt)}</Text>}
                 </View>
                 <View style={styles.backButton} />
             </View>
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+                {loading ? <View style={styles.loadingStatus}><ActivityIndicator color="#FFD700" /><Text style={styles.loadingText}>Chargement…</Text></View> : loadError ? <View style={styles.loadingStatus}><Text style={styles.loadingText}>Impossible de charger le statut Premium.</Text><TouchableOpacity accessibilityRole="button" onPress={() => { void refresh(); }} style={styles.trialButton}><Text style={styles.trialButtonText}>Réessayer</Text></TouchableOpacity></View> : <>
                 {!premiumActive && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.offerRow}>
-                    {!loading && !premiumActive && <PremiumBenefitsCarousel width={cardWidth} />}
                     {!premiumActive && <LinearGradient colors={['#F6C844', '#D88618']} style={[styles.offerCard, { width: cardWidth }]}>
                         <Ionicons name="star" size={39} color="#2A1648" />
                         <View style={styles.offerCopy}>
@@ -227,13 +238,12 @@ export default function PremiumScreen() {
                             <Text style={styles.offerText}>Plus de style, d’entraînement et de stratégie.</Text>
                         </View>
                     </LinearGradient>}
+                    <PremiumBenefitsCarousel width={cardWidth} />
 
-                    <View style={[styles.offerCard, styles.trialCard, { width: cardWidth }]}>
-                        {loading ? <ActivityIndicator color="#FFD700" /> : (
-                            <><View style={styles.offerCopy}><Text style={styles.trialEyebrow}>{trialAlreadyUsed ? 'PREMIUM EXPIRÉ' : 'DÉCOUVRIR PREMIUM'}</Text><Text style={styles.trialTitle}>{trialAlreadyUsed ? 'Un code ?' : '3 jours gratuits'}</Text><Text style={styles.trialText}>{trialAlreadyUsed ? 'Réactive Premium avec un code.' : 'Sans carte bancaire.'}</Text></View>
-                            <TouchableOpacity style={[styles.trialButton, processing !== null && styles.disabled]} onPress={trialAlreadyUsed ? () => setShowCodeModal(true) : confirmTrial} disabled={processing !== null}>{processing === 'trial' ? <ActivityIndicator color="#24143F" /> : <Text style={styles.trialButtonText}>{trialAlreadyUsed ? 'CODE' : 'ESSAYER'}</Text>}</TouchableOpacity></>
-                        )}
-                    </View>
+                    {trialAlreadyUsed && <View style={[styles.offerCard, styles.trialCard, { width: cardWidth }]}>
+                        <View style={styles.offerCopy}><Text style={styles.trialEyebrow}>PREMIUM EXPIRÉ</Text><Text style={styles.trialTitle}>Un code ?</Text><Text style={styles.trialText}>Réactive Premium avec un code.</Text></View>
+                        <TouchableOpacity style={[styles.trialButton, processing !== null && styles.disabled]} onPress={() => setShowCodeModal(true)} disabled={processing !== null}><Text style={styles.trialButtonText}>CODE</Text></TouchableOpacity>
+                    </View>}
 
                 </ScrollView>}
 
@@ -241,12 +251,19 @@ export default function PremiumScreen() {
                     {processing === 'portal' ? <ActivityIndicator color="#FFD700" /> : <><Ionicons name="card-outline" size={18} color="#FFD700" /><Text style={styles.subscriptionManageText}>Gérer mon abonnement</Text></>}
                 </TouchableOpacity>}
 
-                <PremiumHomeFeatures active={premiumActive} onPremium={() => Alert.alert('Avantage Premium', 'Active Premium pour accéder à cette fonctionnalité.')} onReplays={() => setShowReplays(true)} onShop={() => router.push('/store?tab=PREMIUM' as never)} onWorkshop={() => {
+                {premiumActive && <PremiumHomeFeatures active={premiumActive} onPremium={() => Alert.alert('Avantage Premium', 'Active Premium pour accéder à cette fonctionnalité.')} onReplays={() => setShowReplays(true)} onShop={() => router.push('/store?tab=PREMIUM' as never)} onWorkshop={() => {
                     void storeService.getInventory().then(inventory => router.push((inventory.ownedItems.includes('skin_premium_atelier') ? '/premium-workshop' : '/store?tab=WORKSHOP') as never)).catch(() => router.push('/store?tab=WORKSHOP' as never));
-                }} onTraining={() => router.push('/training?tab=PRACTICE' as never)} />
+                }} onTraining={() => router.push('/training?tab=PRACTICE' as never)} />}
 
                 {isAdmin && <TouchableOpacity onPress={() => router.push('/premium-codes' as never)}><Text style={styles.adminLink}>Gérer les codes Premium</Text></TouchableOpacity>}
+                </>}
             </ScrollView>
+
+            {!loading && !loadError && !premiumActive && !trialAlreadyUsed && <View style={styles.trialFooter}>
+                <TouchableOpacity accessibilityRole="button" onPress={confirmTrial} disabled={processing !== null} style={[styles.freeTrialButton, processing !== null && styles.disabled]}>
+                    {processing === 'trial' ? <ActivityIndicator color="#24143F" /> : <Text style={styles.trialButtonText}>Essayer Premium gratuitement</Text>}
+                </TouchableOpacity>
+            </View>}
 
             <ReplayLibraryModal visible={showReplays} onClose={() => setShowReplays(false)} />
 
@@ -291,6 +308,8 @@ const styles = StyleSheet.create({
     topTitle: { color: '#FFF', fontSize: 16, fontWeight: '900', letterSpacing: 1.2 },
     titleBlock: { alignItems: 'center' },
     content: { padding: 18, paddingBottom: 34, gap: 16 },
+    loadingStatus: { alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
+    loadingText: { color: '#fff', fontSize: 14, textAlign: 'center' },
     statusText: { color: '#AEE9BB', fontSize: 13, fontWeight: '700' },
     offerRow: { gap: 12, paddingRight: 18 },
     offerCard: { height: 132, flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 18, gap: 13 },
@@ -303,6 +322,8 @@ const styles = StyleSheet.create({
     trialTitle: { marginTop: 4, color: '#FFF', fontSize: 22, fontWeight: '900' },
     trialText: { marginTop: 3, color: 'rgba(255,255,255,0.7)', fontSize: 12 },
     trialButton: { minWidth: 82, minHeight: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFD700' },
+    trialFooter: { alignItems: 'center', paddingHorizontal: 18, paddingTop: 8, paddingBottom: 14 },
+    freeTrialButton: { minHeight: 48, paddingHorizontal: 20, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFD700' },
     trialButtonText: { color: '#24143F', fontSize: 12, fontWeight: '900' },
     disabled: { opacity: 0.58 },
     notice: { color: 'rgba(255,255,255,0.5)', fontSize: 11, lineHeight: 16, textAlign: 'center' },
