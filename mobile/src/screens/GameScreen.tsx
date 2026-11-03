@@ -18,7 +18,7 @@ import { GameHeader } from '../components/game/GameHeader';
 import { GameOptionsMenu } from '../components/game/GameOptionsMenu';
 import { GameOverlays } from '../components/game/GameOverlays';
 import { SoloReplay } from '../components/game/SoloReplay';
-import { PaidReplayEntry } from '../components/game/PaidReplayEntry';
+import { PaidReplayEntry, PaidReplayEntryHandle } from '../components/game/PaidReplayEntry';
 import { confirmReplaySettlement } from '../core/services/replaySettlement';
 import { PlayerArea } from '../components/game/PlayerArea';
 import { NetworkRequiredScreen } from '../components/NetworkRequiredScreen';
@@ -712,6 +712,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     }, [gameState?.history, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, localPlayerId, width, height]);
 
     const replayFramesRef = useRef<GameState[]>([]);
+    const paidReplayEntryRef = useRef<PaidReplayEntryHandle>(null);
     const matchSettlementRef = useRef<Promise<void> | null>(null);
     const [showSoloReplay, setShowSoloReplay] = useState(false);
     const recordSoloTransition = useCallback((_before: GameState, after: GameState) => {
@@ -2555,7 +2556,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 onOverlayContinue={interceptOverlayContinue}
                 onLeaveRoom={handleLeaveRoom}
                 onReplay={handleReplay}
-                onWatchReplay={undefined}
+                onWatchReplay={hasPremium && !showSoloReplay && !isTrainingMode && gameState?.phase === 'MATCH_END' && showScoreOverlay ? () => paidReplayEntryRef.current?.show() : undefined}
                 roomData={roomData}
                 bannerState={bannerState}
                 isPaused={isPaused}
@@ -2564,6 +2565,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             />
 
             <PaidReplayEntry
+                ref={paidReplayEntryRef}
+                hideEntry
                 key={isSoloMode ? replayFramesRef.current[0]?.lastActionTimestamp : (roomData as (GameRoom & { replaySessionId?: string }) | null)?.replaySessionId}
                 enabled={hasPremium && !showSoloReplay && !isTrainingMode && gameState?.phase === 'MATCH_END' && showScoreOverlay}
                 solo={isSoloMode}

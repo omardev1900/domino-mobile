@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { httpsCallable } from 'firebase/functions';
 import { auth, gameFunctions } from '../../core/services/firebase';
@@ -15,14 +15,19 @@ interface Props {
     hasFrames: boolean;
     settle: () => Promise<void>;
     onOpened: (frames?: GameState[]) => void;
+    hideEntry?: boolean;
 }
 
-export const PaidReplayEntry = ({ enabled, solo, matchId, sessionId, finalized, hasFrames, settle, onOpened }: Props) => {
+export interface PaidReplayEntryHandle { show: () => void }
+
+export const PaidReplayEntry = forwardRef<PaidReplayEntryHandle, Props>(({ enabled, solo, matchId, sessionId, finalized, hasFrames, settle, onOpened, hideEntry = false }, ref) => {
     const [confirm, setConfirm] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const lock = useRef(false);
     const attempt = useRef<string | null>(null);
+    const show = () => { if (enabled) { setError(''); setConfirm(true); } };
+    useImperativeHandle(ref, () => ({ show }));
     const open = async () => {
         if (lock.current) return;
         lock.current = true;
@@ -56,7 +61,7 @@ export const PaidReplayEntry = ({ enabled, solo, matchId, sessionId, finalized, 
         }
     };
     return <>
-        {enabled && <TouchableOpacity style={styles.entry} onPress={() => { setError(''); setConfirm(true); }} accessibilityLabel="Ouvrir un replay pour 1 000 coins"><Text style={styles.text}>Replay · 1 000 coins</Text></TouchableOpacity>}
+        {enabled && !hideEntry && <TouchableOpacity style={styles.entry} onPress={show} accessibilityLabel="Ouvrir un replay pour 1 000 coins"><Text style={styles.text}>Replay · 1 000 coins</Text></TouchableOpacity>}
         <Modal visible={confirm} transparent animationType="fade" onRequestClose={() => { if (!busy) setConfirm(false); }}>
             <View style={styles.backdrop}><View style={styles.card}>
                 <Text style={styles.title}>Ouvrir ce replay pour 1 000 coins ?</Text>
@@ -64,12 +69,13 @@ export const PaidReplayEntry = ({ enabled, solo, matchId, sessionId, finalized, 
                 {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
                 <View style={styles.row}>
                     <TouchableOpacity disabled={busy} onPress={() => setConfirm(false)} style={styles.button}><Text style={styles.text}>Annuler</Text></TouchableOpacity>
-                    <TouchableOpacity disabled={busy} onPress={() => { void open(); }} style={styles.button} accessibilityLabel="Confirmer l’ouverture à 1 000 coins"><Text style={styles.text}>{busy ? 'Vérification…' : 'Ouvrir · 1 000 coins'}</Text></TouchableOpacity>
+                    <TouchableOpacity disabled={busy} onPress={() => { void open(); }} style={styles.button} accessibilityLabel="Confirmer l’ouverture à 1 000 coins"><Text style={styles.text}>{busy ? 'Chargement…' : 'Ouvrir · 1 000 coins'}</Text></TouchableOpacity>
                 </View>
             </View></View>
         </Modal>
     </>;
-};
+});
+PaidReplayEntry.displayName = 'PaidReplayEntry';
 const styles = StyleSheet.create({
     entry: { position: 'absolute', bottom: 20, right: 20, zIndex: 6000, elevation: 30, backgroundColor: '#816218', borderRadius: 10, padding: 12 },
     backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,.75)', alignItems: 'center', justifyContent: 'center', padding: 20 },

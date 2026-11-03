@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { GameState } from '../../core/types';
 import { SkinConfig } from '../../core/store.types';
 import { TableTheme } from '../../core/themes/tableThemes';
@@ -20,9 +21,11 @@ interface Props {
 }
 
 export const SoloReplay = ({ visible, frames, onClose, localPlayerId, theme, skinConfig }: Props) => {
+    const { width } = useWindowDimensions();
     const [index, setIndex] = useState(0);
     const [playing, setPlaying] = useState(false);
     const [speed, setSpeed] = useState<1 | 2 | 4>(1);
+    const [showOpponentHands, setShowOpponentHands] = useState(true);
     const { boardRef, tableRef, avatarRefs, flight, hiddenDominoId, finishFlight } = useReplayFlight(frames, index, visible);
     const state = frames[index];
     const phase = state?.phase;
@@ -54,6 +57,7 @@ export const SoloReplay = ({ visible, frames, onClose, localPlayerId, theme, ski
     const action = !isNewDeal && state.history.length > (previous?.history.length ?? 0)
         ? state.history[state.history.length - 1] : undefined;
     const player = state.players.find(item => item.id === action?.playerId);
+    const highlightedPlayerId = state.boudePlayerId ?? action?.playerId ?? (state.phase === 'PLAYING' ? state.currentPlayerId : null);
     const localPlayer = state.players.find(item => item.id === localPlayerId);
     const winner = state.phase === 'MATCH_END' ? [...state.players].sort((a, b) => {
         if (state.gameMode === 'COCHON' && (b.totalCochonsInfliges ?? 0) !== (a.totalCochonsInfliges ?? 0)) return (b.totalCochonsInfliges ?? 0) - (a.totalCochonsInfliges ?? 0);
@@ -64,9 +68,10 @@ export const SoloReplay = ({ visible, frames, onClose, localPlayerId, theme, ski
         : state.gameMode === 'VICTOIRE' ? `${winner.totalRoundWins} victoires` : `${winner.totalPoints} points`);
     const description = state.phase === 'MATCH_END' ? 'Fin du match'
         : state.phase === 'BOUDE' ? 'Partie bloquée'
-        : state.boudePlayerId ? `${state.players.find(p => p.id === state.boudePlayerId)?.name ?? 'Joueur'} : boudé`
+        : state.boudePlayerId ? `${state.players.find(p => p.id === state.boudePlayerId)?.name ?? 'Joueur'} est boudé`
+        : roundEnded ? 'Fin du round'
         : isNewDeal ? 'Début de la partie'
-        : action ? `${player?.name ?? 'Joueur'} : ${action.action === 'PASS' ? 'passe' : 'joue'}` : 'Résultat de la partie';
+        : action ? `${player?.name ?? 'Joueur'} ${action.action === 'PASS' ? 'passe' : 'joue'}` : 'Suite de la partie';
     const jump = (manche: number, partie?: number) => {
         const target = frames.findIndex(frame => frame.mancheNumber === manche && (partie === undefined || frame.roundNumber === partie));
         if (target >= 0) { setPlaying(false); setIndex(target); }
@@ -76,6 +81,9 @@ export const SoloReplay = ({ visible, frames, onClose, localPlayerId, theme, ski
     return (
         <Modal visible={visible} animationType="fade" onRequestClose={onClose} supportedOrientations={['portrait', 'landscape']} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'} allowSwipeDismissal={Platform.OS === 'ios'}>
             <View style={styles.container}>
+                {skinConfig?.boardColor || skinConfig?.tableBackgroundColor
+                    ? <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: skinConfig.boardColor ?? skinConfig.tableBackgroundColor }]} />
+                    : <LinearGradient pointerEvents="none" colors={['#0a2e0a', '#4a0e0e', '#000000']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFillObject} />}
                 <View style={styles.header}>
                     <View style={styles.headerSection}>
                         <Text style={styles.label}>Manche</Text>
@@ -98,13 +106,29 @@ export const SoloReplay = ({ visible, frames, onClose, localPlayerId, theme, ski
                         </View>
                     </View>
                 </View>
-                <Text style={styles.text}>Étape {index + 1} / {frames.length} · {description}</Text>
+                <View style={styles.progressHeader}>
+                    <Text style={styles.actionText} numberOfLines={1}>{description}</Text>
+                    <TouchableOpacity
+                        accessibilityRole="switch"
+                        accessibilityLabel="Afficher les dominos adverses"
+                        accessibilityState={{ checked: showOpponentHands }}
+                        onPress={() => setShowOpponentHands(current => !current)}
+                        style={[styles.handsToggle, showOpponentHands && styles.handsToggleActive]}
+                    >
+                        <Ionicons name={showOpponentHands ? 'eye-outline' : 'eye-off-outline'} size={18} color="#fff" />
+                        <Text style={styles.handsToggleText}>Mains</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.progressText}>{index + 1} / {frames.length}</Text>
+                </View>
+                <View accessibilityRole="progressbar" accessibilityLabel="Progression du replay" accessibilityValue={{ min: 1, max: frames.length, now: index + 1 }} style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${((index + 1) / frames.length) * 100}%` }]} />
+                </View>
                 <View ref={boardRef} collapsable={false} style={styles.board}>
-                    <View style={styles.tableArea}>
+                    <View style={[styles.tableArea, width < 600 && styles.compactTableArea]}>
                         <GameTable ref={tableRef} gameState={state} theme={theme} skinConfig={skinConfig} replayMode hiddenDominoId={hiddenDominoId} />
                     </View>
                     {state.table.sequence.length === 0 && <Text style={styles.empty}>Plateau vide</Text>}
-                    <ReplayPlayers gameState={state} localPlayerId={localPlayerId} skinConfig={skinConfig} avatarRefs={avatarRefs} />
+                    <ReplayPlayers gameState={state} localPlayerId={localPlayerId} skinConfig={skinConfig} avatarRefs={avatarRefs} activePlayerId={highlightedPlayerId} showOpponentHands={showOpponentHands} />
                     {localPlayer && <ScrollView horizontal style={styles.hand} contentContainerStyle={styles.handContent} showsHorizontalScrollIndicator={false} testID="replay-local-hand">
                         {localPlayer.hand.map(domino => <DominoTile key={domino.id} left={domino.left} right={domino.right} size={28} orientation="vertical" disabled noMargin flat pipScale={1.6} animateOnMount={false} skinConfig={skinConfig} />)}
                     </ScrollView>}
@@ -123,14 +147,22 @@ const styles = StyleSheet.create({
     headerSection: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
     centerSection: { justifyContent: 'center' },
     closeSection: { flex: 1, minWidth: 192, alignItems: 'flex-end' },
-    text: { color: 'white', fontSize: 14, marginTop: 3 },
+    progressHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5, gap: 8 },
+    actionText: { flex: 1, color: '#fff', fontSize: 14, fontWeight: '600' },
+    progressText: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '600' },
+    handsToggle: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7, backgroundColor: 'rgba(255,255,255,0.12)' },
+    handsToggleActive: { backgroundColor: '#286c58' },
+    handsToggleText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+    progressTrack: { height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, marginTop: 4, overflow: 'hidden' },
+    progressFill: { height: '100%', backgroundColor: '#e7b430', borderRadius: 2 },
     label: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
     selectorList: { flexGrow: 0, flexShrink: 1 },
     chips: { alignItems: 'center', gap: 6 },
     chip: { minWidth: 32, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#24584a', alignItems: 'center' },
     selected: { backgroundColor: '#a57710' },
     board: { flex: 1, minHeight: 60, position: 'relative' },
-    tableArea: { flex: 1, marginHorizontal: 110, marginBottom: 66 },
+    tableArea: { flex: 1, marginHorizontal: 140, marginBottom: 66 },
+    compactTableArea: { marginHorizontal: 105 },
     hand: { position: 'absolute', left: 95, right: 95, bottom: 0, flexGrow: 0, zIndex: 1 },
     handContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 7, paddingHorizontal: 3, paddingVertical: 4 },
     quit: { position: 'absolute', right: 0, bottom: 12, backgroundColor: '#286c58', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, zIndex: 2 },

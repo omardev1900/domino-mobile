@@ -2,6 +2,12 @@
 
 ### 2026-11-03
 
+- [x] `REPLAY-01-HIDE-HANDS` Ajouter une commande permettant de masquer ou afficher les dominos adverses pendant la lecture.
+
+- [x] `REPLAY-01-VISUAL` Harmoniser le fond du replay avec la table, améliorer les mains adverses, ajouter une progression et mettre en évidence les actions et joueurs concernés.
+
+- [x] `REPLAY-01-ENTRY-POSITION` Déplacer l’entrée du replay au centre de l’en-tête des résultats, avec sa confirmation tarifaire inchangée.
+
 - [x] `REPLAY-01-BALANCE` Corriger le blocage provoqué par la comparaison avec une ancienne copie locale du solde : attendre le traitement du match, lire le serveur puis actualiser uniquement le cache local. Échec réel toujours bloquant ; nouvelle tentative de lecture sans rejouer la récompense. 21 tests ciblés réussis.
 
 - [x] `REPLAY-01` Phase 1 déployée sur domino-martinique-v1 : replay de fin de match Premium solo/multi, confirmation 1 000 coins par ouverture, synchronisation du solde, débit idempotent et capture serveur multi. Fonctions chargeCurrentReplay/openMultiplayerReplay créées, submitGameAction/coordinateActiveGameTurnsV2/coordinateTerminalGamePhasesV2 actualisées, règles Firestore publiées. Fonctions ACTIVE et appels anonymes refusés. Tests : 598 mobiles, 78 serveur, 21 émulateur ; tests ciblés complémentaires réussis. Parcours authentifié sur appareil non vérifié (aucun appareil connecté) ; TypeScript mobile global conserve des erreurs antérieures.

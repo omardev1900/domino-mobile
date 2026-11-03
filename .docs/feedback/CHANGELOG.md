@@ -2,6 +2,12 @@
 
 ### 2026-11-03 — backend phase 1 déployé
 
+- Une commande permet de masquer ou de réafficher les mains adverses dans le replay.
+
+- Le replay affiche une barre de progression et l’action en cours, avec des mains adverses plus lisibles et un fond harmonisé avec la partie.
+
+- Le bouton Replay apparaît au centre de l’en-tête des résultats de fin de match.
+
 - Correction mobile du message persistant « Le solde de fin de match n’est pas encore confirmé » lorsque seule la copie locale du solde était périmée.
 
 - Replay de fin de match solo/multijoueur pour les membres Premium, avec confirmation de 1 000 coins à chaque ouverture. Lecteur avec avatars, mains, animations, pause, navigation entre manches/parties et vitesses ×1/×2/×4.

@@ -358,7 +358,7 @@ export const GameTable = React.forwardRef<GameTableRef, GameTableProps>((
         <View onLayout={replayMode ? event => {
             const { width, height } = event.nativeEvent.layout;
             setReplaySize(previous => previous.width === width && previous.height === height ? previous : { width, height });
-        } : undefined} style={[styles.container, isLandscape && styles.containerLandscape, replayMode && styles.replayContainer, skinConfig ? { backgroundColor: skinConfig.boardColor ?? skinConfig.tableBackgroundColor } : {}]}>
+        } : undefined} style={[styles.container, isLandscape && styles.containerLandscape, replayMode && styles.replayContainer, skinConfig && !replayMode ? { backgroundColor: skinConfig.boardColor ?? skinConfig.tableBackgroundColor } : {}]}>
             {/* Outer wrapper at SCALED size to preserve document flow & auto-centering */}
             <View style={{ width: scaledW, height: scaledH, justifyContent: 'center', alignItems: 'center' }}>
                 {/* Inner canvas at NATURAL size but scaled via transform */}

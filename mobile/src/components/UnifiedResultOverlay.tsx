@@ -456,15 +456,6 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
                         </TouchableOpacity>
                     )}
 
-                    {onWatchReplay && (
-                        <TouchableOpacity style={{ alignItems: 'center' }} onPress={onWatchReplay} accessibilityLabel="Voir le replay">
-                            <View style={styles.quitBtn}>
-                                <Ionicons name="play" size={22} color="#FFD700" />
-                            </View>
-                            <Text style={styles.topNavActionText}>Replay</Text>
-                        </TouchableOpacity>
-                    )}
-
                     {isMeWinner && isMatchOver && (() => {
                         const me = gameState.players.find(p => p.id === currentUserId);
                         const winParams = {
@@ -490,9 +481,13 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
                     })()}
                 </View>
 
-                <Text style={styles.matchModeLabel} numberOfLines={1}>
-                    {getMatchModeLabel()}
-                </Text>
+                <View style={styles.matchCenter}>
+                    <Text style={styles.matchModeLabel} numberOfLines={1}>{getMatchModeLabel()}</Text>
+                    {onWatchReplay && <TouchableOpacity onPress={onWatchReplay} accessibilityRole="button" accessibilityLabel="Ouvrir un replay pour 1 000 coins" style={styles.watchReplayButton}>
+                        <Ionicons name="play" size={16} color="#FFD700" />
+                        <Text style={styles.watchReplayText}>Replay · 1 000 coins</Text>
+                    </TouchableOpacity>}
+                </View>
 
                 <TouchableOpacity 
                     style={{ alignItems: 'center' }}
@@ -680,7 +675,6 @@ const styles = StyleSheet.create({
         borderBottomColor: 'rgba(255, 255, 255, 0.07)',
     },
     matchModeLabel: {
-        flex: 1,
         textAlign: 'center',
         color: 'rgba(255,255,255,0.6)',
         fontSize: 11,
@@ -689,6 +683,9 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         paddingHorizontal: 6,
     },
+    matchCenter: { position: 'absolute', left: '28%', right: '28%', top: 0, alignItems: 'center', justifyContent: 'center', gap: 4 },
+    watchReplayButton: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#816218', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
+    watchReplayText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
 
     // ── MATCH END: header ──
     matchHeader: {

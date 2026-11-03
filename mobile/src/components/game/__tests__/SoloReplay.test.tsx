@@ -11,9 +11,9 @@ jest.mock('../../GameTable', () => ({
     },
 }));
 jest.mock('../../PlayerAvatar', () => ({
-    PlayerAvatar: ({ player, isBoude }: { player: { name: string }; isBoude: boolean }) => {
+    PlayerAvatar: ({ player, isBoude, isActive }: { player: { name: string }; isBoude: boolean; isActive: boolean }) => {
         const { Text } = require('react-native');
-        return <Text>{player.name}{isBoude ? ' — BOUDÉ' : ''}</Text>;
+        return <Text testID={`active-${player.name}`} accessibilityState={{ selected: isActive }}>{player.name}{isBoude ? ' — BOUDÉ' : ''}</Text>;
     },
 }));
 jest.mock('../../DominoTile', () => ({
@@ -36,6 +36,9 @@ it('affiche les coups de la partie et navigue dans les deux sens', () => {
     expect(within(view.getByTestId('replay-local-hand')).getByText('main 1-1')).toBeTruthy();
     fireEvent.press(view.getByLabelText('Suivant'));
     expect(view.getByText('6-6')).toBeTruthy();
+    expect(view.getByText('Tester joue')).toBeTruthy();
+    expect(view.getByTestId('active-Tester').props.accessibilityState.selected).toBe(true);
+    expect(view.getByLabelText('Progression du replay').props.accessibilityValue).toEqual({ min: 1, max: 2, now: 2 });
     expect(within(view.getByTestId('replay-local-hand')).queryByText('main 6-6')).toBeNull();
     fireEvent.press(view.getByLabelText('Précédent'));
     expect(view.getByText('Plateau vide')).toBeTruthy();
@@ -129,16 +132,16 @@ it('lit automatiquement, met en pause et saute aux manches et parties choisies',
         const view = render(<SoloReplay visible frames={[first, second, nextRound, nextManche]} localPlayerId="player1" onClose={jest.fn()} />);
         fireEvent.press(view.getByLabelText('Lecture'));
         act(() => { jest.advanceTimersByTime(1100); });
-        expect(view.getByText(/Étape 2 \/ 4/)).toBeTruthy();
+        expect(view.getByText(/2 \/ 4/)).toBeTruthy();
         fireEvent.press(view.getByLabelText('Pause'));
         act(() => { jest.advanceTimersByTime(3000); });
-        expect(view.getByText(/Étape 2 \/ 4/)).toBeTruthy();
+        expect(view.getByText(/2 \/ 4/)).toBeTruthy();
         fireEvent.press(view.getByLabelText('Partie 2'));
-        expect(view.getByText(/Étape 3 \/ 4/)).toBeTruthy();
+        expect(view.getByText(/3 \/ 4/)).toBeTruthy();
         fireEvent.press(view.getByLabelText('Manche 2'));
-        expect(view.getByText(/Étape 4 \/ 4/)).toBeTruthy();
+        expect(view.getByText(/4 \/ 4/)).toBeTruthy();
         fireEvent.press(view.getByLabelText('Lecture'));
-        expect(view.getByText(/Étape 1 \/ 4/)).toBeTruthy();
+        expect(view.getByText(/1 \/ 4/)).toBeTruthy();
     } finally {
         jest.useRealTimers();
     }
@@ -154,11 +157,11 @@ it('accélère la lecture sans changer l’ordre des étapes', () => {
         expect(view.getByLabelText('Vitesse 2 fois')).toBeTruthy();
         fireEvent.press(view.getByLabelText('Lecture'));
         act(() => { jest.advanceTimersByTime(550); });
-        expect(view.getByText(/Étape 2 \/ 3/)).toBeTruthy();
+        expect(view.getByText(/2 \/ 3/)).toBeTruthy();
         fireEvent.press(view.getByLabelText('Vitesse 2 fois'));
         expect(view.getByLabelText('Vitesse 4 fois')).toBeTruthy();
         act(() => { jest.advanceTimersByTime(275); });
-        expect(view.getByText(/Étape 3 \/ 3/)).toBeTruthy();
+        expect(view.getByText(/3 \/ 3/)).toBeTruthy();
     } finally {
         jest.useRealTimers();
     }
@@ -190,4 +193,24 @@ it('montre la main adverse et la met à jour après son coup', () => {
     expect(within(view.getByTestId('replay-hand-bot1')).getByText('main 1-1')).toBeTruthy();
     fireEvent.press(view.getByLabelText('Précédent'));
     expect(within(view.getByTestId('replay-hand-bot1')).getByText('main 6-6')).toBeTruthy();
+});
+
+it('masque puis réaffiche les mains adverses sans masquer celle du joueur', () => {
+    const tile = { id: '6-6', left: 6 as const, right: 6 as const, isDouble: true };
+    const spare = { id: '1-1', left: 1 as const, right: 1 as const, isDouble: true };
+    const base = createBaseGameState({ currentPlayerId: 'bot1' });
+    const initial = { ...base, players: [{ ...base.players[0], hand: [spare], handSize: 1 }, { ...base.players[1], hand: [tile, spare], handSize: 2 }] };
+    const after = handleTurn(initial, 'bot1', tile);
+    const view = render(<SoloReplay visible frames={[initial, after]} localPlayerId="player1" onClose={jest.fn()} />);
+    const toggle = () => view.getByLabelText('Afficher les dominos adverses');
+    expect(toggle().props.accessibilityState.checked).toBe(true);
+    expect(view.getByTestId('replay-hand-bot1')).toBeTruthy();
+    fireEvent.press(toggle());
+    expect(toggle().props.accessibilityState.checked).toBe(false);
+    expect(view.queryByTestId('replay-hand-bot1')).toBeNull();
+    expect(within(view.getByTestId('replay-local-hand')).getByText('main 1-1')).toBeTruthy();
+    fireEvent.press(view.getByLabelText('Suivant'));
+    fireEvent.press(toggle());
+    expect(within(view.getByTestId('replay-hand-bot1')).queryByText('main 6-6')).toBeNull();
+    expect(within(view.getByTestId('replay-hand-bot1')).getByText('main 1-1')).toBeTruthy();
 });
