@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
-import { Linking } from 'react-native';
+import { Image, Linking } from 'react-native';
 import { CampaignModal } from '../CampaignModal';
 import { Campaign } from '../../core/campaigns/campaignPolicy';
 
@@ -15,6 +15,20 @@ describe('CampaignModal', () => {
         fireEvent.press(screen.getByText('Voir'));
         expect(close).toHaveBeenCalled();
         expect(mockPush).toHaveBeenCalledWith('/premium');
+    });
+    it('accepte les événements de chargement web sans dimensions natives', () => {
+        const screen = render(<CampaignModal campaign={campaign} onClose={jest.fn()} />);
+        const image = screen.UNSAFE_getByType(Image);
+        fireEvent(image, 'load', { nativeEvent: {} });
+        fireEvent(image, 'load', { nativeEvent: { target: { naturalWidth: 1200, naturalHeight: 800 } } });
+        expect(screen.getByText('Promotion')).toBeTruthy();
+    });
+    it('garde les informations accessibles quand l’image échoue', () => {
+        const screen = render(<CampaignModal campaign={campaign} onClose={jest.fn()} />);
+        fireEvent(screen.UNSAFE_getByType(Image), 'error');
+        expect(screen.getByText('Image indisponible')).toBeTruthy();
+        expect(screen.getByText('Promotion')).toBeTruthy();
+        expect(screen.getByText('Voir')).toBeTruthy();
     });
     it('ouvre un lien externe et permet de fermer la fenêtre', () => {
         const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
