@@ -1,5 +1,9 @@
 # Changelog
 
+### 2026-11-04
+
+- Développement : possibilité de commencer avec un seul domino en main.
+
 ### 2026-11-03 — backend phase 1 déployé
 
 - Le carrousel de découverte Premium présente chaque avantage avec ses couleurs et son motif ; les cartes d’accès sont réservées aux abonnés.

@@ -47,7 +47,7 @@ describe('LogicEngine', () => {
     });
 
     describe('distribution solo de test', () => {
-        it.each([3, 5, 7])('distribue %i dominos au joueur et 7 aux bots sans doublon', size => {
+        it.each([1, 3, 5, 7])('distribue %i dominos au joueur et 7 aux bots sans doublon', size => {
             const state = dealGameSolo('joueur', 'Joueur', undefined, 'MAPIPI', size, true);
             expect(state.players!.map(player => player.hand.length)).toEqual([size, 7, 7]);
             expect(state.players!.map(player => player.handSize)).toEqual([size, 7, 7]);
@@ -61,13 +61,13 @@ describe('LogicEngine', () => {
             expect(state.startingHandPlayerId).toBeUndefined();
         });
         it('conserve la distribution asymétrique après une redonne et une nouvelle manche', () => {
-            const dealt = dealGameSolo('joueur', 'Joueur', undefined, 'MAPIPI', 5, true);
+            const dealt = dealGameSolo('joueur', 'Joueur', undefined, 'MAPIPI', 1, true);
             for (const phase of ['PARTIE_END', 'MANCHE_END'] as const) {
                 const state = createBaseGameState({ ...dealt, phase, firstPlayerOfRound: 'joueur' });
                 const next = computeNextRoundState(state);
-                expect(next.players.map(player => player.hand.length)).toEqual([5, 7, 7]);
+                expect(next.players.map(player => player.hand.length)).toEqual([1, 7, 7]);
                 expect(next.startingHandPlayerId).toBe('joueur');
-                expect(next.talonMort.length).toBe(9);
+                expect(next.talonMort.length).toBe(13);
             }
         });
     });

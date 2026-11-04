@@ -1,5 +1,9 @@
 # Taches terminees
 
+### 2026-11-04
+
+- [x] `DEV-HAND-ONE-01` Ajouter le choix d’un domino en main pour les distributions de développement, en conservant le défaut à trois.
+
 ### 2026-11-03
 
 - Page Premium : cartes réservées aux abonnés et carrousel des avantages illustré pour les autres joueurs.
