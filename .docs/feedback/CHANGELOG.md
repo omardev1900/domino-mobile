@@ -2,6 +2,8 @@
 
 ### 2026-11-04
 
+- Les campagnes peuvent cibler la page Premium et les comptes gratuits.
+
 - Développement : possibilité de commencer avec un seul domino en main.
 
 ### 2026-11-03 — backend phase 1 déployé

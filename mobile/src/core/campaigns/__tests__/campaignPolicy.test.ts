@@ -20,6 +20,13 @@ describe('campagnes', () => {
             expect(selectCampaign([doc('a', values)], options)).toBeNull();
         }
     });
+    it('cible la page Premium et les comptes gratuits', () => {
+        const premiumPage = { ...options, placement: 'PREMIUM' as const };
+        const campaign = doc('premium', { placements: ['PREMIUM'] });
+        expect(selectCampaign([campaign], premiumPage)?.id).toBe('premium');
+        expect(selectCampaign([campaign], { ...premiumPage, premium: true })).toBeNull();
+        expect(selectCampaign([campaign], options)).toBeNull();
+    });
     it('respecte la limite de session et la fréquence par jour ou campagne', () => {
         expect(selectCampaign([doc('a')], { ...options, sessionHasCampaign: true })).toBeNull();
         expect(selectCampaign([doc('a')], { ...options, history: { a: { shownAt: now - 1000, shownThisSession: false } } })).toBeNull();

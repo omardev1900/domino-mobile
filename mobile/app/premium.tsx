@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,6 +13,9 @@ import { PremiumHomeFeatures } from '../src/components/PremiumHomeFeatures';
 import { ReplayLibraryModal } from '../src/components/game/ReplayLibraryModal';
 import { storeService } from '../src/core/services/store.service';
 import { PremiumBenefitsCarousel } from '../src/components/PremiumBenefitsCarousel';
+import { CampaignBlockContext } from '../src/core/campaigns/CampaignBlockContext';
+import { useCampaign } from '../src/core/campaigns/useCampaign';
+import { CampaignModal } from '../src/components/CampaignModal';
 
 const CELEBRATION_PARTICLES = [
     { x: -118, y: -178, color: '#FFD700' },
@@ -214,6 +217,9 @@ export default function PremiumScreen() {
 
     const premiumActive = isPremiumActive(entitlement);
     const trialAlreadyUsed = Boolean(entitlement?.trialUsedAt);
+    const globalCampaignBlock = useContext(CampaignBlockContext);
+    const campaignEnabled = !loading && !loadError && !globalCampaignBlock && !showCodeModal && !showReplays && !showTrialConfirmation && !celebration && !processing;
+    const { campaign, dismiss: dismissCampaign } = useCampaign('PREMIUM', campaignEnabled);
 
     return (
         <SafeAreaView style={styles.container}>
@@ -294,6 +300,7 @@ export default function PremiumScreen() {
                     </View>
                 </View>
             </Modal>
+            <CampaignModal campaign={campaignEnabled ? campaign : null} onClose={dismissCampaign} />
             {celebration && <PremiumCelebration {...celebration} onComplete={() => setCelebration(null)} />}
         </SafeAreaView>
     );

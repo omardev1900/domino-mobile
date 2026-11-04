@@ -2,6 +2,8 @@
 
 ### 2026-11-04
 
+- [x] `INFO-CAMPAIGNS-PREMIUM` Ajouter la page Premium comme emplacement de campagne, avec ciblage des comptes gratuits.
+
 - [x] `DEV-HAND-ONE-01` Ajouter le choix d’un domino en main pour les distributions de développement, en conservant le défaut à trois.
 
 ### 2026-11-03

@@ -19,13 +19,13 @@ export const campaignSchema = z.object({
     startsAt: z.number().finite(),
     endsAt: z.number().finite(),
     audience: z.enum(['ALL', 'FREE', 'PREMIUM']),
-    placements: z.array(z.enum(['HOME', 'STORE'])).min(1),
+    placements: z.array(z.enum(['HOME', 'STORE', 'PREMIUM'])).min(1),
     frequency: z.enum(['SESSION', 'DAY', 'ONCE']),
     priority: z.number().int().min(0).max(100),
 }).refine(campaign => campaign.startsAt < campaign.endsAt);
 
 export type Campaign = z.infer<typeof campaignSchema> & { id: string };
-export type CampaignPlacement = 'HOME' | 'STORE';
+export type CampaignPlacement = 'HOME' | 'STORE' | 'PREMIUM';
 export interface CampaignHistory { shownAt?: number; shownThisSession: boolean }
 
 /** Détermine la campagne prioritaire sans supposer que les données Firestore sont valides. */
