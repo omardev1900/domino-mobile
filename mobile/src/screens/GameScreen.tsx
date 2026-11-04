@@ -19,6 +19,7 @@ import { GameOptionsMenu } from '../components/game/GameOptionsMenu';
 import { GameOverlays } from '../components/game/GameOverlays';
 import { SoloReplay } from '../components/game/SoloReplay';
 import { PaidReplayEntry, PaidReplayEntryHandle } from '../components/game/PaidReplayEntry';
+import { ReplayPremiumOffer } from '../components/game/ReplayPremiumOffer';
 import { confirmReplaySettlement } from '../core/services/replaySettlement';
 import { savePurchasedReplay } from '../core/services/replayLibrary.service';
 import { PlayerArea } from '../components/game/PlayerArea';
@@ -72,7 +73,7 @@ import { MatchReward, TableTier } from '../core/economy.types';
 import { TABLE_CONFIGS } from '../core/economy.constants';
 import { SkinConfig, StoreItem } from '../core/store.types';
 import { useInterstitialAd, TestIds, AdMobIds } from '../core/services/AdMobAdapter';
-import { premiumService } from '../core/services/premium.service';
+import { isPremiumActive, premiumService } from '../core/services/premium.service';
 import { rtdb } from '../core/services/firebase';
 import { ref as rtdbRef, onValue as rtdbOnValue } from 'firebase/database';
 
@@ -815,6 +816,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [matchRewardAmount, setMatchRewardAmount] = useState(100);
     const [hasPremium, setHasPremium] = useState(false);
     const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
+    const [trialEligible, setTrialEligible] = useState(false);
+    const [showReplayPremiumOffer, setShowReplayPremiumOffer] = useState(false);
     const [showRoundResult, setShowRoundResult] = useState(false);
     // Snapshot du gameState au moment où la carte résultat est déclenchée.
     // Évite que le contenu change si la phase évolue pendant l'affichage (ex: égalité boudé).
@@ -855,6 +858,16 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             active = false;
         };
     }, [persistenceUserId]);
+
+    useFocusEffect(useCallback(() => {
+        let active = true;
+        premiumService.getEntitlement(persistenceUserId).then((entitlement) => {
+            if (active) { setHasPremium(isPremiumActive(entitlement)); setTrialEligible(!entitlement?.trialUsedAt); }
+        });
+        return () => {
+            active = false;
+        };
+    }, [persistenceUserId]));
 
     useEffect(() => {
         if (isAdMobClosed) {
@@ -2562,13 +2575,19 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 onOverlayContinue={interceptOverlayContinue}
                 onLeaveRoom={handleLeaveRoom}
                 onReplay={handleReplay}
-                onWatchReplay={hasPremium && !showSoloReplay && !isTrainingMode && gameState?.phase === 'MATCH_END' && showScoreOverlay ? () => paidReplayEntryRef.current?.show() : undefined}
+                replayPremiumOffer={!hasPremium}
+                onWatchReplay={premiumStatusResolved && !showSoloReplay && !isTrainingMode && gameState?.phase === 'MATCH_END' && showScoreOverlay ? () => {
+                    if (!hasPremium) { setShowReplayPremiumOffer(true); return; }
+                    paidReplayEntryRef.current?.show();
+                } : undefined}
                 roomData={roomData}
                 bannerState={bannerState}
                 isPaused={isPaused}
                 onResume={() => setIsPaused(false)}
                 matchReward={matchReward}
             />
+
+            <ReplayPremiumOffer visible={showReplayPremiumOffer} trialEligible={trialEligible} onClose={() => setShowReplayPremiumOffer(false)} onDiscover={() => { setShowReplayPremiumOffer(false); router.push('/premium' as never); }} />
 
             <PaidReplayEntry
                 ref={paidReplayEntryRef}

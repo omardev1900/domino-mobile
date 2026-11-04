@@ -31,6 +31,7 @@ interface UnifiedResultOverlayProps {
     onLeave?: () => void;
     onReplay?: () => void;
     onWatchReplay?: () => void;
+    replayPremiumOffer?: boolean;
     isSoloMode?: boolean;
     allReady?: boolean;
     onAnimationFinished?: () => void;
@@ -48,6 +49,7 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
     onLeave,
     onReplay,
     onWatchReplay,
+    replayPremiumOffer = false,
     isSoloMode,
     isHost = true,
     matchReward,
@@ -483,9 +485,10 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
 
                 <View style={styles.matchCenter}>
                     <Text style={styles.matchModeLabel} numberOfLines={1}>{getMatchModeLabel()}</Text>
-                    {onWatchReplay && <TouchableOpacity onPress={onWatchReplay} accessibilityRole="button" accessibilityLabel="Ouvrir un replay pour 2 000 coins" style={styles.watchReplayButton}>
+                    {onWatchReplay && <TouchableOpacity onPress={onWatchReplay} accessibilityRole="button" accessibilityLabel={replayPremiumOffer ? 'Découvrir le replay Premium' : 'Ouvrir un replay pour 2 000 coins'} style={styles.watchReplayButton}>
                         <Ionicons name="play" size={16} color="#FFD700" />
-                        <Text style={styles.watchReplayText}>Replay · 2 000 coins</Text>
+                        <Text style={styles.watchReplayText}>{replayPremiumOffer ? 'Revoir ma partie' : 'Replay · 2 000 coins'}</Text>
+                        {replayPremiumOffer && <Text style={styles.replayPremiumBadge}>PREMIUM</Text>}
                     </TouchableOpacity>}
                 </View>
 
@@ -686,6 +689,7 @@ const styles = StyleSheet.create({
     matchCenter: { position: 'absolute', left: '28%', right: '28%', top: 0, alignItems: 'center', justifyContent: 'center', gap: 4 },
     watchReplayButton: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#816218', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
     watchReplayText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+    replayPremiumBadge: { color: '#291a42', backgroundColor: '#FFD700', fontSize: 8, fontWeight: '900', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 },
 
     // ── MATCH END: header ──
     matchHeader: {

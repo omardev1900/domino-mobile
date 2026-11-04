@@ -2,6 +2,8 @@
 
 ### 2026-11-04
 
+- Présentation du replay Premium aux joueurs gratuits en fin de match, avec prix en coins et accès adapté à l’essai.
+
 - [x] `INFO-CAMPAIGNS-PREMIUM` Ajouter la page Premium comme emplacement de campagne, avec ciblage des comptes gratuits.
 
 - [x] `DEV-HAND-ONE-01` Ajouter le choix d’un domino en main pour les distributions de développement, en conservant le défaut à trois.

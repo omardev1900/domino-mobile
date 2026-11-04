@@ -120,4 +120,13 @@ describe('UnifiedResultOverlay', () => {
         fireEvent.press(screen.getByLabelText('Proposer une revanche'));
         expect(onReplay).toHaveBeenCalledTimes(1);
     });
+    it('présente le replay Premium aux joueurs gratuits', () => {
+        const gameState: any = { phase: 'MATCH_END', gameMode: 'SCORE', winningCondition: 50, players: [{ id: 'p1', name: 'Moi', hand: [], totalPoints: 50 }, { id: 'p2', name: 'Bot', hand: [], totalPoints: 30 }] };
+        const onWatchReplay = jest.fn();
+        const view = render(<UnifiedResultOverlay visible gameState={gameState} currentUserId="p1" onContinue={jest.fn()} onWatchReplay={onWatchReplay} replayPremiumOffer />);
+        expect(view.getByText('Revoir ma partie')).toBeTruthy();
+        expect(view.getByText('PREMIUM')).toBeTruthy();
+        fireEvent.press(view.getByLabelText('Découvrir le replay Premium'));
+        expect(onWatchReplay).toHaveBeenCalledTimes(1);
+    });
 });

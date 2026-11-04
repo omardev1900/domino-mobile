@@ -2,6 +2,8 @@
 
 ### 2026-11-04
 
+- Le bouton replay présente les avantages Premium aux joueurs gratuits et précise le prix avant l’accès à l’offre.
+
 - Les campagnes peuvent cibler la page Premium et les comptes gratuits.
 
 - Développement : possibilité de commencer avec un seul domino en main.
