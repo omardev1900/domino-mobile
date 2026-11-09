@@ -72,6 +72,8 @@ export interface TableConfig {
  * Le RewardEngine consomme ce contexte et produit un MatchReward.
  */
 export interface RewardCalculationInput {
+    /** Identifiant stable de la demande de récompense, utilisé pour éviter un double crédit. */
+    operationId?: string;
     /** L'état du jeu finalisé (phase === 'MATCH_END') */
     playerFinalStats: PlayerMatchSnapshot;
     /** Classement final (du meilleur au pire) */

@@ -29,6 +29,7 @@ import { createStripeCustomerPortal } from './premiumStripePortal';
 import { getMonthlyCochonsFromHistory } from './matchFinalizer';
 import { getPreviousLeagueMonthKey } from './leagueTime';
 import { createDebitSoloBuyIn, createRefundSoloBuyIn } from './coinBuyIn';
+import { createSettleMultiplayerBuyIn, createSettleTournamentBuyIn } from './multiplayerBuyIn';
 import {
     createBackfillGlobalLeaderboard,
     createGlobalLeaderboardProjection,
@@ -60,6 +61,8 @@ export const projectGlobalLeaderboard = createGlobalLeaderboardProjection(db);
 export const backfillGlobalLeaderboard = createBackfillGlobalLeaderboard(db);
 export const debitSoloBuyIn = createDebitSoloBuyIn(db);
 export const refundSoloBuyIn = createRefundSoloBuyIn(db);
+export const settleMultiplayerBuyIn = createSettleMultiplayerBuyIn(db);
+export const settleTournamentBuyIn = createSettleTournamentBuyIn(db);
 
 const LOCAL_WEB_ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
@@ -87,9 +90,12 @@ async function processMatchRewardInternal(
     uid: string
 ) {
     const clientInput = data.input;
+    const operationId = typeof clientInput.operationId === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(clientInput.operationId)
+        ? clientInput.operationId
+        : null;
+    if (!operationId) throw new functions.https.HttpsError('invalid-argument', 'Identifiant de récompense invalide.');
 
     const userRef = db.collection('users').doc(uid);
-    const userSnap = await userRef.get();
     // Le client ne décide jamais du multiplicateur Premium : l'entitlement est lu
     // directement dans Firestore avant le calcul de la récompense.
     const entitlementSnap = await db.collection('premium_entitlements').doc(uid).get();
@@ -100,103 +106,74 @@ async function processMatchRewardInternal(
         Date.now()
     );
 
-    let currentXP = 0;
-    let currentLevel = 1;
-    let currentLeaguePoints = 0;
-    let currentCochonsGiven = 0;
-    let currentCoins = 0;
-    let currentDiamonds = 0;
+    const reward = await db.runTransaction(async transaction => {
+        const userSnap = await transaction.get(userRef);
+        const entryRef = db.collection('coin_wallets').doc(uid).collection('entries').doc(operationId);
+        const entrySnap = await transaction.get(entryRef);
+        if (entrySnap.exists) return entrySnap.data()?.reward as ReturnType<typeof RewardEngine.calculate>;
 
-    let existingEconomy: Record<string, any> = {};
-    if (userSnap.exists) {
-        const userData = userSnap.data();
-        if (userData?.economy) {
-            existingEconomy = userData.economy;
-            currentXP = existingEconomy.xp || 0;
-            currentLevel = existingEconomy.level || 1;
-            currentLeaguePoints = existingEconomy.leaguePoints || 0;
-            const statsHistory = userData.stats?.matchHistory;
-            currentCochonsGiven = Array.isArray(statsHistory)
-                ? getMonthlyCochonsFromHistory(statsHistory, Date.now())
-                : (existingEconomy.cochonsGiven ?? existingEconomy.leaguePoints ?? 0);
-            currentCoins = existingEconomy.coins || 0;
-            currentDiamonds = existingEconomy.diamonds || 0;
+        const userData = userSnap.exists ? userSnap.data() ?? {} : {};
+        const existingEconomy: Record<string, any> = userData.economy ?? {};
+        const statsHistory = userData.stats?.matchHistory;
+        const currentCochonsGiven = Array.isArray(statsHistory)
+            ? getMonthlyCochonsFromHistory(statsHistory, Date.now())
+            : (existingEconomy.cochonsGiven ?? existingEconomy.leaguePoints ?? 0);
+        const secureInput: RewardCalculationInput = {
+            ...(clientInput as RewardCalculationInput),
+            currentXP: existingEconomy.xp || 0,
+            currentLevel: existingEconomy.level || 1,
+            currentLeaguePoints: existingEconomy.leaguePoints || 0,
+            currentCochonsGiven,
+            isPremium: hasPremiumAccess,
+        };
+        const computed = RewardEngine.calculate(secureInput);
+        let participantSnap: admin.firestore.DocumentSnapshot | null = null;
+        let tournamentSnap: admin.firestore.DocumentSnapshot | null = null;
+        let participantRef: admin.firestore.DocumentReference | null = null;
+        if (clientInput.tournamentId) {
+            const tournamentRef = db.collection('tournaments').doc(clientInput.tournamentId);
+            participantRef = tournamentRef.collection('participants').doc(uid);
+            [participantSnap, tournamentSnap] = await Promise.all([
+                transaction.get(participantRef),
+                transaction.get(tournamentRef),
+            ]);
         }
-    }
+        const currentCoins = existingEconomy.coins || 0;
+        const newEconomy = {
+            ...existingEconomy,
+            coins: currentCoins + computed.coinsEarned,
+            xp: computed.newXP,
+            level: computed.newLevel,
+            diamonds: (existingEconomy.diamonds || 0) + computed.diamondsEarned,
+            leaguePoints: computed.newLeaguePoints,
+            leagueGrade: computed.newGrade,
+            cochonsGiven: computed.newCochonsGiven,
+            unlockedFrames: [...new Set([
+                ...(existingEconomy.unlockedFrames || []),
+                ...computed.newlyUnlockedFrames.map((frame: any) => frame.frameId),
+            ])],
+        };
+        transaction.set(userRef, { economy: newEconomy }, { merge: true });
+        transaction.create(entryRef, {
+            amount: computed.coinsEarned,
+            reason: 'MATCH_REWARD',
+            balanceAfter: newEconomy.coins,
+            reward: computed,
+            createdAt: Date.now(),
+        });
 
-    const secureInput: RewardCalculationInput = {
-        ...(clientInput as RewardCalculationInput),
-        currentXP,
-        currentLevel,
-        currentLeaguePoints,
-        currentCochonsGiven,
-        isPremium: hasPremiumAccess,
-    };
-
-    const reward = RewardEngine.calculate(secureInput);
-
-    const newEconomy = {
-        ...existingEconomy,
-        coins: currentCoins + reward.coinsEarned,
-        xp: reward.newXP,
-        level: reward.newLevel,
-        diamonds: currentDiamonds + reward.diamondsEarned,
-        leaguePoints: reward.newLeaguePoints,
-        leagueGrade: reward.newGrade,
-        cochonsGiven: reward.newCochonsGiven,
-        unlockedFrames: [...new Set([
-            ...(existingEconomy.unlockedFrames || []),
-            ...reward.newlyUnlockedFrames.map((frame: any) => frame.frameId),
-        ])],
-    };
-
-    await userRef.set({ economy: newEconomy }, { merge: true });
-
-    if (clientInput.tournamentId) {
-        try {
-            const tournamentId = clientInput.tournamentId;
-            const tournamentRef = db.collection('tournaments').doc(tournamentId);
-            const participantRef = tournamentRef.collection('participants').doc(uid);
-            const pointsToAdd = clientInput.playerFinalStats?.totalPoints || reward.xpEarned;
-
-            await db.runTransaction(async (transaction) => {
-                const participantSnap = await transaction.get(participantRef);
-                const tournamentSnap = await transaction.get(tournamentRef);
-
-                if (tournamentSnap.exists && tournamentSnap.data()?.status === 'ACTIVE' && participantSnap.exists) {
-                    const participantData = participantSnap.data();
-                    const currentScore = participantData?.score || 0;
-                    const gamesPlayed = participantData?.gamesPlayed || 0;
-
-                    transaction.update(participantRef, {
-                        score: currentScore + pointsToAdd,
-                        gamesPlayed: gamesPlayed + 1,
-                        lastPlayedAt: Date.now(),
-                    });
-                }
-            });
-
-            console.log(`[processMatchReward] Joueur ${uid} credite: +${pointsToAdd} pts au tournoi ${tournamentId}.`);
-            await logSystemEvent({
-                event: 'tournament_score_update',
-                level: 'info',
-                functionName: 'processMatchReward',
-                uid,
-                message: `+${pointsToAdd} pts ajoutes au tournoi ${tournamentId}`,
-                metadata: { tournamentId, pointsToAdd },
-            });
-        } catch (error: any) {
-            console.error(`Erreur maj tournoi ${clientInput.tournamentId} pour user ${uid}:`, error);
-            await logSystemEvent({
-                event: 'function_error',
-                level: 'error',
-                functionName: 'processMatchReward',
-                uid,
-                message: `Erreur maj tournoi ${clientInput.tournamentId}: ${error?.message ?? error}`,
-                metadata: { tournamentId: clientInput.tournamentId },
-            });
+        if (participantRef && tournamentSnap && participantSnap) {
+            if (tournamentSnap.exists && tournamentSnap.data()?.status === 'ACTIVE' && participantSnap.exists) {
+                const participantData = participantSnap.data() ?? {};
+                transaction.update(participantRef, {
+                    score: (participantData.score || 0) + (clientInput.playerFinalStats?.totalPoints || computed.xpEarned),
+                    gamesPlayed: (participantData.gamesPlayed || 0) + 1,
+                    lastPlayedAt: Date.now(),
+                });
+            }
         }
-    }
+        return computed;
+    });
 
     console.log(`[processMatchReward] Joueur ${uid} credite: +${reward.coinsEarned} pieces.`);
     await logSystemEvent({

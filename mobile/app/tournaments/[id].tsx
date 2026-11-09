@@ -6,7 +6,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { collection, doc, getDoc, getDocs, setDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db, auth } from '../../src/core/services/firebase';
+import { db, auth, gameFunctions } from '../../src/core/services/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { economyService } from '../../src/core/services/economy.service';
 
 interface Tournament {
@@ -108,12 +109,8 @@ export default function TournamentDetailScreen() {
         try {
             // Check & deduct fee
             if (tournament.entryFeeCoins > 0) {
-                const success = await economyService.deductBuyIn(tournament.entryFeeCoins, userId);
-                if (!success) {
-                    Alert.alert("Solde insuffisant", "Vous n'avez pas assez de coins pour l'inscription.");
-                    setJoining(false);
-                    return;
-                }
+                const settle = httpsCallable<{ tournamentId: string; action: 'debit' }, { balance: number }>(gameFunctions, 'settleTournamentBuyIn');
+                await settle({ tournamentId: id, action: 'debit' });
             }
             
             // Register player

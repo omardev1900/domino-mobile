@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { httpsCallable } from 'firebase/functions';
 
 import { View, StyleSheet, Text, StatusBar, TouchableOpacity, Alert, useWindowDimensions, Image, Platform, Pressable, AppState } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -74,7 +75,7 @@ import { TABLE_CONFIGS } from '../core/economy.constants';
 import { SkinConfig, StoreItem } from '../core/store.types';
 import { useInterstitialAd, TestIds, AdMobIds } from '../core/services/AdMobAdapter';
 import { isPremiumActive, premiumService } from '../core/services/premium.service';
-import { rtdb } from '../core/services/firebase';
+import { rtdb, gameFunctions } from '../core/services/firebase';
 import { ref as rtdbRef, onValue as rtdbOnValue } from 'firebase/database';
 
 interface GameScreenProps {
@@ -1305,6 +1306,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                             isSoloMode,
                             isPremium: hasPremium,
                         });
+                        rewardInput.operationId = `match_reward_${(gameId || gameState.gameId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 55)}_${gameState.lastActionTimestamp}`;
 
                         // ✅ Exécution sécurisée côté serveur (Backend Banker)
                         const reward = await economyService.processServerReward(rewardInput, persistenceUserId);
@@ -1823,16 +1825,12 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             }
 
             LogService.info('GameScreen', `[ECONOMY] Deducting buy-in of ${tableConfig.buyIn} for room ${gameId}`);
-            const success = await economyService.deductBuyIn(tableConfig.buyIn, localPlayerId);
-
-            if (success) {
-                hasBeenDebited.current = true;
-                await markPlayerAsDebited(gameId, localPlayerId);
-                setDebitFeedback(`-${tableConfig.buyIn} 🪙`);
-                setTimeout(() => setDebitFeedback(null), 2500);
-            } else {
-                LogService.error('GameScreen', "[ECONOMY] Failed to deduct buy-in at game start!");
-            }
+            const settle = httpsCallable<{ roomId: string; action: 'debit' }, { balance: number }>(gameFunctions, 'settleMultiplayerBuyIn');
+            await settle({ roomId: gameId, action: 'debit' });
+            hasBeenDebited.current = true;
+            await markPlayerAsDebited(gameId, localPlayerId);
+            setDebitFeedback(`-${tableConfig.buyIn} 🪙`);
+            setTimeout(() => setDebitFeedback(null), 2500);
         };
 
         // Only guests deduct here. Host deducts in handleStartGame for atomic transition.
@@ -2054,11 +2052,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         const meInRoom = roomData.players.find(p => p.uid === localPlayerId);
 
         if (tableConfig && tableConfig.buyIn > 0 && !hasBeenDebited.current && !meInRoom?.hasBeenDebited) {
-            const success = await economyService.deductBuyIn(tableConfig.buyIn, localPlayerId);
-            if (!success) {
-                Alert.alert("Solde insuffisant", "Vous n'avez plus assez de coins pour lancer cette table.");
-                return;
-            }
+            const settle = httpsCallable<{ roomId: string; action: 'debit' }, { balance: number }>(gameFunctions, 'settleMultiplayerBuyIn');
+            await settle({ roomId: gameId, action: 'debit' });
             hasBeenDebited.current = true;
             await markPlayerAsDebited(gameId, localPlayerId);
             setDebitFeedback(`-${tableConfig.buyIn} 🪙`);
@@ -2136,6 +2131,15 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
         } catch (error) {
             LogService.error('GameScreen', "Failed to start game:", error);
+            if (hasBeenDebited.current) {
+                try {
+                    const refund = httpsCallable<{ roomId: string; action: 'refund' }, { balance: number }>(gameFunctions, 'settleMultiplayerBuyIn');
+                    await refund({ roomId: gameId, action: 'refund' });
+                    hasBeenDebited.current = false;
+                } catch (refundError) {
+                    LogService.error('GameScreen', 'Failed to refund multiplayer buy-in after start failure.', refundError);
+                }
+            }
             Alert.alert("Error", "Could not start game");
             setIsStarting(false);
         }

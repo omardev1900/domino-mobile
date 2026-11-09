@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { createHash } from 'node:crypto';
 
 import { TABLE_CONFIGS } from './core/economy.constants';
 import { LeagueFrameId, MatchReward, TableTier } from './core/economy.types';
@@ -217,6 +218,18 @@ export const finalizeCoordinatedMatch = async (
             };
             if (userData.activeRoomId === roomId) userUpdate.activeRoomId = null;
             transaction.set(userRefs[index], userUpdate, { merge: true });
+            const rewardOperationId = `match_reward_${createHash('sha256').update(`${finalizationId}:${uid}`).digest('hex').slice(0, 48)}`;
+            transaction.create(
+                db.collection('coin_wallets').doc(uid).collection('entries').doc(rewardOperationId),
+                {
+                    amount: finalized.reward.coinsEarned,
+                    reason: 'MATCH_REWARD',
+                    matchId: finalizationId,
+                    balanceAfter: finalized.economy.coins,
+                    reward: finalized.reward,
+                    createdAt: now,
+                },
+            );
             const monthId = `${uid}_${finalized.monthlyStats.yearMonth}`;
             transaction.set(
                 db.collection('users_monthly_stats').doc(monthId),

@@ -50,6 +50,8 @@ describe('matchFinalizer avec Firestore Emulator', () => {
         assert.equal(p1?.stats.gamesWon, 1);
         assert.equal(p2?.stats.gamesWon, 0);
         assert.equal(p1?.stats.matchHistory.length, 1);
+        assert.equal((await db.collection('coin_wallets').doc('p1').collection('entries').where('reason', '==', 'MATCH_REWARD').get()).size, 1);
+        assert.equal((await db.collection('coin_wallets').doc('p2').collection('entries').where('reason', '==', 'MATCH_REWARD').get()).size, 1);
 
         const monthly = await db.collection('users_monthly_stats')
             .where('userId', 'in', ['p1', 'p2'])
