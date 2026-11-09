@@ -2,15 +2,17 @@
 
 ### 2026-11-09
 
-- Replay Premium : deux sauvegardes incluses ; remplacement proposé lorsque les deux places sont occupées.
+- Replay : message de remplacement clarifié lorsque les deux places sont occupées.
 
-- Replay : message de remplacement clarifié.
+- Premium : chargement indépendant du contrôle administrateur et possibilité de réessayer si le statut ne répond pas.
+
+- Replay Premium : deux sauvegardes incluses ; un remplacement est proposé lorsque les deux places sont occupées.
 
 ### 2026-11-04
 
-- Le bouton replay présente les avantages Premium aux joueurs gratuits et précise le prix avant l’accès à l’offre.
-
 - Les campagnes peuvent cibler la page Premium et les comptes gratuits.
+
+- Le bouton replay présente les avantages Premium aux joueurs gratuits et précise le prix avant l’accès à l’offre.
 
 - Développement : possibilité de commencer avec un seul domino en main.
 

@@ -2,7 +2,11 @@
 
 ### 2026-11-09
 
-- [x] `REPLAY-CAPACITY-02` Deux replays inclus, remplacement et message de confirmation adaptés ; tests réussis.
+- [x] Clarifier le message de remplacement lorsque les deux replays sont sauvegardés.
+
+- [x] `PREMIUM-LOAD-01` Ne plus bloquer la page Premium sur le rôle administrateur ; limiter l’attente du statut et permettre de réessayer en cas d’erreur.
+
+- [x] `REPLAY-CAPACITY-02` Porter la capacité incluse à deux replays, sans offre d’emplacements supplémentaires ; préserver les sauvegardes existantes.
 
 ### 2026-11-04
 
@@ -211,6 +215,10 @@
   emulation Firebase, regles Firestore, lint et export web.
 - [x] Snapshot `MANCHE_END` corrige dans un commit independant (`be08bbe`).
 # Taches terminees
+
+### 2026-11-09
+
+- [x] `REPLAY-CAPACITY-02` Porter la capacité incluse à deux replays, sans offre d’emplacements supplémentaires ; préserver les sauvegardes existantes.
 
 ### 2026-10-23
 

@@ -104,21 +104,22 @@ export default function PremiumScreen() {
         perfMark('premium.focus', { run });
         setLoading(true);
         setLoadError(false);
+        // Le rôle admin ne conditionne pas l'affichage de la page Premium.
+        void premiumService.isCurrentUserAdmin().then(value => {
+            if (focusRunRef.current === run) setIsAdmin(value);
+        }).catch(error => LogService.warn('Premium', 'Vérification administrateur impossible.', error));
         let nextEntitlement: PremiumEntitlement | null;
-        let nextIsAdmin: boolean;
         try {
-            [nextEntitlement, nextIsAdmin] = await Promise.all([
-                premiumService.getEntitlement(),
-                premiumService.isCurrentUserAdmin(),
-            ]);
+            nextEntitlement = await premiumService.getEntitlementForScreen();
         } catch (error) {
+            if (focusRunRef.current !== run) return;
             LogService.warn('Premium', 'Chargement du statut Premium impossible.', error);
             setLoadError(true);
             setLoading(false);
             return;
         }
+        if (focusRunRef.current !== run) return;
         setEntitlement(nextEntitlement);
-        setIsAdmin(nextIsAdmin);
         setLoading(false);
         perfMark('premium.dataReady', { run, ms: Date.now() - startedAt, hasEntitlement: Boolean(nextEntitlement) });
         // Équivalent de `store.framePresented` : jalon JS émis après le commit

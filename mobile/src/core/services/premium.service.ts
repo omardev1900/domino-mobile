@@ -1,7 +1,7 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { authService } from './auth.service';
-import { db, gameFunctions } from './firebase';
+import { db, gameFunctions, readFirestoreWithTimeout } from './firebase';
 import { LogService } from './LogService';
 import { perfEnd, perfError, perfStart } from './perf';
 
@@ -104,6 +104,16 @@ class PremiumService {
             LogService.warn('Premium', 'Impossible de lire le statut Premium.', error);
             return null;
         }
+    }
+
+    /** Lecture destinée à l’écran : une erreur ne doit pas être confondue avec un compte gratuit. */
+    async getEntitlementForScreen(): Promise<PremiumEntitlement | null> {
+        return readFirestoreWithTimeout('premium.entitlement.screen', async () => {
+            const userId = (await authService.getCurrentUser())?.uid;
+            if (!userId || userId.startsWith('guest_')) throw new Error('Session indisponible.');
+            const snapshot = await getDoc(doc(db, 'premium_entitlements', userId));
+            return snapshot.exists() ? toPremiumEntitlement(snapshot.data() as PremiumEntitlementDocument) : null;
+        });
     }
 
     async hasActiveAccess(uid?: string): Promise<boolean> {
