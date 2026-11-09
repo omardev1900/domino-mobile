@@ -1,4 +1,5 @@
-import { db } from './firebase';
+import { db, gameFunctions } from './firebase';
+import { httpsCallable } from 'firebase/functions';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StoreItem, PlayerInventory, StoreItemType, StoreItemRarity } from '../store.types';
@@ -335,6 +336,19 @@ export class StoreService {
         if (item.priceDiamonds) updatedEconomy.diamonds -= item.priceDiamonds;
 
         const currentUserId = userId || (await authService.getCurrentUser())?.uid;
+
+        if (currentUserId && !currentUserId.startsWith('guest_')) {
+            const requestId = `store_${item.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            try {
+                const purchase = httpsCallable<{ itemId: string; requestId: string }, { success: boolean; coins: number; diamonds: number }>(gameFunctions, 'purchaseStoreItem');
+                const result = (await purchase({ itemId: item.id, requestId })).data;
+                await economyService.applyConfirmedServerEconomy({ coins: result.coins, diamonds: result.diamonds });
+                return { success: result.success };
+            } catch (e) {
+                console.error('Erreur lors de l’achat serveur :', e);
+                return { success: false, message: e instanceof Error ? e.message : 'Erreur lors de la transaction financière.' };
+            }
+        }
 
         try {
             // 4. Save updated economy FIRST (transactional priority)

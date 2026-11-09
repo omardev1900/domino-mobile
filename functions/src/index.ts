@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
+import { createHash } from 'node:crypto';
 import { RewardEngine } from './core/RewardEngine';
 import { RewardCalculationInput } from './core/economy.types';
 import { logSystemEvent } from './systemLog';
@@ -31,6 +32,9 @@ import { getPreviousLeagueMonthKey } from './leagueTime';
 import { createDebitSoloBuyIn, createRefundSoloBuyIn } from './coinBuyIn';
 import { createSettleMultiplayerBuyIn, createSettleTournamentBuyIn } from './multiplayerBuyIn';
 import { createBuyReplaySlot, createGetReplayCapacity } from './replaySlotPurchase';
+import { createCreditCoins } from './coinCredits';
+import { createPurchaseStoreItem } from './storePurchase';
+import { createMigrateCoinAuthority } from './coinAuthority';
 import {
     createBackfillGlobalLeaderboard,
     createGlobalLeaderboardProjection,
@@ -66,6 +70,9 @@ export const settleMultiplayerBuyIn = createSettleMultiplayerBuyIn(db);
 export const settleTournamentBuyIn = createSettleTournamentBuyIn(db);
 export const buyReplaySlot = createBuyReplaySlot(db);
 export const getReplayCapacity = createGetReplayCapacity(db);
+export const creditCoins = createCreditCoins(db);
+export const purchaseStoreItem = createPurchaseStoreItem(db);
+export const migrateCoinAuthority = createMigrateCoinAuthority(db);
 
 const LOCAL_WEB_ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
@@ -95,8 +102,7 @@ async function processMatchRewardInternal(
     const clientInput = data.input;
     const operationId = typeof clientInput.operationId === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(clientInput.operationId)
         ? clientInput.operationId
-        : null;
-    if (!operationId) throw new functions.https.HttpsError('invalid-argument', 'Identifiant de récompense invalide.');
+        : `legacy_reward_${createHash('sha256').update(JSON.stringify(clientInput)).digest('hex').slice(0, 48)}`;
 
     const userRef = db.collection('users').doc(uid);
     // Le client ne décide jamais du multiplicateur Premium : l'entitlement est lu

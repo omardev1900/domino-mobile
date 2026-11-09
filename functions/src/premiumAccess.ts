@@ -214,10 +214,15 @@ export async function redeemPremiumCode(
             bonusCoins,
         });
         const currentEconomy = (userSnapshot.data()?.economy ?? {}) as EconomyData;
+        const nextCoins = (typeof currentEconomy.coins === 'number' ? currentEconomy.coins : 0) + bonusCoins;
+        transaction.create(
+            db.collection('coin_wallets').doc(uid).collection('entries').doc(`premium_code_${codeHash}`),
+            { amount: bonusCoins, reason: 'PREMIUM_CODE_GIFT', codeHash, balanceAfter: nextCoins, createdAt: now },
+        );
         transaction.set(userRef, {
             economy: {
                 ...currentEconomy,
-                coins: (typeof currentEconomy.coins === 'number' ? currentEconomy.coins : 0) + bonusCoins,
+                coins: nextCoins,
             },
         }, { merge: true });
         return { expiresAt, bonusCoins };

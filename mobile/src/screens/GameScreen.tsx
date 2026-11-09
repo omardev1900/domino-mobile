@@ -2693,7 +2693,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                     amount={matchRewardAmount}
                     onClose={() => setShowMatchRewardModal(false)}
                     onClaim={() => {
-                        economyService.creditAdReward(persistenceUserId, undefined, matchRewardAmount).catch(e =>
+                        economyService.creditAdReward(persistenceUserId, undefined, matchRewardAmount, gameId ?? undefined).catch(e =>
                             LogService.error('GameScreen', '[ADS-REWARD] creditAdReward failed:', e)
                         );
                     }}

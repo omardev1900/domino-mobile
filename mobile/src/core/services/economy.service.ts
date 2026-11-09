@@ -348,10 +348,7 @@ class EconomyService {
         if (!userId || userId.startsWith('guest_')) {
             // Mode hors-ligne ou invité : on exécute en local
             LogService.info('EconomyService', 'Invité ou mode Solo: Calcul des récompenses en local.');
-            const { RewardEngine } = require('../RewardEngine');
-            const reward = RewardEngine.calculate(input);
-            await this.applyReward(reward, userId, profile);
-            return reward;
+            throw e;
         }
 
         // Court-circuit Web local : l'onCall Firebase bloque les origines http://localhost
@@ -489,6 +486,14 @@ class EconomyService {
      * Marque le cadeau de bienvenue comme réclamé.
      */
     async claimWelcomeGift(): Promise<void> {
+        const uid = auth.currentUser?.uid;
+        if (uid && !uid.startsWith('guest_')) {
+            const result = await this.creditServerCoins(uid, 'WELCOME', `welcome_${uid}`);
+            const eco = await this.getEconomy();
+            this.cached = { ...eco, coins: result.balance, welcomeGiftClaimed: true };
+            await this.persistLocal();
+            return;
+        }
         const eco = await this.getEconomy();
         if (eco.welcomeGiftClaimed) {
             LogService.warn('EconomyService', 'Welcome gift already claimed');
@@ -556,6 +561,14 @@ class EconomyService {
      * @returns Le montant gagné ou null si déjà réclamé dans les 24h.
      */
     async checkAndClaimDailyReward(userId?: string, profile?: EconomyProfileInfo, dynamicAmount?: number): Promise<number | null> {
+        if (userId && !userId.startsWith('guest_')) {
+            const result = await this.creditServerCoins(userId, 'DAILY', `daily_${userId}_${Date.now()}`);
+            if (!result.credited) return null;
+            const current = await this.getEconomy();
+            this.cached = { ...current, coins: result.balance, lastDailyRewardTimestamp: Date.now() };
+            await this.persistLocal();
+            return result.credited;
+        }
         const current = await this.getEconomy();
         const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
@@ -591,6 +604,14 @@ class EconomyService {
      * Evite la race condition entre l'affichage du modal et le clic sur "Réclamer".
      */
     async claimDailyRewardNow(userId?: string, profile?: EconomyProfileInfo, dynamicAmount?: number): Promise<number> {
+        if (userId && !userId.startsWith('guest_')) {
+            const result = await this.creditServerCoins(userId, 'DAILY', `daily_${userId}_${Date.now()}`);
+            if (!result.credited) throw new Error('Récompense quotidienne déjà réclamée.');
+            const current = await this.getEconomy();
+            this.cached = { ...current, coins: result.balance, lastDailyRewardTimestamp: Date.now() };
+            await this.persistLocal();
+            return result.credited;
+        }
         const current = await this.getEconomy();
         const rewardAmount = dynamicAmount ?? DAILY_REWARD_COINS;
 
@@ -617,7 +638,14 @@ class EconomyService {
      * Ne passe PAS par la Cloud Function — montant non critique, non manipulable via le jeu.
      * À appeler UNE seule fois par match (la guard est gérée côté UI via l'état adWatched).
      */
-    async creditAdReward(userId?: string, profile?: EconomyProfileInfo, dynamicAmount?: number): Promise<number> {
+    async creditAdReward(userId?: string, profile?: EconomyProfileInfo, dynamicAmount?: number, operationId?: string): Promise<number> {
+        if (userId && !userId.startsWith('guest_')) {
+            const result = await this.creditServerCoins(userId, 'AD_MATCH', operationId ? `ad_match_${operationId}` : `ad_match_${Date.now()}`);
+            const current = await this.getEconomy();
+            this.cached = { ...current, coins: result.balance };
+            await this.persistLocal();
+            return result.credited;
+        }
         const current = await this.getEconomy();
         const rewardAmount = dynamicAmount ?? AD_REWARD_COINS;
 
@@ -642,6 +670,13 @@ class EconomyService {
      * Montant fixe : 100 coins. Met à jour le timestamp de cooldown.
      */
     async claimStoreAdReward(userId?: string, profile?: EconomyProfileInfo): Promise<number> {
+        if (userId && !userId.startsWith('guest_')) {
+            const result = await this.creditServerCoins(userId, 'AD_STORE', `ad_store_${Date.now()}`);
+            const current = await this.getEconomy();
+            this.cached = { ...current, coins: result.balance, lastStoreAdTimestamp: Date.now() };
+            await this.persistLocal();
+            return result.credited;
+        }
         const current = await this.getEconomy();
         const rewardAmount = 100;
 
@@ -785,6 +820,18 @@ class EconomyService {
         await this.persistLocal();
     }
 
+    async applyConfirmedServerEconomy(values: { coins: number; diamonds?: number }): Promise<void> {
+        if (!Number.isSafeInteger(values.coins) || values.coins < 0) throw new Error('Solde serveur invalide.');
+        const current = await this.getEconomy();
+        this.cached = { ...current, coins: values.coins, ...(values.diamonds === undefined ? {} : { diamonds: values.diamonds }) };
+        await this.persistLocal();
+    }
+
+    private async creditServerCoins(uid: string, kind: 'DAILY' | 'AD_MATCH' | 'AD_STORE' | 'WELCOME', operationId: string): Promise<{ credited: number; balance: number }> {
+        const credit = httpsCallable<{ operationId: string; kind: typeof kind }, { credited: number; balance: number }>(getFunctions(), 'creditCoins');
+        return (await credit({ operationId, kind })).data;
+    }
+
     clearCache(): void {
         this.cached = null;
     }
@@ -818,6 +865,8 @@ class EconomyService {
                     cleanEconomy[key] = value;
                 }
             }
+            // COINS-07 : le client ne propose jamais une nouvelle valeur de solde.
+            delete cleanEconomy.coins;
 
             const payload: Record<string, unknown> = { economy: cleanEconomy };
             // Écrire displayName et avatarId si fournis, pour que le leaderboard
