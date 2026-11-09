@@ -30,6 +30,7 @@ import { getMonthlyCochonsFromHistory } from './matchFinalizer';
 import { getPreviousLeagueMonthKey } from './leagueTime';
 import { createDebitSoloBuyIn, createRefundSoloBuyIn } from './coinBuyIn';
 import { createSettleMultiplayerBuyIn, createSettleTournamentBuyIn } from './multiplayerBuyIn';
+import { createBuyReplaySlot, createGetReplayCapacity } from './replaySlotPurchase';
 import {
     createBackfillGlobalLeaderboard,
     createGlobalLeaderboardProjection,
@@ -63,6 +64,8 @@ export const debitSoloBuyIn = createDebitSoloBuyIn(db);
 export const refundSoloBuyIn = createRefundSoloBuyIn(db);
 export const settleMultiplayerBuyIn = createSettleMultiplayerBuyIn(db);
 export const settleTournamentBuyIn = createSettleTournamentBuyIn(db);
+export const buyReplaySlot = createBuyReplaySlot(db);
+export const getReplayCapacity = createGetReplayCapacity(db);
 
 const LOCAL_WEB_ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 

@@ -19,6 +19,7 @@ export async function openMultiplayerReplay(db: admin.firestore.Firestore, uid: 
     const entitlement = db.collection('premium_entitlements').doc(uid);
     const user = db.collection('users').doc(uid);
     const receipt = db.collection('replay_libraries').doc(uid).collection('opening_receipts').doc(requestId);
+    const ledger = db.collection('coin_wallets').doc(uid).collection('entries').doc(`replay_open_multiplayer_${requestId}`);
     const remainingCoins = await db.runTransaction(async transaction => {
         const [sessionSnap, entitlementSnap, userSnap, receiptSnap] = await Promise.all([
             transaction.get(session), transaction.get(entitlement), transaction.get(user), transaction.get(receipt),
@@ -35,6 +36,7 @@ export async function openMultiplayerReplay(db: admin.firestore.Firestore, uid: 
         const decision = decideReplayOpening(true, userSnap.data()?.economy?.coins);
         if (!decision.allowed) throw new functions.https.HttpsError('failed-precondition', decision.reason === 'INSUFFICIENT_COINS' ? 'Solde insuffisant : 2 000 coins sont nécessaires.' : 'Solde indisponible.');
         transaction.update(user, { 'economy.coins': decision.remainingCoins });
+        transaction.create(ledger, { amount: -REPLAY_OPEN_COST, reason: 'REPLAY_OPEN', replayId: sessionId, source: 'multiplayer', createdAt: now, balanceAfter: decision.remainingCoins });
         transaction.create(receipt, { replayId: sessionId, source: 'multiplayer', remainingCoins: decision.remainingCoins, createdAt: admin.firestore.FieldValue.serverTimestamp() });
         return decision.remainingCoins;
     });

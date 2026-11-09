@@ -15,6 +15,7 @@ export async function chargeCurrentReplay(db: admin.firestore.Firestore, uid: st
     const entitlementRef = db.collection('premium_entitlements').doc(uid);
     const userRef = db.collection('users').doc(uid);
     const receiptRef = db.collection('replay_libraries').doc(uid).collection('opening_receipts').doc(requestId);
+    const ledgerRef = db.collection('coin_wallets').doc(uid).collection('entries').doc(`replay_open_current_${requestId}`);
     return db.runTransaction(async transaction => {
         const [entitlement, user, receipt] = await Promise.all([
             transaction.get(entitlementRef), transaction.get(userRef), transaction.get(receiptRef),
@@ -28,6 +29,7 @@ export async function chargeCurrentReplay(db: admin.firestore.Firestore, uid: st
         const decision = decideReplayOpening(true, user.data()?.economy?.coins);
         if (!decision.allowed) throw new functions.https.HttpsError('failed-precondition', decision.reason === 'INSUFFICIENT_COINS' ? 'Solde insuffisant : 2 000 coins sont nécessaires.' : 'Solde indisponible.');
         transaction.update(userRef, { 'economy.coins': decision.remainingCoins });
+        transaction.create(ledgerRef, { amount: -REPLAY_OPEN_COST, reason: 'REPLAY_OPEN', replayId: matchId, createdAt: now, balanceAfter: decision.remainingCoins });
         transaction.create(receiptRef, { replayId: matchId, source: 'current', remainingCoins: decision.remainingCoins, createdAt: admin.firestore.FieldValue.serverTimestamp() });
         return { remainingCoins: decision.remainingCoins };
     });
@@ -57,6 +59,7 @@ export async function openReplay(
         ? db.collection('replay_libraries').doc(uid).collection('slots').doc(replayId)
         : db.collection('replay_candidates').doc(uid).collection('matches').doc(replayId);
     const receiptRef = db.collection('replay_libraries').doc(uid).collection('opening_receipts').doc(requestId);
+    const ledgerRef = db.collection('coin_wallets').doc(uid).collection('entries').doc(`replay_open_${source}_${requestId}`);
 
     return db.runTransaction(async transaction => {
         const [entitlement, user, replay, receipt] = await Promise.all([
@@ -92,6 +95,7 @@ export async function openReplay(
                 ? 'Solde insuffisant : 2 000 coins sont nécessaires.' : 'Solde indisponible.');
         }
         transaction.update(userRef, { 'economy.coins': decision.remainingCoins });
+        transaction.create(ledgerRef, { amount: -REPLAY_OPEN_COST, reason: 'REPLAY_OPEN', replayId: replayId, source, createdAt: now, balanceAfter: decision.remainingCoins });
         transaction.create(receiptRef, {
             replayId,
             source,

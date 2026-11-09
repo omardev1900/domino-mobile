@@ -28,6 +28,7 @@ describe('replay multijoueur avec Firestore Emulator', () => {
         assert.equal(result.remainingCoins, 0);
         assert.equal((await openMultiplayerReplay(db, 'member', input, now)).remainingCoins, 0);
         assert.equal((await db.collection('users').doc('member').get()).data()?.economy.coins, 0);
+        assert.equal((await db.collection('coin_wallets').doc('member').collection('entries').where('reason', '==', 'REPLAY_OPEN').get()).size, 1);
     });
     it('ne débite pas pour un replay incomplet', async () => {
         await db.collection('replay_sessions').doc('incomplete').collection('frames').doc('1').set({ version: 1, state: { stateVersion: 1, phase: 'PLAYING' } });

@@ -35,6 +35,7 @@ describe('ouverture de replay avec Firestore Emulator', () => {
         const user = (await db.collection('users').doc(uid).get()).data();
         assert.equal(user?.economy.coins, 2000);
         assert.equal(user?.economy.xp, 42);
+        assert.equal((await db.collection('coin_wallets').doc(uid).collection('entries').where('reason', '==', 'REPLAY_OPEN').get()).size, 1);
     });
 
     it('débite à nouveau pour une nouvelle ouverture et refuse un solde insuffisant', async () => {

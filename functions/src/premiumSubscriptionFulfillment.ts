@@ -80,6 +80,10 @@ export async function fulfillPaidSubscriptionPeriod(
             periodEnd: admin.firestore.Timestamp.fromMillis(payment.periodEnd), coins: product.coins,
             fulfilledAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+        transaction.create(
+            db.collection('coin_wallets').doc(sale.accountUid).collection('entries').doc(`premium_period_${payment.subscriptionId}_${payment.periodEnd}`),
+            { amount: product.coins, reason: 'PREMIUM_SUBSCRIPTION_CREDIT', subscriptionId: payment.subscriptionId, periodEnd: payment.periodEnd, createdAt: Date.now(), balanceAfter: (typeof economy.coins === 'number' ? economy.coins : 0) + product.coins },
+        );
         transaction.set(entitlementRef, {
             source: 'SUBSCRIPTION',
             startsAt: admin.firestore.Timestamp.fromMillis(Date.now()),

@@ -16,3 +16,8 @@ export const deleteSavedReplay = async (replayId: string) =>
     (await httpsCallable<{ replayId: string }, { savedCount: number }>(gameFunctions, 'deleteSavedReplay')({ replayId })).data;
 export const openSavedReplay = async (replayId: string, requestId: string) =>
     (await httpsCallable<unknown, { replay: SavedReplay }>(gameFunctions, 'readSavedReplay')({ replayId })).data;
+
+export const getReplayCapacity = async () =>
+    (await httpsCallable<undefined, { capacity: number; expiresAt: number[] }>(gameFunctions, 'getReplayCapacity')()).data;
+export const buyReplaySlot = async (requestId: string) =>
+    (await httpsCallable<unknown, { capacity: number; remainingCoins: number; expiresAt: number }>(gameFunctions, 'buyReplaySlot')({ requestId, acceptedCost: 3000 })).data;
