@@ -106,11 +106,13 @@ export default function TournamentDetailScreen() {
         if (!tournament) return;
         
         setJoining(true);
+        let entryFeeDebited = false;
         try {
             // Check & deduct fee
             if (tournament.entryFeeCoins > 0) {
                 const settle = httpsCallable<{ tournamentId: string; action: 'debit' }, { balance: number }>(gameFunctions, 'settleTournamentBuyIn');
                 await settle({ tournamentId: id, action: 'debit' });
+                entryFeeDebited = true;
             }
             
             // Register player
@@ -125,6 +127,14 @@ export default function TournamentDetailScreen() {
             Alert.alert("Inscrit !", "Vous participez désormais à ce tournoi !");
         } catch (e) {
             console.error("Error joining tournament", e);
+            if (entryFeeDebited) {
+                try {
+                    const refund = httpsCallable<{ tournamentId: string; action: 'refund' }, { balance: number }>(gameFunctions, 'settleTournamentBuyIn');
+                    await refund({ tournamentId: id, action: 'refund' });
+                } catch (refundError) {
+                    console.error('[TOURNAMENT_BUY_IN] Refund after registration failure failed', refundError);
+                }
+            }
             Alert.alert("Erreur", "Impossible de vous inscrire pour le moment.");
         } finally {
             setJoining(false);
