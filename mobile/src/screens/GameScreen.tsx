@@ -21,6 +21,7 @@ import { SoloReplay } from '../components/game/SoloReplay';
 import { PaidReplayEntry, PaidReplayEntryHandle } from '../components/game/PaidReplayEntry';
 import { ReplayPremiumOffer } from '../components/game/ReplayPremiumOffer';
 import { confirmReplaySettlement } from '../core/services/replaySettlement';
+import { soloBuyInIntents } from '../core/services/soloBuyInIntent';
 import { PlayerArea } from '../components/game/PlayerArea';
 import { NetworkRequiredScreen } from '../components/NetworkRequiredScreen';
 import { HandSortMode } from '../components/PlayerHand';
@@ -89,6 +90,7 @@ interface GameScreenProps {
     playerOnlyHandSize?: boolean;
     tableTier?: string; // TableTier passé depuis solo.tsx / lobby.tsx
     soloBuyInDebited?: boolean;
+    soloBuyInId?: string;
     training?: 'basics' | 'table';
 }
 
@@ -108,7 +110,7 @@ type BoudeRecoveryEntry = {
     automaticAttempts: number;
 };
 
-export default function GameScreen({ gameId, userId, authUid, mode, difficulty, gameMode, winningCondition, turnDuration, startingHandSize: propStartingHandSize, playerOnlyHandSize = false, tableTier: propTableTier, soloBuyInDebited = false, training }: GameScreenProps) {
+export default function GameScreen({ gameId, userId, authUid, mode, difficulty, gameMode, winningCondition, turnDuration, startingHandSize: propStartingHandSize, playerOnlyHandSize = false, tableTier: propTableTier, soloBuyInId, training }: GameScreenProps) {
     const { width, height } = useWindowDimensions();
     const insets = useSafeAreaInsets();
     const isLandscape = width > height;
@@ -179,7 +181,6 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const [overtimeState, setOvertimeState] = useState<number | null>(null);
 
     const hasBeenDebited = useRef(false);
-    const hasSoloBuyInRefunded = useRef(false);
     const [debitFeedback, setDebitFeedback] = useState<string | null>(null);
     const isIntentionalLeave = useRef(false);
     const isLeavingRoom = useRef(false);
@@ -853,9 +854,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         }).finally(() => {
             if (active) setPremiumStatusResolved(true);
         });
-        return () => {
-            active = false;
-        };
+        return () => { active = false; };
     }, [persistenceUserId]);
 
     useFocusEffect(useCallback(() => {
@@ -909,26 +908,14 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
         const currentState = gameStateRef.current;
 
-        // Le solo ne possède pas de salle Firebase. La sortie doit donc rester
-        // locale et fiable, même sans réseau ou si la synchronisation du
-        // remboursement échoue.
+        // Une sortie volontaire termine la partie solo sans rembourser la mise.
+        // Une coupure réseau suit le parcours distinct de reprise de partie.
         if (isSoloMode) {
             try {
                 if (gameId) {
                     await AsyncStorage.removeItem(`@solo_game_state:${gameId}`);
                 }
 
-                const canRefundSoloBuyIn = soloBuyInDebited
-                    && !hasSoloBuyInRefunded.current
-                    && (!currentState || (currentState.mancheNumber === 1 && currentState.mancheHistory.length === 0));
-                if (canRefundSoloBuyIn) {
-                    const tableConfig = TABLE_CONFIGS[activeTableTier];
-                    if (tableConfig?.buyIn > 0) {
-                        await economyService.refundBuyIn(tableConfig.buyIn, persistenceUserId);
-                        hasSoloBuyInRefunded.current = true;
-                        LogService.info('GameScreen', `[SOLO] Buy-in refunded before manche 1: +${tableConfig.buyIn} coins`);
-                    }
-                }
             } catch (error) {
                 LogService.error('GameScreen', 'Solo leave cleanup failed; continuing home.', error);
             }
@@ -981,7 +968,6 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         activeTableTier,
         persistenceUserId,
         router,
-        soloBuyInDebited,
         usesSystemCoordinator,
     ]);
 
@@ -2041,6 +2027,12 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             if (!fullState.startingHandSize) fullState.startingHandSize = startingHandSize || 7;
             if (!fullState.talonMort) fullState.talonMort = [];
 
+            if (soloBuyInId && gameId && persistenceUserId) {
+                fullState.soloBuyInId = soloBuyInId;
+                await AsyncStorage.setItem(`@solo_game_state:${gameId}`, JSON.stringify(fullState));
+                await soloBuyInIntents.clear(persistenceUserId, soloBuyInId).catch(() => undefined);
+            }
+
             replayFramesRef.current = [structuredClone(fullState)];
             matchSettlementRef.current = null;
             setGameState(fullState);
@@ -2050,7 +2042,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         } finally {
             setIsStarting(false);
         }
-    }, [isStarting, difficulty, playerDisplayName, gameMode, winningCondition, turnDuration, startingHandSize, playerOnlyHandSize, playerAvatarId, setGameState, setIsStarting]);
+    }, [isStarting, difficulty, playerDisplayName, gameMode, winningCondition, turnDuration, startingHandSize, playerOnlyHandSize, playerAvatarId, setGameState, setIsStarting, soloBuyInId, gameId, persistenceUserId]);
 
     // Multiplayer Start Handler
     const handleStartGame = async () => {

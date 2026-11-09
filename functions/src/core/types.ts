@@ -46,6 +46,7 @@ export interface Player {
 export type GamePhase = 'LOBBY' | 'DEALING' | 'PLAYING' | 'BOUDE' | 'PARTIE_END' | 'MATCH_END' | 'MANCHE_END';
 
 export interface GameState {
+    soloBuyInId?: string;
     gameId: string;
     players: Player[];
     talonMort: Domino[];

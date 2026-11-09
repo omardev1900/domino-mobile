@@ -18,6 +18,7 @@ export default function GameRoute() {
         playerOnlyHandSize?: string;
         tableTier?: string; // 🪙 Table tier pour le calcul du buy-in et des rewards
         soloBuyInDebited?: string;
+        soloBuyInId?: string;
         training?: string;
     }>();
 
@@ -79,6 +80,7 @@ export default function GameRoute() {
             playerOnlyHandSize={params.playerOnlyHandSize === 'true'}
             tableTier={params.tableTier}
             soloBuyInDebited={params.soloBuyInDebited === 'true'}
+            soloBuyInId={params.soloBuyInId}
             training={params.training === 'basics' || params.training === 'table' ? params.training : undefined}
         />
     );
