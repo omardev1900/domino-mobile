@@ -149,7 +149,7 @@ Implementation retenue :
 - Relecture transactionnelle obligatoire avant chaque action : un retour
   `DISCONNECTED -> HUMAN` invalide donc le remplacement encore en attente.
 - Delais serveur : bot 1,25 s, absent 2,5 s, badge boude 2 s ou 3,5 s pour un
-  joueur deconnecte, humain 60 s maximum plus 3 s de grace.
+  joueur deconnecte, humain 60 s maximum plus 1 s de grace.
 - `MARK_BOUDE`, passage, coup de bot et timeout utilisent les moteurs purs
   generes depuis `mobile/src/core` ; aucun telephone ni hote ne les pilote.
 - Les automatismes historiques `useBotDecision`, `useAutoPass` et l'ecriture
@@ -502,7 +502,7 @@ Le meme remplacement est applique aux transitions avec
 `coordinateTerminalGamePhasesV2`. Toute mise a jour d'une salle encore dans une
 phase terminale peut reprendre la transition ; la transaction rejette les
 executions concurrentes ou obsoletes. Le delai interne est de 2 secondes afin
-de conserver une marge sous les 3 secondes percues.
+de conserver une marge sous la seconde percue.
 
 Les comptes de service Google disposent uniquement des roles techniques requis
 pour Gen2 : `iam.serviceAccountTokenCreator` pour Pub/Sub, puis `run.invoker` et

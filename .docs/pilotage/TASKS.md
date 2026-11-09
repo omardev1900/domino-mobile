@@ -1,7 +1,17 @@
 # Taches actives
 
-- [ ] `REPLAY-02` Prêt pour validation sur appareil - Sauvegarde gratuite des replays achetés, bibliothèque Premium de deux replays, remplacement et réouverture gratuite dans la version 2.4.0. Fonctions de bibliothèque déployées le 03/11/2026 ; nouveau tarif serveur non déployé et parcours mobile authentifié à vérifier.
-- [ ] `COINS-SERVER` Différé - Migration générale des opérations de coins vers l’autorité serveur. Hors phase 1.
+- [ ] `BUG-MULTI-TIMER-01` En cours — Marge serveur réduite de 3 s à 1 s après expiration du timer ; validation appareil et publication à réaliser.
+- [ ] `BUG-MULTI-JOIN-01` En cours — Jointure atomique autorisée dans les tables coordonnées en attente ; règles Firestore à publier et validation appareil à réaliser.
+
+- [ ] `REPLAY-PURCHASE-01` En cours — Achat unique à 2 000 coins, sauvegarde atomique, pré-vérification des emplacements et lecture gratuite ; fonction optimisée déployée, nouvelle interface à valider sur appareil.
+- [ ] `REPLAY-REPLACE-01` En cours — Choix et confirmation du remplacement, protégés par transaction ; validation sur appareil et déploiement à réaliser.
+- [ ] `COINS-WALLET-01` Prêt — Historique des débits et crédits de coins accessible au joueur ; étudier l’autorité du solde pour garantir sa cohérence.
+
+- [ ] `LEAGUE-SYNC-01` En cours — Comparer en lecture seule les compteurs mensuels, les historiques et les chemins de récompense ; préparer une simulation et présenter les écarts avant toute bascule en production.
+
+- [ ] `REPLAY-02` En cours — Achat unique à 2 000 coins, sauvegarde automatique, remplacement parmi les deux replays inclus et lecture gratuite ; conserver les anciens replays, valider le parcours final sur appareil.
+- [ ] `COINS-SERVER` En cours — Migrer les opérations de coins vers l’autorité serveur et protéger les anciennes écritures. Base transactionnelle et simulations concurrentes préparées ; mises, achats, récompenses, crédits publicitaires et règles Firestore à migrer avant activation.
+- [ ] `COINS-BUYIN-01` En cours — Mise solo raccordée localement au serveur avec identité persistante et sans remboursement en cas de départ ; valider sur appareil, migrer multi et tournois et gérer les anciennes versions avant activation.
 
 - [ ] `DEV-MULTI-HAND-01` Prêt pour validation multijoueur - Distribution de test personnalisée pour tous les joueurs ou uniquement l’hôte ; nécessite le coordinateur serveur actualisé.
 

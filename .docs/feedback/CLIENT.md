@@ -1,5 +1,14 @@
 # Retours client
 
+### 2026-11-09
+
+> Un joueur déclare que ça lui arrive que son adversaire en multi affiche la fin de son timer mais reste figé sans jouer pendant plusieurs secondes
+> Une autre personne a eu le meme cas
+>
+> la même personne dit qu il recoit un message lors de joindre une tablke multi :
+> Impossible de rejoindre
+> La joointure a été refusée. Vérifier votre connexion puis ressayez
+
 ### 2026-10-22
 
 > je veux modifier le comportement du cadeau du jour,

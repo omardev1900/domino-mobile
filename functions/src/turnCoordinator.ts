@@ -7,7 +7,9 @@ export const BOT_TURN_DELAY_MS = 1250;
 export const ABSENT_PLAYER_DELAY_MS = 2500;
 export const BOUDE_DISPLAY_MS = 2000;
 export const DISCONNECTED_BOUDE_DISPLAY_MS = 3500;
-export const TURN_TIMEOUT_GRACE_MS = 3000;
+// Keep a short allowance for a human action already in flight. A longer grace
+// is visible as a frozen opponent after the client timer reaches zero.
+export const TURN_TIMEOUT_GRACE_MS = 1000;
 
 export interface TurnFingerprint {
     gameId: string;

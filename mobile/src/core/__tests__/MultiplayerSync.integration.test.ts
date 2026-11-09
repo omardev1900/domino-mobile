@@ -201,6 +201,28 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
         expect(presenceSnapshot.data()?.heartbeats?.user_guest.toMillis()).toEqual(expect.any(Number));
     });
 
+    it('Scenario 3b: coordinated waiting rooms accept an atomic player join', async () => {
+        const guestDb = testEnv.authenticatedContext('user_guest').firestore();
+
+        await testEnv.withSecurityRulesDisabled(async context => {
+            await setDoc(doc(context.firestore(), 'rooms', 'ROOM_COORDINATED_WAITING'), {
+                roomId: 'ROOM_COORDINATED_WAITING',
+                status: 'WAITING',
+                coordinatorVersion: 1,
+                createdBy: 'user_host',
+                playerIds: ['user_host'],
+                players: [playerProfile('user_host')],
+                gameState: null,
+            });
+        });
+
+        await assertSucceeds(updateDoc(doc(guestDb, 'rooms', 'ROOM_COORDINATED_WAITING'), {
+            playerIds: ['user_host', 'user_guest'],
+            players: [playerProfile('user_host'), playerProfile('user_guest')],
+            lastActivity: Date.now(),
+        }));
+    });
+
     it('Scenario 4: the creator can still start a coordinated rematch from the lobby', async () => {
         const hostDb = testEnv.authenticatedContext('user_host').firestore();
         const guestDb = testEnv.authenticatedContext('user_guest').firestore();

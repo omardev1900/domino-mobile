@@ -282,7 +282,8 @@ export const joinRoom = async (roomId: string, playerProfile: PlayerProfile): Pr
 
             const roomData = roomSnap.data() as GameRoom;
             if (roomData.players.some(player => player.uid === playerProfile.uid)) {
-                transaction.update(roomRef, { lastActivity: Date.now() });
+                // Avoid a no-op write: coordinated lobbies only allow the
+                // atomic append of a new player before the host starts.
                 return;
             }
             if (roomData.gameState?.players.some(player => player.id === playerProfile.uid)) {
