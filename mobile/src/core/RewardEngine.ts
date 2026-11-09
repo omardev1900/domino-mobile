@@ -344,8 +344,7 @@ export const RewardEngine = {
 
             if (
                 newCochonsGiven >= threshold &&
-                cochonsGivenBefore < threshold &&
-                !alreadyUnlocked.includes(frameId)
+                cochonsGivenBefore < threshold
             ) {
                 unlockedPalierCount += 1;
                 // Les coins de palier sont TOUJOURS attribués, que les cadres visuels
@@ -353,7 +352,7 @@ export const RewardEngine = {
                 // déblocage cosmétique, pas la récompense économique).
                 frameCoinsBonus += frameReward.coinsBonus;
 
-                if (LEAGUE_FRAMES_ENABLED) {
+                if (LEAGUE_FRAMES_ENABLED && !alreadyUnlocked.includes(frameId)) {
                     newlyUnlockedFrames.push({
                         grade,
                         frameId,

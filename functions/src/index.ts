@@ -26,6 +26,8 @@ import { createStripeWebhook } from './premiumStripeWebhook';
 import { createRechargeCodeEmailSender } from './premiumBrevoEmail';
 import { createPremiumRechargeCodeReader } from './premiumRechargeCode';
 import { createStripeCustomerPortal } from './premiumStripePortal';
+import { getMonthlyCochonsFromHistory } from './matchFinalizer';
+import { getPreviousLeagueMonthKey } from './leagueTime';
 import {
     createBackfillGlobalLeaderboard,
     createGlobalLeaderboardProjection,
@@ -110,7 +112,10 @@ async function processMatchRewardInternal(
             currentXP = existingEconomy.xp || 0;
             currentLevel = existingEconomy.level || 1;
             currentLeaguePoints = existingEconomy.leaguePoints || 0;
-            currentCochonsGiven = existingEconomy.cochonsGiven ?? existingEconomy.leaguePoints ?? 0;
+            const statsHistory = userData.stats?.matchHistory;
+            currentCochonsGiven = Array.isArray(statsHistory)
+                ? getMonthlyCochonsFromHistory(statsHistory, Date.now())
+                : (existingEconomy.cochonsGiven ?? existingEconomy.leaguePoints ?? 0);
             currentCoins = existingEconomy.coins || 0;
             currentDiamonds = existingEconomy.diamonds || 0;
         }
@@ -266,9 +271,9 @@ export const processMatchRewardHttp = functions.https.onRequest(async (req, res)
 });
 
 /**
- * Migration one-shot : copie stats.totalCochonsInflicted -> economy.cochonsGiven
- * pour tous les utilisateurs dont economy.cochonsGiven < stats.totalCochonsInflicted.
- * A appeler une seule fois depuis l'admin, puis desactiver.
+ * Migration one-shot : réaligne economy.cochonsGiven sur l'historique du mois
+ * courant, sans recopier le total historique de stats.totalCochonsInflicted.
+ * A appeler une seule fois depuis l'admin, puis désactiver.
  */
 export const migrateCochonsGiven = functions.https.onCall(async (_data, context) => {
     if (!context.auth) {
@@ -287,7 +292,12 @@ export const migrateCochonsGiven = functions.https.onCall(async (_data, context)
 
     usersSnap.forEach((userDoc) => {
         const data = userDoc.data();
-        const statsTotal = data?.stats?.totalCochonsInflicted ?? 0;
+        const statsHistory = data?.stats?.matchHistory;
+        if (!Array.isArray(statsHistory)) {
+            skipped++;
+            return;
+        }
+        const statsTotal = getMonthlyCochonsFromHistory(statsHistory, Date.now());
         const economyCochons = data?.economy?.cochonsGiven ?? 0;
 
         if (statsTotal > economyCochons) {
@@ -308,7 +318,7 @@ export const migrateCochonsGiven = functions.https.onCall(async (_data, context)
         level: 'info',
         functionName: 'migrateCochonsGiven',
         uid: context.auth.uid,
-        message: `Migration cochons terminee : ${migrated} migres, ${skipped} ignores`,
+        message: `Migration cochons mensuels terminee : ${migrated} migres, ${skipped} ignores`,
         metadata: { migrated, skipped },
     });
     return { migrated, skipped };
@@ -447,8 +457,7 @@ export const resetMonthlyLeague = functions.pubsub
     .onRun(async (_context) => {
         const now = new Date();
         // Mois précédent (car on exécute le 1er du mois courant)
-        const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const monthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+        const monthKey = getPreviousLeagueMonthKey(now.getTime());
 
         console.log(`[resetMonthlyLeague] Début du reset pour le mois ${monthKey}`);
 

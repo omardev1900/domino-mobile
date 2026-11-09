@@ -47,6 +47,38 @@ describe('matchFinalizer', () => {
         assert.equal(finalized.economy.coins, 50 + finalized.reward.coinsEarned);
     });
 
+    it('credite le palier mensuel meme avec un ancien cadre, une seule fois au franchissement', () => {
+        const room = finalRoom();
+        const manche = room.gameState!.mancheHistory![0];
+        manche.resultType = 'COCHON';
+        manche.cochonCount = 1;
+        room.gameState!.players.find(player => player.id === 'p1')!.totalCochonsInfliges = 1;
+        const profile = {
+            economy: { coins: 50, level: 1, leaguePoints: 9, cochonsGiven: 9, unlockedFrames: ['frame_apprenti_1'] },
+            stats: { matchHistory: [{ timestamp: Date.UTC(2026, 10, 2), cochons: 9 }] },
+        };
+        const first = buildPlayerFinalization(room, 'p1', profile, 'match:1', Date.UTC(2026, 10, 3));
+        assert.equal(first.reward.frameCoinsBonus, 200);
+        assert.equal(first.economy.coins, 50 + first.reward.coinsEarned);
+        const next = buildPlayerFinalization(room, 'p1', { economy: first.economy, stats: first.stats }, 'match:2', Date.UTC(2026, 10, 3));
+        assert.equal(next.reward.frameCoinsBonus, 0);
+    });
+
+    it('utilise l historique mensuel plutot que le compteur economique divergent', () => {
+        const room = finalRoom();
+        const manche = room.gameState!.mancheHistory![0];
+        manche.resultType = 'COCHON';
+        manche.cochonCount = 1;
+        room.gameState!.players.find(player => player.id === 'p1')!.totalCochonsInfliges = 1;
+        const finalized = buildPlayerFinalization(room, 'p1', {
+            economy: { coins: 50, level: 1, leaguePoints: 9, cochonsGiven: 100 },
+            stats: { matchHistory: [{ timestamp: Date.UTC(2026, 6, 1, 4), cochons: 9 }] },
+        }, 'match:monthly-source', Date.UTC(2026, 6, 23));
+
+        assert.equal(finalized.reward.newCochonsGiven, 10);
+        assert.equal(finalized.monthlyStats.cochonsGiven, 10);
+    });
+
     it('double les coins du vainqueur quand son entitlement Premium est actif', () => {
         const normal = buildPlayerFinalization(finalRoom(), 'p1', {
             economy: { coins: 50, xp: 0, level: 1, diamonds: 0, leaguePoints: 0 },

@@ -31,10 +31,10 @@ export interface PlayerEconomy {
     xp: number;            // ⭐ Expérience cumulée totale
     level: number;         // Niveau courant dérivé de l'XP
     diamonds: number;      // 💎 Monnaie premium
-    leaguePoints: number;        // 🐷 Total cochons infligés (alias cochonsGiven — source de la ligue)
+    leaguePoints: number;        // 🐷 Points de ligue du mois courant
     leagueGrade: LeagueGrade | null; // null = joueur sans grade (0 cochon)
     // ─── Ligue des Cochons ───
-    cochonsGiven?: number;           // 🐖 Compteur lifetime de cochons DONNÉS (by this player)
+    cochonsGiven?: number;           // 🐖 Compteur mensuel de cochons DONNÉS
     unlockedFrames?: LeagueFrameId[]; // Cadres avatar débloqués (liste des paliers atteints)
     activeFrame?: LeagueFrameId | null; // Cadre actuellement équipé
     lastDailyRewardTimestamp?: number; // 📅 Dernier cadeau reçu (pour check quotidien)
@@ -92,7 +92,7 @@ export interface RewardCalculationInput {
     playerCount: number;
     /** Accès Premium actif, vérifié côté serveur pour les comptes authentifiés. */
     isPremium?: boolean;
-    /** Nombre de cochons donné à vie AVANT ce match (pour calcul du déblocage) */
+    /** Nombre de cochons donné ce mois AVANT ce match (pour calcul du déblocage) */
     currentCochonsGiven?: number;
     /** Cadres déjà débloqués (pour ne pas redonner la récompense) */
     unlockedFrames?: LeagueFrameId[];

@@ -174,6 +174,16 @@ describe('RewardEngine — BUG-LEAGUE-TIER-REWARD: coins de palier Ligue des Coc
     });
 
     describe('Pas de coins si aucun palier franchi', () => {
+        it('attribue le bonus mensuel même si le cadre historique est déjà possédé', () => {
+            const reward = RewardEngine.calculate(buildInput({
+                cochonsGivenBefore: firstThreshold - 1,
+                cochonsThisMatch: 1,
+                unlockedFrames: [LEAGUE_FRAME_REWARDS[firstPalierGrade].frameId],
+            }));
+            expect(reward.frameCoinsBonus).toBe(firstCoinReward);
+            expect(reward.breakdown.find(item => item.id === 'league_frame_unlock')?.coins).toBe(firstCoinReward);
+        });
+
         it('frameCoinsBonus = 0 si on reste en dessous du premier seuil', () => {
             const input = buildInput({
                 cochonsGivenBefore: 0,

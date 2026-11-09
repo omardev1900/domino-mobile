@@ -7,6 +7,7 @@ import { hasTransitionFingerprint, TransitionFingerprint } from './gameCoordinat
 import { GameRoom, PlayerProfile } from './gameCore/types';
 import { isActivePremiumEntitlement } from './premiumAccess';
 import { finishReplayCapture } from './replayCapture';
+import { getLeagueMonthKey, getStartOfLeagueMonth } from './leagueTime';
 
 type DocumentData = Record<string, unknown>;
 
@@ -28,14 +29,14 @@ const asNumber = (value: unknown, fallback = 0): number =>
 const asStringArray = (value: unknown): string[] =>
     Array.isArray(value) ? value.filter(item => typeof item === 'string') : [];
 
-const getYearMonthUtc = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-};
-
-const getMonthStartUtc = (timestamp: number): number => {
-    const date = new Date(timestamp);
-    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+export const getMonthlyCochonsFromHistory = (
+    matchHistory: Array<{ timestamp?: number; cochons?: number }> = [],
+    now: number,
+): number => {
+    const monthStart = getStartOfLeagueMonth(now);
+    return matchHistory
+        .filter(record => asNumber(record.timestamp) >= monthStart)
+        .reduce((sum, record) => sum + asNumber(record.cochons), 0);
 };
 
 export const getMatchParticipantIds = (room: GameRoom): string[] => {
@@ -77,6 +78,8 @@ export const buildPlayerFinalization = (
 
     const economy = asRecord(userData.economy);
     const stats = asRecord(userData.stats);
+    const history = Array.isArray(stats.matchHistory) ? stats.matchHistory : [];
+    const monthlyCochonsBeforeMatch = getMonthlyCochonsFromHistory(history, now);
     const unlockedFrames = asStringArray(economy.unlockedFrames) as LeagueFrameId[];
     const rewardInput = RewardEngine.buildInputFromGameState({
         gameState: state,
@@ -84,7 +87,7 @@ export const buildPlayerFinalization = (
         currentLevel: asNumber(economy.level, 1),
         currentXP: asNumber(economy.xp),
         currentLeaguePoints: asNumber(economy.leaguePoints),
-        currentCochonsGiven: asNumber(economy.cochonsGiven, asNumber(stats.totalCochonsInflicted)),
+        currentCochonsGiven: monthlyCochonsBeforeMatch,
         unlockedFrames,
         tableTier: resolveTableTier(room.buyIn),
         isSoloMode: false,
@@ -105,7 +108,6 @@ export const buildPlayerFinalization = (
         const profile = getProfile(room, opponent.id);
         return { name: opponent.name, avatarId: profile?.avatarId ?? opponent.avatarId ?? 'avatar_default' };
     });
-    const history = Array.isArray(stats.matchHistory) ? stats.matchHistory : [];
     const matchRecord = {
         id: finalizationId,
         timestamp: now,
@@ -148,11 +150,11 @@ export const buildPlayerFinalization = (
         unlockedFrames: newUnlockedFrames,
     };
 
-    const monthStart = getMonthStartUtc(now);
+    const monthStart = getStartOfLeagueMonth(now);
     const monthlyHistory = nextHistory.filter(record => asNumber(asRecord(record).timestamp) >= monthStart);
     const monthlyStats = {
         userId: uid,
-        yearMonth: getYearMonthUtc(now),
+        yearMonth: getLeagueMonthKey(now),
         cochonsGiven: monthlyHistory.reduce((sum, record) => sum + asNumber(asRecord(record).cochons), 0),
         cochonsSubis: monthlyHistory.reduce((sum, record) => {
             const values = asRecord(record).mancheLeaguePointsEarned;

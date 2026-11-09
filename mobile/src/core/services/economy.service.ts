@@ -21,6 +21,7 @@ import { LogService } from './LogService';
 import { PlayerEconomy, MatchReward, LeagueGrade, RewardCalculationInput, LeagueFrameId } from '../economy.types';
 import { NEW_PLAYER_COINS, DAILY_REWARD_COINS, AD_REWARD_COINS, MINIMUM_COIN_RESERVE } from '../economy.constants';
 import { getLevelFromXP, getLeagueGrade } from '../RewardEngine';
+import { getMonthlyCochonsFromHistory } from '../leagueProgress';
 import { perfDefer, perfEnd, perfError, perfJsonSize, perfMark, perfStart } from './perf';
 import { userDocumentService } from './userDocument.service';
 
@@ -227,7 +228,7 @@ class EconomyService {
                     diamonds: typeof remoteStats.diamonds === 'number' ? remoteStats.diamonds : DEFAULT_ECONOMY.diamonds,
                     leaguePoints: typeof remoteStats.leaguePoints === 'number' ? remoteStats.leaguePoints : DEFAULT_ECONOMY.leaguePoints,
                     leagueGrade: remoteStats.leagueGrade !== undefined ? remoteStats.leagueGrade : DEFAULT_ECONOMY.leagueGrade,
-                    cochonsGiven: typeof remoteStats.totalCochonsInflicted === 'number' ? remoteStats.totalCochonsInflicted : DEFAULT_ECONOMY.cochonsGiven,
+                    cochonsGiven: getMonthlyCochonsFromHistory(remoteStats.matchHistory),
                     unlockedFrames: remoteStats.unlockedFrames || DEFAULT_ECONOMY.unlockedFrames,
                     activeFrame: remoteStats.activeFrame !== undefined ? remoteStats.activeFrame : DEFAULT_ECONOMY.activeFrame,
                 };
@@ -247,18 +248,6 @@ class EconomyService {
             // On télécharge et fusionne intelligemment (on garde le timestamp local s'il est plus récent)
             const localEconomy = await this.getEconomy();
             const downloadedEconomy = this.mergeEconomies(localEconomy, remoteEconomy);
-
-            // 🛡️ MIGRATION / RESTAURATION COCHONS [2026-04-15]
-            if (remoteStats && typeof remoteStats.totalCochonsInflicted === 'number') {
-                const statsCochons = remoteStats.totalCochonsInflicted;
-                const economyCochons = downloadedEconomy.cochonsGiven ?? 0;
-                if (statsCochons > economyCochons) {
-                    LogService.info('EconomyService',
-                        `[R3-B10] Migration cochons en mémoire: ${economyCochons} → ${statsCochons}`
-                    );
-                    downloadedEconomy.cochonsGiven = statsCochons;
-                }
-            }
 
             // 🛡️ BUG-WELCOME-COINS : Protection race condition nouveau joueur.
             // Si Firestore répond avant la propagation complète de pushToFirebase (signUp),

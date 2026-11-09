@@ -9,6 +9,7 @@ import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-na
 
 import { statsService, MatchRecord, PlayerStats } from '../src/core/services/stats.service';
 import { MatchHistory } from '../src/components/MatchHistory';
+import { getStartOfCurrentMonthUtc } from '../src/core/services/leaderboard.time';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -163,8 +164,7 @@ export default function StatsScreen() {
 
     const monthlyHistory = useMemo(() => {
         if (!playerStats?.matchHistory) return [];
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        const startOfMonth = getStartOfCurrentMonthUtc();
         return playerStats.matchHistory.filter((match) => match.timestamp >= startOfMonth);
     }, [playerStats?.matchHistory]);
 
