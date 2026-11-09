@@ -1,6 +1,6 @@
 # Taches actives
 
-- [ ] `REPLAY-02` Prêt pour validation sur appareil - Sauvegarde gratuite des replays achetés, bibliothèque Premium de 10 slots, suppression et réouverture à 2 000 coins dans la version 2.4.0. Fonctions de bibliothèque déployées le 03/11/2026 ; nouveau tarif serveur non déployé et parcours mobile authentifié à vérifier.
+- [ ] `REPLAY-02` Prêt pour validation sur appareil - Sauvegarde gratuite des replays achetés, bibliothèque Premium de deux replays, remplacement et réouverture gratuite dans la version 2.4.0. Fonctions de bibliothèque déployées le 03/11/2026 ; nouveau tarif serveur non déployé et parcours mobile authentifié à vérifier.
 - [ ] `COINS-SERVER` Différé - Migration générale des opérations de coins vers l’autorité serveur. Hors phase 1.
 
 - [ ] `DEV-MULTI-HAND-01` Prêt pour validation multijoueur - Distribution de test personnalisée pour tous les joueurs ou uniquement l’hôte ; nécessite le coordinateur serveur actualisé.

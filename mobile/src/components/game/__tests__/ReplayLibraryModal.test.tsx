@@ -10,14 +10,15 @@ jest.mock('../../../core/services/replayLibrary.service', () => ({ listSavedRepl
 jest.mock('../SoloReplay', () => ({ SoloReplay: () => { const { Text } = require('react-native'); return <Text>Lecteur ouvert</Text>; } }));
 const item = { id: 'id', metadata: { endedAt: 1700000000000, mode: 'SOLO' as const, gameMode: 'SCORE', winningCondition: 10, opponents: ['Dédé'] } };
 beforeEach(() => { jest.clearAllMocks(); jest.mocked(listSavedReplays).mockResolvedValue([item]); });
-it('montre les informations et demande une confirmation avant la réouverture payante', async () => {
-    jest.mocked(openSavedReplay).mockResolvedValue({ replay: { frames: [], localPlayerId: 'player', metadata: item.metadata }, remainingCoins: 1000 });
+it('montre les informations et permet la réouverture gratuite', async () => {
+    jest.mocked(openSavedReplay).mockResolvedValue({ replay: { frames: [], localPlayerId: 'player', metadata: item.metadata } });
     const view = render(<ReplayLibraryModal visible onClose={jest.fn()} />);
     await waitFor(() => expect(view.getByText('Score 10 · Dédé')).toBeTruthy());
+    expect(view.getByText('Mes replays · 1 / 2')).toBeTruthy();
     fireEvent.press(view.getByText('Score 10 · Dédé'));
-    expect(view.getByText('Ouvrir ce replay pour 2 000 coins ?')).toBeTruthy();
+    expect(view.getByText('Ouvrir ce replay gratuitement ?')).toBeTruthy();
     expect(openSavedReplay).not.toHaveBeenCalled();
-    fireEvent.press(view.getByText('Ouvrir · 2 000 coins'));
+    fireEvent.press(view.getByText('Ouvrir'));
     await waitFor(() => expect(view.getByText('Lecteur ouvert')).toBeTruthy());
 });
 it('demande confirmation avant suppression', async () => {

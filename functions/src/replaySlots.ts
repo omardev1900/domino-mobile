@@ -2,7 +2,7 @@ import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import { z } from 'zod';
 import { isActivePremiumEntitlement } from './premiumAccess';
-import { canSaveReplay, REPLAY_SLOT_LIMIT } from './replayPolicy';
+import { canSaveReplay } from './replayPolicy';
 
 const identifier = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/);
 const saveSchema = z.object({ replayId: identifier, requestId: identifier }).strict();
@@ -23,12 +23,12 @@ export async function saveReplaySlot(db: admin.firestore.Firestore, uid: string,
         if (!isActivePremiumEntitlement(entitlementSnap.data(), now)) {
             throw new functions.https.HttpsError('permission-denied', 'Un abonnement Premium actif est requis.');
         }
-        const count: unknown = librarySnap.exists ? librarySnap.data()?.savedCount : 0;
-        if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0 || count > REPLAY_SLOT_LIMIT) {
+        const count: unknown = librarySnap.data()?.savedCount ?? 0;
+        if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0 || count > 10) {
             throw new functions.https.HttpsError('failed-precondition', 'Bibliothèque de replays invalide.');
         }
         if (slotSnap.exists) return { savedCount: count };
-        if (!canSaveReplay(true, count)) throw new functions.https.HttpsError('resource-exhausted', 'Les 10 emplacements sont occupés.');
+        if (!canSaveReplay(true, count)) throw new functions.https.HttpsError('resource-exhausted', 'Les 2 emplacements sont occupés.');
         if (!candidateSnap.exists || !receiptSnap.exists || receiptSnap.data()?.replayId !== replayId || receiptSnap.data()?.source !== 'candidate') {
             throw new functions.https.HttpsError('failed-precondition', 'Replay non disponible ou non ouvert.');
         }
@@ -50,8 +50,8 @@ export async function deleteReplaySlot(db: admin.firestore.Firestore, uid: strin
         if (!isActivePremiumEntitlement(entitlementSnap.data(), now)) {
             throw new functions.https.HttpsError('permission-denied', 'Un abonnement Premium actif est requis.');
         }
-        const count: unknown = librarySnap.exists ? librarySnap.data()?.savedCount : 0;
-        if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0 || count > REPLAY_SLOT_LIMIT || (slotSnap.exists && count === 0)) {
+        const count: unknown = librarySnap.data()?.savedCount ?? 0;
+        if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0 || count > 10 || (slotSnap.exists && count === 0)) {
             throw new functions.https.HttpsError('failed-precondition', 'Bibliothèque de replays invalide.');
         }
         if (!slotSnap.exists) return { savedCount: count };

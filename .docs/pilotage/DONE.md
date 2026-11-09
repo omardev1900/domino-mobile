@@ -1,5 +1,9 @@
 # Taches terminees
 
+### 2026-11-09
+
+- [x] `REPLAY-CAPACITY-02` Deux replays inclus, remplacement et message de confirmation adaptés ; tests réussis.
+
 ### 2026-11-04
 
 - Présentation du replay Premium aux joueurs gratuits en fin de match, avec prix en coins et accès adapté à l’essai.

@@ -31,6 +31,7 @@ interface UnifiedResultOverlayProps {
     onLeave?: () => void;
     onReplay?: () => void;
     onWatchReplay?: () => void;
+    replayPurchased?: boolean;
     replayPremiumOffer?: boolean;
     isSoloMode?: boolean;
     allReady?: boolean;
@@ -49,6 +50,7 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
     onLeave,
     onReplay,
     onWatchReplay,
+    replayPurchased = false,
     replayPremiumOffer = false,
     isSoloMode,
     isHost = true,
@@ -485,9 +487,9 @@ export const UnifiedResultOverlay: React.FC<UnifiedResultOverlayProps> = ({
 
                 <View style={styles.matchCenter}>
                     <Text style={styles.matchModeLabel} numberOfLines={1}>{getMatchModeLabel()}</Text>
-                    {onWatchReplay && <TouchableOpacity onPress={onWatchReplay} accessibilityRole="button" accessibilityLabel={replayPremiumOffer ? 'Découvrir le replay Premium' : 'Ouvrir un replay pour 2 000 coins'} style={styles.watchReplayButton}>
+                    {onWatchReplay && <TouchableOpacity onPress={onWatchReplay} accessibilityRole="button" accessibilityLabel={replayPremiumOffer ? 'Découvrir le replay Premium' : replayPurchased ? 'Revoir le replay' : 'Ouvrir un replay pour 2 000 coins'} style={styles.watchReplayButton}>
                         <Ionicons name="play" size={16} color="#FFD700" />
-                        <Text style={styles.watchReplayText}>{replayPremiumOffer ? 'Revoir ma partie' : 'Replay · 2 000 coins'}</Text>
+                        <Text style={styles.watchReplayText}>{replayPremiumOffer ? 'Revoir ma partie' : replayPurchased ? 'Revoir le replay' : 'Replay · 2 000 coins'}</Text>
                         {replayPremiumOffer && <Text style={styles.replayPremiumBadge}>PREMIUM</Text>}
                     </TouchableOpacity>}
                 </View>

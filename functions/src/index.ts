@@ -20,6 +20,7 @@ import {
 import { createChargeCurrentReplay } from './replayOpen';
 import { createOpenMultiplayerReplay } from './replayMultiplayer';
 import { createSavePurchasedReplay, createDeleteReplaySlot, createOpenSavedReplay, createListReplayLibrary } from './replayLibrary';
+import { createPurchaseReplay, createReadPurchasedReplay } from './replayPurchase';
 import { createStripeCheckout } from './premiumStripeCheckout';
 import { createStripeWebhook } from './premiumStripeWebhook';
 import { createRechargeCodeEmailSender } from './premiumBrevoEmail';
@@ -40,6 +41,8 @@ export const savePurchasedReplay = createSavePurchasedReplay(db);
 export const deleteSavedReplay = createDeleteReplaySlot(db);
 export const openSavedReplay = createOpenSavedReplay(db);
 export const listSavedReplays = createListReplayLibrary(db);
+export const buyAndSaveReplay = createPurchaseReplay(db);
+export const readSavedReplay = createReadPurchasedReplay(db);
 
 export const activatePremiumTrial = createActivatePremiumTrial(db);
 export const grantPremiumAccess = createGrantPremiumAccess(db);

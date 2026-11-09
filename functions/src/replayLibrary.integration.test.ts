@@ -64,11 +64,11 @@ describe('bibliothèque de replay avec Firestore Emulator', () => {
         await assert.rejects(openReplay(db, uid, { replayId: 'corrupt', requestId: 'bad-open' }, now), /illisible/);
         assert.equal((await db.collection('users').doc(uid).get()).data()?.economy.coins, before);
     });
-    it('refuse les sauvegardes concurrentes au-delà de dix emplacements', async () => {
+    it('refuse les sauvegardes concurrentes au-delà de deux emplacements', async () => {
         const otherUid = 'library-concurrency-test';
         const library = db.collection('replay_libraries').doc(otherUid);
         await Promise.all([
-            library.set({ savedCount: 9 }),
+            library.set({ savedCount: 1 }),
             db.collection('premium_entitlements').doc(otherUid).set({ expiresAt: admin.firestore.Timestamp.fromMillis(now + 10000) }),
             library.collection('opening_receipts').doc('first').set({ source: 'current', replayId: 'first-match' }),
             library.collection('opening_receipts').doc('second').set({ source: 'current', replayId: 'second-match' }),
@@ -76,6 +76,6 @@ describe('bibliothèque de replay avec Firestore Emulator', () => {
         const results = await Promise.allSettled(['first', 'second'].map(requestId => savePurchasedReplay(db, otherUid, { requestId, localPlayerId: 'local', frames }, now)));
         assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
         assert.equal(results.filter(result => result.status === 'rejected').length, 1);
-        assert.equal((await library.get()).data()?.savedCount, 10);
+        assert.equal((await library.get()).data()?.savedCount, 2);
     });
 });

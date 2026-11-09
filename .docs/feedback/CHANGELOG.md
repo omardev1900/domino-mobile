@@ -1,5 +1,11 @@
 # Changelog
 
+### 2026-11-09
+
+- Replay Premium : deux sauvegardes incluses ; remplacement proposé lorsque les deux places sont occupées.
+
+- Replay : message de remplacement clarifié.
+
 ### 2026-11-04
 
 - Le bouton replay présente les avantages Premium aux joueurs gratuits et précise le prix avant l’accès à l’offre.

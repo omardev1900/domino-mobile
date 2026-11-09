@@ -51,10 +51,10 @@ export async function savePurchasedReplay(db: admin.firestore.Firestore, uid: st
         if (!isActivePremiumEntitlement(entitlementSnap.data(), now)) throw new functions.https.HttpsError('permission-denied', 'Un abonnement Premium actif est requis.');
         if (receiptSnap.data()?.source !== source || receiptSnap.data()?.replayId !== sourceId) throw new functions.https.HttpsError('failed-precondition', 'Ouverture de replay invalide.');
         if (session && (sessionSnap?.data()?.status !== 'COMPLETED' || !sessionSnap?.data()?.participants?.includes(uid) || input.localPlayerId !== uid)) throw new functions.https.HttpsError('permission-denied', 'Replay inaccessible.');
-        const count: unknown = libSnap.exists ? libSnap.data()?.savedCount : 0;
+        const count: unknown = libSnap.data()?.savedCount ?? 0;
         if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0 || count > 10) throw new functions.https.HttpsError('failed-precondition', 'Bibliothèque invalide.');
         if (slotSnap.exists) return { replayId, savedCount: count };
-        if (!canSaveReplay(true, count)) throw new functions.https.HttpsError('resource-exhausted', 'Les 10 emplacements sont occupés. Supprime un replay pour libérer une place.');
+        if (!canSaveReplay(true, count)) throw new functions.https.HttpsError('resource-exhausted', 'Les 2 emplacements sont occupés. Supprime un replay pour libérer une place.');
         transaction.create(slot, { framesGzip, localPlayerId: input.localPlayerId, metadata });
         transaction.set(library, { savedCount: count + 1 }, { merge: true });
         return { replayId, savedCount: count + 1 };

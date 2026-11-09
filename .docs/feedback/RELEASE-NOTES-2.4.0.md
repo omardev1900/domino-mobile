@@ -2,8 +2,8 @@
 
 ## Nouveautés
 
-- **Replays Premium** : revois une partie solo ou multijoueur à la fin du match. L’ouverture coûte 2 000 coins, après confirmation.
-- **Mes replays** : sauvegarde gratuitement jusqu’à 10 replays achetés et retrouve-les depuis l’espace Premium. Tu peux supprimer une sauvegarde pour libérer une place. Chaque réouverture coûte 2 000 coins et nécessite un abonnement Premium actif.
+- **Replays Premium** : achète et sauvegarde automatiquement le replay d’une partie solo ou multijoueur pour 2 000 coins, après confirmation.
+- **Mes replays** : retrouve jusqu’à deux replays dans l’espace Premium, revois-les gratuitement ou remplace-les par de nouveaux. L’accès nécessite un abonnement Premium actif.
 - **Lecteur de replay** : lecture automatique, pause, navigation entre les coups, choix de la manche et de la partie, et réglage de la vitesse. Le plateau affiche les avatars, les mains et les animations ; les dominos adverses sont cachés par défaut et peuvent être affichés. Une confirmation est demandée avant de quitter.
 - **Espace Premium** : accès directs aux replays, à l’atelier des skins, à l’entraînement avancé et à la boutique, avec une nouvelle présentation des avantages.
 

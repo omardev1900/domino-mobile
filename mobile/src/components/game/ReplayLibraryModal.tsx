@@ -1,9 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { auth } from '../../core/services/firebase';
-import { economyService } from '../../core/services/economy.service';
-import { readConfirmedReplayBalance } from '../../core/services/replayBalance';
 import { deleteSavedReplay, listSavedReplays, openSavedReplay, ReplaySummary, SavedReplay } from '../../core/services/replayLibrary.service';
 import { SoloReplay } from './SoloReplay';
 
@@ -27,16 +24,10 @@ export const ReplayLibraryModal = ({ visible, onClose }: Props) => {
     useEffect(() => { if (visible) void load(); }, [visible]);
     const open = async () => {
         if (!selected || lock.current) return;
-        const uid = auth.currentUser?.uid;
-        if (!uid) { setError('Connexion requise.'); return; }
         lock.current = true; setBusy(true); setError('');
         try {
-            await readConfirmedReplayBalance(uid);
             if (!attempt.current || attempt.current.id !== selected.id) attempt.current = { id: selected.id, requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}` };
             const result = await openSavedReplay(selected.id, attempt.current.requestId);
-            const coins = await readConfirmedReplayBalance(uid);
-            if (auth.currentUser?.uid !== uid) throw new Error('Le compte connecté a changé.');
-            await economyService.applyConfirmedReplayBalance(coins);
             attempt.current = null; setSelected(null); setPlaying(result.replay);
         } catch (e) { setError(e instanceof Error ? e.message : 'Ouverture impossible.'); }
         finally { lock.current = false; setBusy(false); }
@@ -51,7 +42,7 @@ export const ReplayLibraryModal = ({ visible, onClose }: Props) => {
     return <>
         <Modal visible={visible && !playing} animationType="fade" transparent onRequestClose={() => { if (!busy) onClose(); }}>
             <View style={styles.backdrop}><View style={styles.panel}>
-                <View style={styles.heading}><Text style={styles.title}>Mes replays · {items.length} / 10</Text><TouchableOpacity disabled={busy} onPress={onClose} accessibilityLabel="Fermer les replays"><Ionicons name="close" size={26} color="#fff" /></TouchableOpacity></View>
+                <View style={styles.heading}><Text style={styles.title}>Mes replays · {items.length > 2 ? `${items.length} sauvegardés` : `${items.length} / 2`}</Text><TouchableOpacity disabled={busy} onPress={onClose} accessibilityLabel="Fermer les replays"><Ionicons name="close" size={26} color="#fff" /></TouchableOpacity></View>
                 {!!error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
                 {!selected && !deleteId && <ScrollView>{items.length === 0 ? <Text style={styles.muted}>Aucun replay sauvegardé.</Text> : items.map(item => <View key={item.id} style={styles.row}>
                     <TouchableOpacity style={styles.detail} onPress={() => { setError(''); setSelected(item); }} accessibilityLabel={`Ouvrir le replay du ${new Date(item.metadata.endedAt).toLocaleDateString('fr-FR')}`}>
@@ -60,9 +51,9 @@ export const ReplayLibraryModal = ({ visible, onClose }: Props) => {
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => { setError(''); setDeleteId(item.id); }} accessibilityLabel="Supprimer ce replay" style={styles.icon}><Ionicons name="trash-outline" size={22} color="#ffb5a8" /></TouchableOpacity>
                 </View>)}</ScrollView>}
-                {selected && <View style={styles.confirm}><Text style={styles.text}>Ouvrir ce replay pour 2 000 coins ?</Text><View style={styles.actions}>
+                {selected && <View style={styles.confirm}><Text style={styles.text}>Ouvrir ce replay gratuitement ?</Text><View style={styles.actions}>
                     <TouchableOpacity disabled={busy} onPress={() => { setSelected(null); setError(''); }} style={styles.button}><Text style={styles.text}>Annuler</Text></TouchableOpacity>
-                    <TouchableOpacity disabled={busy} onPress={() => { void open(); }} style={styles.button}><Text style={styles.text}>{busy ? 'Chargement…' : 'Ouvrir · 2 000 coins'}</Text></TouchableOpacity>
+                    <TouchableOpacity disabled={busy} onPress={() => { void open(); }} style={styles.button}><Text style={styles.text}>{busy ? 'Chargement…' : 'Ouvrir'}</Text></TouchableOpacity>
                 </View></View>}
                 {deleteId && <View style={styles.confirm}><Text style={styles.text}>Supprimer ce replay ?</Text><View style={styles.actions}>
                     <TouchableOpacity disabled={busy} onPress={() => { setDeleteId(null); setError(''); }} style={styles.button}><Text style={styles.text}>Annuler</Text></TouchableOpacity>

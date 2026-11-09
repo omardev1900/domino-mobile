@@ -14,10 +14,10 @@ describe('replay policy', () => {
             assert.deepEqual(decideReplayOpening(true, coins), { allowed: false, reason: 'INVALID_BALANCE' });
         }
     });
-    it('allows free saving into the first ten slots only while Premium is active', () => {
+    it('allows free saving into the first two slots only while Premium is active', () => {
         assert.equal(canSaveReplay(true, 0), true);
-        assert.equal(canSaveReplay(true, 9), true);
-        assert.equal(canSaveReplay(true, 10), false);
+        assert.equal(canSaveReplay(true, 1), true);
+        assert.equal(canSaveReplay(true, 2), false);
         assert.equal(canSaveReplay(false, 1), false);
         assert.equal(canSaveReplay(true, -1), false);
     });
