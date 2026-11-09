@@ -28,6 +28,7 @@ import { createPremiumRechargeCodeReader } from './premiumRechargeCode';
 import { createStripeCustomerPortal } from './premiumStripePortal';
 import { getMonthlyCochonsFromHistory } from './matchFinalizer';
 import { getPreviousLeagueMonthKey } from './leagueTime';
+import { createDebitSoloBuyIn, createRefundSoloBuyIn } from './coinBuyIn';
 import {
     createBackfillGlobalLeaderboard,
     createGlobalLeaderboardProjection,
@@ -57,6 +58,8 @@ export const getPremiumRechargeCode = createPremiumRechargeCodeReader(db);
 export const createPremiumCustomerPortal = createStripeCustomerPortal(db);
 export const projectGlobalLeaderboard = createGlobalLeaderboardProjection(db);
 export const backfillGlobalLeaderboard = createBackfillGlobalLeaderboard(db);
+export const debitSoloBuyIn = createDebitSoloBuyIn(db);
+export const refundSoloBuyIn = createRefundSoloBuyIn(db);
 
 const LOCAL_WEB_ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 

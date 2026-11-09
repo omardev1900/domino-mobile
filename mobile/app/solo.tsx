@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ScrollView, useWindowDimensions, Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -19,6 +19,10 @@ import { EconomyHeader } from '../src/components/EconomyHeader';
 import { BotDifficulty, getFloorLevel, isLevelAllowed } from '../src/core/services/bot.service';
 import { useInterstitialAd, AdMobIds } from '../src/core/services/AdMobAdapter';
 import { premiumService } from '../src/core/services/premium.service';
+import { httpsCallable } from 'firebase/functions';
+import { gameFunctions } from '../src/core/services/firebase';
+import { readConfirmedReplayBalance } from '../src/core/services/replayBalance';
+import { soloBuyInIntents } from '../src/core/services/soloBuyInIntent';
 
 type Difficulty = BotDifficulty;
 type GameMode = 'MANCHE' | 'SCORE' | 'COCHON' | 'VICTOIRE';
@@ -36,6 +40,9 @@ const MODE_UNIT_LABELS: Record<GameMode, string> = {
     SCORE: 'Points',
     COCHON: 'Cochons',
 };
+
+// La migration du solde serveur est reportée et ne doit pas bloquer le solo.
+const USE_SERVER_SOLO_BUY_IN = true;
 
 export default function SoloScreen() {
     const router = useRouter();
@@ -58,6 +65,7 @@ export default function SoloScreen() {
     const [pendingGameStart, setPendingGameStart] = useState(false);
     const [hasPremium, setHasPremium] = useState(false);
     const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
+    const launchLock = useRef(false);
 
     const { isLoaded: isAdLoaded, isClosed: isAdClosed, load: loadAd, show: showAd } = useInterstitialAd(AdMobIds.INTERSTITIAL_LIGUE);
 
@@ -128,6 +136,7 @@ export default function SoloScreen() {
     };
 
     const executeGameLaunch = async () => {
+        if (launchLock.current) return;
         if (!user?.uid || user.uid.startsWith('guest_')) {
             Alert.alert(
                 'Connexion requise',
@@ -136,21 +145,27 @@ export default function SoloScreen() {
             return;
         }
 
+        launchLock.current = true;
+        let buyInDebited = false;
+        let buyInId = '';
+        try {
         const tableConfig = TABLE_CONFIGS[tableTier];
-
+        const soloGameId = `solo-${user.uid}`;
+        buyInId = USE_SERVER_SOLO_BUY_IN ? await soloBuyInIntents.getOrCreate(user.uid) : '';
         // ── ANTI-QUIT : Déduire le buy-in AVANT de lancer la partie ──
         if (tableConfig.buyIn > 0) {
-            const success = await economyService.deductBuyIn(
-                tableConfig.buyIn,
-                user?.uid
-            );
-            if (!success) {
-                Alert.alert(
-                    'Coins insuffisants 🪙',
-                    `Cette mise doit vous laisser au moins ${MINIMUM_COIN_RESERVE} coins. Regardez une vidéo dans la boutique pour recharger votre solde.`,
-                    [{ text: 'OK', style: 'cancel' }]
-                );
-                return; // ❌ Bloquer la navigation
+            if (USE_SERVER_SOLO_BUY_IN) {
+                const debit = httpsCallable<{ matchId: string; tableTier: TableTier }, { balance: number }>(gameFunctions, 'debitSoloBuyIn');
+                await debit({ matchId: buyInId, tableTier });
+                buyInDebited = true;
+                const coins = await readConfirmedReplayBalance(user.uid);
+                await economyService.applyConfirmedReplayBalance(coins);
+            } else {
+                const success = await economyService.deductBuyIn(tableConfig.buyIn, user.uid);
+                if (!success) {
+                    Alert.alert('Coins insuffisants 🪙', `Cette mise doit vous laisser au moins ${MINIMUM_COIN_RESERVE} coins.`);
+                    return;
+                }
             }
             // 💸 Feedback visuel de débit
             setDebitFeedback(`-${tableConfig.buyIn} 🪙`);
@@ -160,7 +175,6 @@ export default function SoloScreen() {
 
         // ── Option A : gameId stable basé sur l'UID ──
         // Même joueur = même clé AsyncStorage = restauration garantie après interruption.
-        const soloGameId = `solo-${user.uid}`;
 
         // Si une partie était en cours, on la purge avant d'en démarrer une nouvelle.
         // (L'utilisateur a explicitement lancé une nouvelle partie depuis solo.tsx.)
@@ -181,8 +195,23 @@ export default function SoloScreen() {
                 playerOnlyHandSize: playerOnlyHandSize ? 'true' : 'false',
                 tableTier: tableTier,  // Passé pour le calcul des récompenses au MATCH_END
                 soloBuyInDebited: 'true',
+                ...(USE_SERVER_SOLO_BUY_IN ? { soloBuyInId: buyInId } : {}),
             }
         });
+        } catch (error) {
+            if (USE_SERVER_SOLO_BUY_IN && buyInDebited && buyInId) {
+                try {
+                    const refund = httpsCallable<{ matchId: string; tableTier: TableTier }, { balance: number }>(gameFunctions, 'refundSoloBuyIn');
+                    await refund({ matchId: buyInId, tableTier });
+                    await soloBuyInIntents.clear(user.uid, buyInId);
+                } catch (refundError) {
+                    console.error('[SOLO_BUY_IN] Refund after failed launch failed', refundError);
+                }
+            }
+            Alert.alert('Mise indisponible', error instanceof Error ? error.message : 'Vérifie ta connexion et réessaie.');
+        } finally {
+            launchLock.current = false;
+        }
     };
 
     const updateTarget = (delta: number) => {
