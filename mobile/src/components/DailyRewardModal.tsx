@@ -31,6 +31,10 @@ interface DailyRewardModalProps {
     onSkip?: () => void;
     claimTriggerRef?: React.MutableRefObject<(() => void) | null>;
     showAdReward?: boolean;
+    claiming?: boolean;
+    informational?: boolean;
+    autoDismissMs?: number;
+    onDismiss?: () => void;
 }
 
 const CoinParticle = ({ delay, index, screenW }: { delay: number; index: number; screenW: number }) => {
@@ -107,6 +111,10 @@ export const DailyRewardModal: React.FC<DailyRewardModalProps> = ({
     onSkip,
     claimTriggerRef,
     showAdReward = true,
+    claiming = false,
+    informational = false,
+    autoDismissMs,
+    onDismiss,
 }) => {
     const { width, height } = useWindowDimensions();
     const isLandscape = width > height;
@@ -159,13 +167,19 @@ export const DailyRewardModal: React.FC<DailyRewardModalProps> = ({
     // Timer pour afficher le bouton skip après 5s
     useEffect(() => {
         let timer: ReturnType<typeof setTimeout>;
-        if (visible && !isClaiming) {
+        if (visible && !isClaiming && !claiming) {
             timer = setTimeout(() => {
                 setShowSkipBtn(true);
             }, 5000);
         }
         return () => clearTimeout(timer);
-    }, [visible, isClaiming]);
+    }, [visible, isClaiming, claiming]);
+
+    useEffect(() => {
+        if (!visible || !informational || !autoDismissMs || !onDismiss) return;
+        const timer = setTimeout(onDismiss, autoDismissMs);
+        return () => clearTimeout(timer);
+    }, [visible, informational, autoDismissMs, onDismiss]);
 
     const containerStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
@@ -267,7 +281,7 @@ export const DailyRewardModal: React.FC<DailyRewardModalProps> = ({
                                     marginBottom: isLandscape ? 0 : 12,
                                     marginRight: isLandscape ? 16 : 0,
                                 }
-                            ]}>
+                                ]}>
                                 <Text style={{ fontSize: iconFontSize }}>🎁</Text>
                             </View>
 
@@ -288,33 +302,35 @@ export const DailyRewardModal: React.FC<DailyRewardModalProps> = ({
                                     {isStoreAd ? 'Merci d\'avoir visionné la publicité !' : isWelcome ? 'Bienvenue dans Domino Martiniquais' : 'Revenez demain pour un nouveau cadeau'}
                                 </Text>
 
-                                <TouchableOpacity
-                                    style={[styles.claimButton, isLandscape && { width: '100%' }, isClaiming && { opacity: 0.7 }]}
-                                    onPress={isClaiming ? undefined : (showAdReward ? onWatchAd : playClaimAnimation)}
-                                    activeOpacity={0.85}
-                                    disabled={isClaiming}
-                                >
-                                    <LinearGradient
-                                        colors={isClaiming ? ['#FFA500', '#FF8C00'] : ['#FFD700', '#FFA500']}
-                                        style={[styles.claimGradient, {
-                                            paddingVertical: isLandscape ? 8 : 13,
-                                        }]}
+                                {!informational && (
+                                    <TouchableOpacity
+                                        style={[styles.claimButton, isLandscape && { width: '100%' }, (isClaiming || claiming) && { opacity: 0.7 }]}
+                                        onPress={(isClaiming || claiming) ? undefined : (showAdReward ? onWatchAd : playClaimAnimation)}
+                                        activeOpacity={0.85}
+                                        disabled={isClaiming || claiming}
                                     >
-                                        <Text style={[styles.claimButtonText, {
-                                            fontSize: isLandscape ? Math.min(height * 0.07, 14) : 16,
-                                        }]}>
-                                            {isClaiming 
-                                                ? `🪙 +${displayedAmount}` 
-                                                : isStoreAd
-                                                    ? `RÉCUPÉRER → +${amount} 🪙`
-                                                    : isWelcome 
-                                                        ? `RÉCUPÉRER → +${amount} 🪙` 
-                                                    : showAdReward
-                                                        ? `📺 VOIR UNE PUB → +${amount} 🪙`
-                                                        : `RÉCUPÉRER → +${amount} 🪙`}
-                                        </Text>
-                                    </LinearGradient>
-                                </TouchableOpacity>
+                                        <LinearGradient
+                                            colors={isClaiming ? ['#FFA500', '#FF8C00'] : ['#FFD700', '#FFA500']}
+                                            style={[styles.claimGradient, {
+                                                paddingVertical: isLandscape ? 8 : 13,
+                                            }]}
+                                        >
+                                            <Text style={[styles.claimButtonText, {
+                                                fontSize: isLandscape ? Math.min(height * 0.07, 14) : 16,
+                                            }]}>
+                                                {isClaiming || claiming
+                                                    ? `🪙 +${displayedAmount}`
+                                                    : isStoreAd
+                                                        ? `RÉCUPÉRER → +${amount} 🪙`
+                                                        : isWelcome
+                                                            ? `RÉCUPÉRER → +${amount} 🪙`
+                                                        : showAdReward
+                                                            ? `📺 VOIR UNE PUB → +${amount} 🪙`
+                                                            : `RÉCUPÉRER → +${amount} 🪙`}
+                                            </Text>
+                                        </LinearGradient>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         </ScrollView>
 
