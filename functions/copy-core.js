@@ -35,6 +35,7 @@ fs.mkdirSync(gameCoreServicesDir, { recursive: true });
     'DominoEngine.ts',
     'ScoringEngine.ts',
     'LogicEngine.ts',
+    'botCatalog.ts',
     'BotEngine.ts',
     'MeytKayaliEngine.ts',
 ].forEach(file => {
