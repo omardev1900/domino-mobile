@@ -41,6 +41,7 @@ export interface Player {
     totalCochonsSubis: number; // ✅ NEW: Cochons reçus (Stats Perdant)
     status: PlayerStatus; // (Sprint 3-10) Remplace isBot et isDisconnected
     difficulty?: 'TI_MANMAY' | 'MAPIPI' | 'GRAN_MOUN' | 'METKAYALI'; // Niveau spécifique du bot
+    premiumActive?: boolean;
 }
 
 export type GamePhase = 'LOBBY' | 'DEALING' | 'PLAYING' | 'BOUDE' | 'PARTIE_END' | 'MATCH_END' | 'MANCHE_END';
@@ -97,6 +98,7 @@ export interface PlayerProfile {
     uid: string;
     displayName: string;
     email?: string;
+    premiumActive?: boolean;
     avatarUrl?: string;
     avatarId?: string;
     isHost?: boolean;
