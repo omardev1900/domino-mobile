@@ -1,5 +1,13 @@
 # Changelog
 
+### 2026-11-18
+
+- L’accueil mobile propose désormais un bouton « Rejoindre la communauté »
+  pour ouvrir directement le groupe WhatsApp officiel.
+
+- L’onglet « Publiques » propose désormais un bouton « Trouver des joueurs »
+  pour rejoindre la communauté WhatsApp.
+
 ### 2026-11-09
 
 - Replay : message de remplacement clarifié lorsque les deux places sont occupées.

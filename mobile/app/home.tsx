@@ -8,6 +8,7 @@ import {
     ScrollView,
     Modal,
     Platform,
+    Linking,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -41,6 +42,7 @@ import { CampaignModal } from '../src/components/CampaignModal';
 import { LogService } from '../src/core/services/LogService';
 
 let hasShownAppOpenAd = false;
+const WHATSAPP_COMMUNITY_URL = 'https://chat.whatsapp.com/Gwx9D4V4YWPBVzRzW4DvLQ?s=cl&p=a&iam=2';
 
 export default function HomeScreen() {
     const router = useRouter();
@@ -259,6 +261,14 @@ export default function HomeScreen() {
                     setShowDailyReward(true);
                 }, 500);
             }
+        }
+    };
+
+    const handleJoinCommunity = async () => {
+        try {
+            await Linking.openURL(WHATSAPP_COMMUNITY_URL);
+        } catch (error) {
+            LogService.warn('Home', 'Impossible d’ouvrir le groupe WhatsApp.', error);
         }
     };
 
@@ -505,6 +515,25 @@ export default function HomeScreen() {
                         </View>
                     </Animated.View>
                 </View>
+
+                <Animated.View entering={FadeInUp.delay(480).duration(500)} style={styles.communityButtonWrapper}>
+                    <TouchableOpacity
+                        style={styles.communityButton}
+                        onPress={() => void handleJoinCommunity()}
+                        activeOpacity={0.86}
+                        accessibilityRole="button"
+                        accessibilityLabel="Rejoindre la communauté WhatsApp"
+                    >
+                        <LinearGradient
+                            colors={['#25D366', '#128C7E']}
+                            style={styles.communityButtonGradient}
+                        >
+                            <Ionicons name="logo-whatsapp" size={24} color="#FFF" />
+                            <Text style={styles.communityButtonText}>REJOINDRE LA COMMUNAUTÉ</Text>
+                            <Ionicons name="chevron-forward" size={18} color="#FFF" />
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </Animated.View>
             </ScrollView>
 
             <CampaignModal campaign={campaignEnabled ? campaign : null} onClose={dismissCampaign} />
@@ -949,6 +978,36 @@ const styles = StyleSheet.create({
         marginBottom: 10,
         alignItems: 'stretch',
         height: 132,
+    },
+    communityButtonWrapper: {
+        marginHorizontal: 10,
+        marginTop: 4,
+        marginBottom: 10,
+    },
+    communityButton: {
+        borderRadius: 13,
+        overflow: 'hidden',
+        elevation: 5,
+        shadowColor: '#25D366',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.35,
+        shadowRadius: 5,
+    },
+    communityButtonGradient: {
+        minHeight: 54,
+        paddingHorizontal: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+    },
+    communityButtonText: {
+        flex: 1,
+        color: '#FFF',
+        fontSize: 13,
+        fontWeight: '900',
+        letterSpacing: 0.5,
+        textAlign: 'center',
     },
     compactTopCard: {
         flex: 1,

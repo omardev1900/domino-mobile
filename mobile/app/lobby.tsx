@@ -11,6 +11,7 @@ import {
     ScrollView,
     useWindowDimensions,
     Platform,
+    Linking,
 } from "react-native";
 import { useRouter, useNavigation, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -52,6 +53,7 @@ import { describeMultiplayerJoinError } from "../src/core/utils/describeMultipla
 import { useMatchmakingPresence } from "../src/hooks/useMatchmakingPresence";
 
 type LobbyTab = "CREATE" | "JOIN" | "PUBLIC";
+const WHATSAPP_COMMUNITY_URL = "https://chat.whatsapp.com/Gwx9D4V4YWPBVzRzW4DvLQ?s=cl&p=a&iam=2";
 
 const MODE_LABELS: Record<GameMode, string> = {
     VICTOIRE: "Victoire",
@@ -465,6 +467,14 @@ export default function LobbyScreen() {
             setJoinFeedback(message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleFindPlayers = async () => {
+        try {
+            await Linking.openURL(WHATSAPP_COMMUNITY_URL);
+        } catch {
+            Alert.alert("Erreur", "Impossible d’ouvrir le groupe WhatsApp.");
         }
     };
 
@@ -995,6 +1005,22 @@ export default function LobbyScreen() {
 
     const renderPublicTab = () => (
         <View style={styles.listContainer}>
+            <TouchableOpacity
+                style={styles.findPlayersButton}
+                onPress={() => void handleFindPlayers()}
+                activeOpacity={0.86}
+                accessibilityRole="button"
+                accessibilityLabel="Trouver des joueurs dans le groupe WhatsApp"
+            >
+                <LinearGradient
+                    colors={["#25D366", "#128C7E"]}
+                    style={styles.findPlayersButtonGradient}
+                >
+                    <Ionicons name="logo-whatsapp" size={22} color="#FFF" />
+                    <Text style={styles.findPlayersButtonText}>TROUVER DES JOUEURS DANS LE GROUPE WHATSAPP</Text>
+                    <Ionicons name="chevron-forward" size={18} color="#FFF" />
+                </LinearGradient>
+            </TouchableOpacity>
             {loadingPublicRooms ? (
                 <View style={styles.emptyContainer}>
                     <ActivityIndicator color="#FFD700" />
@@ -1972,6 +1998,32 @@ const styles = StyleSheet.create({
         width: "100%",
         maxWidth: 800,
         flex: 1,
+    },
+    findPlayersButton: {
+        borderRadius: 14,
+        overflow: "hidden",
+        marginBottom: 14,
+        elevation: 5,
+        shadowColor: "#25D366",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.35,
+        shadowRadius: 5,
+    },
+    findPlayersButtonGradient: {
+        minHeight: 52,
+        paddingHorizontal: 16,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 10,
+    },
+    findPlayersButtonText: {
+        flex: 1,
+        color: "#FFF",
+        fontSize: 13,
+        fontWeight: "900",
+        letterSpacing: 0.5,
+        textAlign: "center",
     },
     roomItem: {
         backgroundColor: "rgba(255,255,255,0.06)",

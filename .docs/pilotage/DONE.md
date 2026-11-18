@@ -1,5 +1,13 @@
 # Taches terminees
 
+### 2026-11-18
+
+- [x] `UI-COMMUNITY-WHATSAPP-01` Ajouter sur la Homepage mobile un bouton
+  « Rejoindre la communauté » ouvrant le groupe WhatsApp officiel.
+
+- [x] `UI-PUBLIC-COMMUNITY-01` Ajouter dans l’onglet « Publiques » un bouton
+  « Trouver des joueurs » ouvrant le groupe WhatsApp officiel.
+
 ### 2026-11-09
 
 - [x] Clarifier le message de remplacement lorsque les deux replays sont sauvegardés.
