@@ -10,7 +10,6 @@ import { authService } from '../src/core/services/auth.service';
 import SettingsManager, { BgmTheme } from '../src/core/SettingsManager';
 import SoundManager from '../src/core/audio/SoundManager';
 import { TABLE_THEMES, TableTheme } from '../src/core/themes/tableThemes';
-import { botService } from '../src/core/services/bot.service';
 import Constants from 'expo-constants';
 
 import { getAvatarImage, AvatarId, AVAILABLE_AVATARS } from '../src/core/avatars';

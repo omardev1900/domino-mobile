@@ -17,6 +17,13 @@ export function useForceUpdate() {
     const [updateInfo, setUpdateInfo] = useState<ForceUpdateInfo | null>(null);
 
     const checkVersion = useCallback(async () => {
+        // Les builds Expo de développement ne doivent pas être bloqués par le
+        // seuil de version configuré pour les versions publiées.
+        if (__DEV__) {
+            setUpdateInfo(null);
+            return;
+        }
+
         try {
             // Dans Firebase, on ira chercher un document "config/appSettings"
             const configRef = doc(db, 'config', 'appSettings');

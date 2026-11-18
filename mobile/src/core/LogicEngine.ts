@@ -3,6 +3,7 @@ import { ALL_DOMINOS, HAND_SIZE, TALON_MORT_SIZE, WINS_TO_WIN_MATCH, MAX_PLAYERS
 import { preparePlayersForNextRound , finalizeRound } from './ScoringEngine';
 
 import { getValidMoves } from './DominoEngine';
+import { BotProfile, BotDifficulty, selectBots } from './botCatalog';
 
 
 /**
@@ -165,41 +166,12 @@ export const dealGame = (playerNames: string[], handSize: number = HAND_SIZE, cu
 /**
  * Distribution pour Solo Mode : 3 joueurs (1 humain + 2 bots) x 7 dominos
  */
-export const dealGameSolo = (playerId: string, playerName: string, avatarId: string | undefined, botDifficulty: 'TI_MANMAY' | 'MAPIPI' | 'GRAN_MOUN' | 'METKAYALI' = 'MAPIPI', handSize: number = HAND_SIZE, playerOnly: boolean = false): Partial<GameState> => {
+export const dealGameSolo = (playerId: string, playerName: string, avatarId: string | undefined, botDifficulty: BotDifficulty = 'MAPIPI', handSize: number = HAND_SIZE, playerOnly: boolean = false, botProfiles?: readonly BotProfile[]): Partial<GameState> => {
     const deck = shuffleDeck();
     const botHandSize = playerOnly ? HAND_SIZE : handSize;
 
-    const getBots = (diff: string) => {
-        switch (diff) {
-            case 'TI_MANMAY':
-                return [
-                    { name: 'Ti-Sonson', avatarId: 'avatar_bot_01', diff: 'TI_MANMAY' },
-                    { name: 'Man-Yaya', avatarId: 'avatar_bot_02', diff: 'TI_MANMAY' }
-                ];
-            case 'MAPIPI':
-                return [
-                    { name: 'Dédé', avatarId: 'avatar_bot_03', diff: 'MAPIPI' },
-                    { name: 'Maxime', avatarId: 'avatar_bot_04', diff: 'MAPIPI' }
-                ];
-            case 'GRAN_MOUN':
-                return [
-                    { name: 'Tonton-Léon', avatarId: 'avatar_bot_05', diff: 'GRAN_MOUN' },
-                    { name: 'Eudorge', avatarId: 'avatar_bot_06', diff: 'GRAN_MOUN' }
-                ];
-            case 'METKAYALI':
-                return [
-                    { name: 'Man-Diab', avatarId: 'avatar_bot_07', diff: 'METKAYALI' },
-                    { name: 'Papa-Zombi', avatarId: 'avatar_bot_08', diff: 'METKAYALI' }
-                ];
-            default:
-                return [
-                    { name: 'Dédé', avatarId: 'avatar_bot_03', diff: 'MAPIPI' },
-                    { name: 'Maxime', avatarId: 'avatar_bot_04', diff: 'MAPIPI' }
-                ];
-        }
-    };
-
-    const bots = getBots(botDifficulty);
+    const bots = botProfiles?.length ? botProfiles : selectBots(botDifficulty, 2);
+    if (bots.length < 2) throw new Error(`Catalogue de bots incomplet pour ${botDifficulty}`);
 
     const players: Player[] = [
         {
@@ -222,7 +194,7 @@ export const dealGameSolo = (playerId: string, playerName: string, avatarId: str
         {
             id: 'bot-1',
             name: bots[0].name,
-            avatarId: bots[0].avatarId,
+            avatarId: bots[0].imageUrl || bots[0].avatarId,
             hand: deck.slice(handSize, handSize + botHandSize),
             handSize: botHandSize,
             currentMancheStars: 0,
@@ -234,13 +206,13 @@ export const dealGameSolo = (playerId: string, playerName: string, avatarId: str
             totalCochonsInfliges: 0,
             totalCochonsSubis: 0,
             status: 'BOT',
-            difficulty: bots[0].diff as any,
+            difficulty: bots[0].difficulty,
             wins: 0,
         },
         {
             id: 'bot-2',
             name: bots[1].name,
-            avatarId: bots[1].avatarId,
+            avatarId: bots[1].imageUrl || bots[1].avatarId,
             hand: deck.slice(handSize + botHandSize, handSize + botHandSize * 2),
             handSize: botHandSize,
             currentMancheStars: 0,
@@ -252,7 +224,7 @@ export const dealGameSolo = (playerId: string, playerName: string, avatarId: str
             totalCochonsInfliges: 0,
             totalCochonsSubis: 0,
             status: 'BOT',
-            difficulty: bots[1].diff as any,
+            difficulty: bots[1].difficulty,
             wins: 0,
         },
     ];

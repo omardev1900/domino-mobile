@@ -1957,13 +1957,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
             const botDifficulty = difficulty || 'MAPIPI';
 
-            // Démarrage sans réseau : le profil local garantit deux adversaires
-            // instantanément. La lecture distante reste un préchargement non bloquant
-            // pour les lancements suivants et les personnalisations éventuelles.
-            const botProfiles = botService.getLocalBotsForLevel(botDifficulty, 2);
-            void botService.getBotsForLevel(botDifficulty, 2).then(() => {
-                LogService.info('GameScreen', `[SOLO] Remote bot profiles refreshed for ${botDifficulty}`);
-            });
+            // Le catalogue versionné embarqué est la seule source des bots en solo.
+            const botProfiles = await botService.getBotsForLevel(botDifficulty, 2);
 
             const eco = await economyService.getEconomy();
             const profile = await authService.refreshUserFromStorage().catch(() => null);
@@ -1984,7 +1979,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 playerAvatarId as string,
                 botDifficulty,
                 startingHandSize || 7,
-                __DEV__ && playerOnlyHandSize
+                __DEV__ && playerOnlyHandSize,
+                botProfiles
             ) as GameState;
 
             // Configure local player and bots avatars

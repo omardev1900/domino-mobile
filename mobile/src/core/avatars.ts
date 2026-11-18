@@ -28,6 +28,19 @@ export const AVATAR_IMAGES = {
     Spark_2: require('@/assets/images/avatars/bot/Spark_2.png'),
     Atlas_3: require('@/assets/images/avatars/bot/Atlas_3.png'),
     Zenith_4: require('@/assets/images/avatars/bot/Zenith_4.png'),
+    bot_chabinex: require('@/assets/images/avatars/bot/bot_chabinex.jpg'),
+    bot_dede: require('@/assets/images/avatars/bot/bot_dede.jpg'),
+    bot_jojo: require('@/assets/images/avatars/bot/bot_jojo.jpg'),
+    bot_maxime: require('@/assets/images/avatars/bot/bot_maxime.jpg'),
+    bot_manoux: require('@/assets/images/avatars/bot/bot_manoux.jpg'),
+    bot_mariyan: require('@/assets/images/avatars/bot/bot_mariyan.jpg'),
+    bot_karnage: require('@/assets/images/avatars/bot/bot_karnage.jpg'),
+    bot_arrogante: require('@/assets/images/avatars/bot/bot_arrogante.jpg'),
+    bot_sylvestre: require('@/assets/images/avatars/bot/bot_sylvestre.jpg'),
+    bot_tontonalex: require('@/assets/images/avatars/bot/bot_tontonalex.jpg'),
+    bot_xena: require('@/assets/images/avatars/bot/bot_xena.jpg'),
+    bot_neg_gwo_siwo: require('@/assets/images/avatars/bot/bot_neg_gwo_siwo.jpg'),
+    bot_yoyo: require('@/assets/images/avatars/bot/bot_yoyo.jpg'),
     avatar_premium_cochon_dore: require('@/assets/images/avatars/premium/avatar_premium_cochon_dore.jpg'),
     avatar_premium_reine_domino: require('@/assets/images/avatars/premium/avatar_premium_reine_domino.jpg'),
     avatar_premium_champion_madras: require('@/assets/images/avatars/premium/avatar_premium_champion_madras.jpg'),
@@ -38,6 +51,16 @@ export type AvatarId = keyof typeof AVATAR_IMAGES;
 const AVATAR_ALIASES: Record<string, AvatarId> = {
     default: 'avatar_default',
     default_asset: 'avatar_default',
+    // Compatibilité avec les parties multijoueur créées par les anciennes versions.
+    // Ces IDs pointaient vers des avatars qui n’étaient jamais embarqués dans l’app.
+    avatar_bot_01: 'avatar_17', // Ti-Sonson
+    avatar_bot_02: 'avatar_06', // Man-Yaya
+    avatar_bot_03: 'bot_dede', // Dédé
+    avatar_bot_04: 'bot_maxime', // Maxime
+    avatar_bot_05: 'avatar_13', // Tonton-Léon
+    avatar_bot_06: 'avatar_10', // Eudorge
+    avatar_bot_07: 'avatar_14', // Man-Diab
+    avatar_bot_08: 'avatar_15', // Papa-Zombi
     // Les cinq avatars historiques étaient uniquement hébergés sur Storage.
     // Ils possèdent maintenant un équivalent embarqué, afin de ne plus afficher
     // une silhouette noire lorsqu'une ancienne URL Storage a expiré ou a été supprimée.

@@ -59,4 +59,11 @@ describe('resolveDominoSidePalette', () => {
         expect(getAvatarImage('https://firebasestorage.googleapis.com/v0/b/domino-martinique-v1.firebasestorage.app/o/avatars%2Fcochon_masquee.jpg?alt=media'))
             .toBe(getAvatarImage('avatar_02'));
     });
+
+    it('migrates legacy multiplayer bot avatar IDs to bundled images', () => {
+        expect(hasAvatarImage('avatar_bot_03')).toBe(true);
+        expect(getAvatarImage('avatar_bot_03')).toBe(getAvatarImage('bot_dede'));
+        expect(hasAvatarImage('avatar_bot_07')).toBe(true);
+        expect(getAvatarImage('avatar_bot_07')).toBe(getAvatarImage('avatar_14'));
+    });
 });
