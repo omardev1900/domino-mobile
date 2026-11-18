@@ -75,6 +75,7 @@ import { TABLE_CONFIGS } from '../core/economy.constants';
 import { SkinConfig, StoreItem } from '../core/store.types';
 import { useInterstitialAd, TestIds, AdMobIds } from '../core/services/AdMobAdapter';
 import { isPremiumActive, premiumService } from '../core/services/premium.service';
+import { shouldShowMancheInterstitial, shouldShowSoloInterstitial } from '../core/ads/matchRewardPolicy';
 import { rtdb, gameFunctions } from '../core/services/firebase';
 import { ref as rtdbRef, onValue as rtdbOnValue } from 'firebase/database';
 
@@ -884,6 +885,40 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             onClose?.();
         }
     }, [hasPremium, isAdMobClosed, loadAdMob, premiumStatusResolved]);
+
+    const showSoloInterstitialBefore = useCallback((onContinue: () => void) => {
+        const currentPhase = gameStateRef.current?.phase ?? null;
+        if (!isSoloMode || !shouldShowSoloInterstitial(Platform.OS, currentPhase, !premiumStatusResolved || hasPremium, isAdMobLoaded)) {
+            onContinue();
+            return;
+        }
+
+        const finish = () => {
+            if (interstitialFallbackRef.current) {
+                clearTimeout(interstitialFallbackRef.current);
+                interstitialFallbackRef.current = null;
+            }
+            interstitialOnCloseRef.current = null;
+            isAdVisibleRef.current = false;
+            setIsAdVisible(false);
+            onContinue();
+        };
+
+        interstitialOnCloseRef.current = finish;
+        isAdVisibleRef.current = true;
+        setIsAdVisible(true);
+        interstitialFallbackRef.current = setTimeout(() => {
+            LogService.warn('GameScreen', 'AdMob fallback timeout before solo final results');
+            finish();
+        }, MATCH_EXIT_AD_FALLBACK_MS);
+
+        try {
+            showAdMob();
+        } catch (error) {
+            LogService.error('GameScreen', 'Failed to show AdMob before solo final results', error);
+            finish();
+        }
+    }, [hasPremium, isAdMobLoaded, isSoloMode, premiumStatusResolved, showAdMob]);
 
     useEffect(() => () => {
         if (interstitialFallbackRef.current) {
@@ -1757,13 +1792,20 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             const triggerMatchEnd = () => {
                 setScoreOverlayPhase('MATCH_END');
             };
+            const triggerFinalResults = () => {
+                if (isSoloMode) {
+                    showSoloInterstitialBefore(triggerMatchEnd);
+                    return;
+                }
+                triggerMatchEnd();
+            };
 
             // Fin de match : le plateau reste lisible plus longtemps, puis les scores.
             setScoreOverlayPhase(null);
             setRoundResultSnapshot(gameState);
             setShowRoundResult(true);
             pendingRoundResultTransition.current = () => {
-                triggerMatchEnd();
+                triggerFinalResults();
             };
             if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
             roundResultTimerRef.current = setTimeout(handleDismissRoundResult, MATCH_RESULT_AUTO_ADVANCE_MS);
@@ -1778,7 +1820,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // Rejouer l'effet après le dernier domino : une transition Firestore peut
     // arriver pendant son animation. Sans cette dépendance, la fin de round
     // était ignorée de façon intermittente.
-    }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, isSoloMode, usesSystemCoordinator, isMoveAnimationActive]);
+    }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, isSoloMode, usesSystemCoordinator, isMoveAnimationActive, showSoloInterstitialBefore]);
 
     // Laisser les scores lisibles avant d'afficher le cadeau de fin de match.
     // Uniquement en mode SOLO — en multi la pub interstitielle AdMob est déjà gérée ailleurs.
@@ -2105,6 +2147,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                         avatarId: roomPlayer.avatarId || 'avatar_default',
                         leagueGrade: roomPlayer.leagueGrade,   // Propagé depuis PlayerProfile
                         activeFrame: roomPlayer.activeFrame,   // Propagé depuis PlayerProfile
+                        premiumActive: roomPlayer.premiumActive,
                         status: roomPlayer.status === 'BOT' ? 'BOT' : 'HUMAN',
                         difficulty: roomPlayer.status === 'BOT' ? (roomPlayer as any).difficulty : undefined
                     };
@@ -2266,15 +2309,105 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // quand le resync serveur re-livrait PARTIE_END/MANCHE_END et re-déclenchait les timers.
     // La clé est remise à null quand la phase passe à PLAYING (round suivant démarré).
     const lastNextRoundKeyRef = useRef<string | null>(null);
+    const mancheAdShownKeyRef = useRef<string | null>(null);
     useEffect(() => {
         if (gameState?.phase === 'PLAYING') {
             lastNextRoundKeyRef.current = null;
+            mancheAdShownKeyRef.current = null;
         }
     }, [gameState?.phase]);
+
+    // Les salles multi coordonnées avancent automatiquement côté serveur après
+    // MANCHE_END. Il ne faut donc pas attendre le bouton de MancheEndFlow :
+    // CHIRÉ et les écrans de résultat sans score passeraient sinon directement
+    // à la manche suivante sans afficher la pub prévue.
+    useEffect(() => {
+        if (!usesSystemCoordinator || !gameState) return;
+        const allHumanPlayersFree = gameState.players
+            .filter(player => player.status !== 'BOT')
+            .every(player => player.premiumActive !== true);
+        if (!shouldShowMancheInterstitial(
+            Platform.OS,
+            isSoloMode,
+            gameState?.phase ?? null,
+            gameState?.mancheNumber,
+            !premiumStatusResolved || hasPremium,
+            isAdMobLoaded,
+            allHumanPlayersFree,
+        )) return;
+
+        const adKey = `${gameState.gameId}:${gameState.mancheNumber}`;
+        if (mancheAdShownKeyRef.current === adKey) return;
+        mancheAdShownKeyRef.current = adKey;
+
+        const finishMancheAd = () => {
+            if (interstitialFallbackRef.current) {
+                clearTimeout(interstitialFallbackRef.current);
+                interstitialFallbackRef.current = null;
+            }
+            interstitialOnCloseRef.current = null;
+            isAdVisibleRef.current = false;
+            setIsAdVisible(false);
+        };
+
+        interstitialOnCloseRef.current = finishMancheAd;
+        isAdVisibleRef.current = true;
+        setIsAdVisible(true);
+        interstitialFallbackRef.current = setTimeout(() => {
+            LogService.warn('GameScreen', 'AdMob fallback timeout before coordinated manche continuation');
+            finishMancheAd();
+        }, MATCH_EXIT_AD_FALLBACK_MS);
+
+        try {
+            showAdMob();
+        } catch (error) {
+            LogService.error('GameScreen', 'Failed to show AdMob before coordinated manche continuation', error);
+            finishMancheAd();
+        }
+    }, [gameState?.gameId, gameState?.mancheNumber, gameState?.phase, gameState?.players, hasPremium, isAdMobLoaded, premiumStatusResolved, showAdMob, usesSystemCoordinator]);
 
     const interceptOverlayContinue = useCallback(() => {
         // La navigation définitive quand l'overlay (qui gère déjà Scores / Historique / Gains) est fermé.
         setScoreOverlayPhase(null);
+        const allMultiplayerPlayersFree = !isSoloMode
+            && !!gameState?.players
+                .filter(player => player.status !== 'BOT')
+                .every(player => player.premiumActive !== true);
+        const shouldShowMancheAd = shouldShowMancheInterstitial(
+            Platform.OS,
+            isSoloMode,
+            gameState?.phase ?? null,
+            gameState?.mancheNumber,
+            !premiumStatusResolved || hasPremium,
+            isAdMobLoaded,
+            allMultiplayerPlayersFree,
+        );
+        if (shouldShowMancheAd) {
+            const continueSolo = () => {
+                if (interstitialFallbackRef.current) {
+                    clearTimeout(interstitialFallbackRef.current);
+                    interstitialFallbackRef.current = null;
+                }
+                interstitialOnCloseRef.current = null;
+                isAdVisibleRef.current = false;
+                setIsAdVisible(false);
+                handleOverlayContinue();
+            };
+            interstitialOnCloseRef.current = continueSolo;
+            isAdVisibleRef.current = true;
+            setIsAdVisible(true);
+            interstitialFallbackRef.current = setTimeout(() => {
+                LogService.warn('GameScreen', 'AdMob fallback timeout before solo round continuation');
+                continueSolo();
+            }, MATCH_EXIT_AD_FALLBACK_MS);
+            try {
+                showAdMob();
+            } catch (error) {
+                LogService.error('GameScreen', 'Failed to show AdMob between solo manches', error);
+                continueSolo();
+            }
+            return;
+        }
         if (gameState?.phase === 'MATCH_END') {
             // La publicité ne doit jamais recouvrir le dernier domino ni les scores.
             // Elle est différée au geste explicite de sortie du joueur.

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
     View,
     StyleSheet,
@@ -51,6 +51,8 @@ import { GameModeCard } from "../src/components/GameModeCard";
 import { SelectedModeHeader } from "../src/components/SelectedModeHeader";
 import { describeMultiplayerJoinError } from "../src/core/utils/describeMultiplayerJoinError";
 import { useMatchmakingPresence } from "../src/hooks/useMatchmakingPresence";
+import { AdMobIds, isAdMobEnabled, useInterstitialAd } from "../src/core/services/AdMobAdapter";
+import { premiumService } from "../src/core/services/premium.service";
 
 type LobbyTab = "CREATE" | "JOIN" | "PUBLIC";
 const WHATSAPP_COMMUNITY_URL = "https://chat.whatsapp.com/Gwx9D4V4YWPBVzRzW4DvLQ?s=cl&p=a&iam=2";
@@ -85,6 +87,11 @@ export default function LobbyScreen() {
     const [hostedWaitingRoomId, setHostedWaitingRoomId] = useState<
         string | null
     >(null);
+    const [hasPremium, setHasPremium] = useState(false);
+    const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
+    const pendingJoinRef = useRef<string | null>(null);
+    const joinAdFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const { isLoaded: isJoinAdLoaded, isClosed: isJoinAdClosed, load: loadJoinAd, show: showJoinAd } = useInterstitialAd(AdMobIds.INTERSTITIAL_LIGUE);
 
     // — JOIN tab state —
     const [roomIdToJoin, setRoomIdToJoin] = useState("");
@@ -122,6 +129,7 @@ export default function LobbyScreen() {
         const economy = await economyService.getEconomy();
         return {
             ...currentUser,
+            premiumActive: await premiumService.hasActiveAccess(currentUser.uid),
             ...(economy.leagueGrade != null
                 ? { leagueGrade: economy.leagueGrade }
                 : {}),
@@ -163,12 +171,16 @@ export default function LobbyScreen() {
                         // Enrichir le profil avec leagueGrade + activeFrame pour que
                         // les adversaires voient le niveau en salle d'attente et en jeu
                         const eco = await economyService.getEconomy();
+                        const premiumActive = await premiumService.hasActiveAccess(user.uid);
                         const enrichedUser: PlayerProfile = {
                             ...user,
+                            premiumActive,
                             leagueGrade: eco.leagueGrade ?? undefined,
                             activeFrame: eco.activeFrame ?? undefined,
                         };
                         setCurrentUser(enrichedUser);
+                        setHasPremium(premiumActive);
+                        setPremiumStatusResolved(true);
                         const hostedRoom = await findHostedWaitingRoom(
                             user.uid,
                         );
@@ -188,6 +200,55 @@ export default function LobbyScreen() {
             loadUser();
         }, []),
     );
+
+    useEffect(() => {
+        if (premiumStatusResolved && !hasPremium && isAdMobEnabled) loadJoinAd();
+    }, [hasPremium, loadJoinAd, premiumStatusResolved]);
+
+    const clearJoinAdFallback = useCallback(() => {
+        if (joinAdFallbackRef.current) {
+            clearTimeout(joinAdFallbackRef.current);
+            joinAdFallbackRef.current = null;
+        }
+    }, []);
+
+    const continueJoin = useCallback(async (roomId: string) => {
+        try {
+            const enrichedProfile = await getEnrichedProfile();
+            if (!enrichedProfile) return;
+            await joinRoom(roomId, enrichedProfile);
+            router.push({ pathname: "/game/[id]", params: { id: roomId, userId: currentUser?.uid, tableTier } });
+        } catch (error: unknown) {
+            setJoinFeedback(describeMultiplayerJoinError(error));
+        } finally {
+            setLoading(false);
+        }
+    }, [currentUser, router, tableTier]);
+
+    const finishJoinAfterAd = useCallback(() => {
+        clearJoinAdFallback();
+        const roomId = pendingJoinRef.current;
+        pendingJoinRef.current = null;
+        if (roomId) void continueJoin(roomId);
+    }, [clearJoinAdFallback, continueJoin]);
+
+    useEffect(() => {
+        if (pendingJoinRef.current && isJoinAdClosed) finishJoinAfterAd();
+    }, [finishJoinAfterAd, isJoinAdClosed]);
+
+    const joinWithOptionalAd = useCallback((roomId: string) => {
+        if (hasPremium || !premiumStatusResolved || !isAdMobEnabled || !isJoinAdLoaded) {
+            void continueJoin(roomId);
+            return;
+        }
+        pendingJoinRef.current = roomId;
+        joinAdFallbackRef.current = setTimeout(finishJoinAfterAd, 5000);
+        try {
+            showJoinAd();
+        } catch {
+            finishJoinAfterAd();
+        }
+    }, [continueJoin, finishJoinAfterAd, hasPremium, isJoinAdLoaded, premiumStatusResolved, showJoinAd]);
 
     useEffect(() => {
         let unsubscribe: (() => void) | null = null;
@@ -430,14 +491,7 @@ export default function LobbyScreen() {
         if (!(await checkBalanceOnly())) return; // ❌ Solde insuffisant
         try {
             setLoading(true);
-            // [R3-M2] Enrichissement garanti avant joinRoom
-            const enrichedProfile = await getEnrichedProfile();
-            if (!enrichedProfile) return;
-            await joinRoom(cleanRoomId, enrichedProfile);
-            router.push({
-                pathname: "/game/[id]",
-                params: { id: cleanRoomId, userId: currentUser.uid, tableTier },
-            });
+            joinWithOptionalAd(cleanRoomId);
         } catch (error: unknown) {
             const message = describeMultiplayerJoinError(error);
             setJoinFeedback(message);
@@ -454,14 +508,7 @@ export default function LobbyScreen() {
         if (!(await checkBalanceOnly())) return; // ❌ Solde insuffisant
         try {
             setLoading(true);
-            // [R3-M2] Enrichissement garanti avant joinRoom
-            const enrichedProfile = await getEnrichedProfile();
-            if (!enrichedProfile) return;
-            await joinRoom(roomId, enrichedProfile);
-            router.push({
-                pathname: "/game/[id]",
-                params: { id: roomId, userId: currentUser.uid, tableTier },
-            });
+            joinWithOptionalAd(roomId);
         } catch (error: unknown) {
             const message = describeMultiplayerJoinError(error);
             setJoinFeedback(message);

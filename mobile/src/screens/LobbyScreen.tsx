@@ -106,13 +106,17 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
     const turnDuration = roomData.turnDuration ?? 15;
     // AUTO-START: Lancer automatiquement la partie dès que 3 joueurs sont présents
     useEffect(() => {
-        if (!canStart || hasAutoStarted.current) {
+        // Le démarrage coordonné est une écriture réservée à l'hôte. Les
+        // invités reçoivent la transition via leur listener Firestore ; s'ils
+        // tentent eux aussi startGame, ils affichent une fausse erreur après
+        // que l'hôte a déjà lancé la partie.
+        if (!canStart || !isHost || hasAutoStarted.current) {
             return;
         }
 
-        const delay = isHost ? 2000 : 5000;
+        const delay = 2000;
 
-        LogService.info('LobbyScreen', `3 joueurs détectés - démarrage ${isHost ? 'prioritaire' : 'fallback'} dans ${delay / 1000}s.`);
+        LogService.info('LobbyScreen', `3 joueurs détectés - démarrage par l'hôte dans ${delay / 1000}s.`);
 
         setAutoStartCountdown(2);
 
@@ -129,7 +133,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
         const autoStartTimer = setTimeout(() => {
             if (roomData.players.length === 3 && !hasAutoStarted.current) {
                 hasAutoStarted.current = true;
-                LogService.info('LobbyScreen', `Lancement automatique ${isHost ? 'par l\'hôte' : 'par fallback'}.`);
+                LogService.info('LobbyScreen', 'Lancement automatique par l\'hôte.');
                 onStartGame();
             }
         }, delay);

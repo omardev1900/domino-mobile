@@ -144,4 +144,30 @@ describe('LobbyScreen', () => {
 
         expect(onStartGame).toHaveBeenCalledTimes(1);
     });
+
+    it('ne tente pas de demarrer la partie depuis un invite', () => {
+        jest.useFakeTimers();
+        const host = makePlayer('host', 'Hote');
+        const onStartGame = jest.fn();
+        const room = makeRoom([
+            host,
+            makePlayer('guest-1', 'Invite 1'),
+            makePlayer('bot-1', 'Bot 1'),
+        ]);
+
+        render(
+            <LobbyScreen
+                roomData={room}
+                currentUserId="guest-1"
+                onStartGame={onStartGame}
+                onDeleteRoom={jest.fn()}
+            />,
+        );
+
+        act(() => {
+            jest.advanceTimersByTime(5000);
+        });
+
+        expect(onStartGame).not.toHaveBeenCalled();
+    });
 });
