@@ -80,6 +80,11 @@ const makeRoom = (players: PlayerProfile[]): GameRoom => ({
     gameMode: 'MANCHE',
     winningCondition: 3,
     turnDuration: 15,
+    heartbeats: Object.fromEntries(
+        players
+            .filter(player => player.status !== 'BOT')
+            .map(player => [player.uid, { toMillis: () => Date.now() }]),
+    ),
 });
 
 describe('LobbyScreen', () => {
@@ -168,6 +173,38 @@ describe('LobbyScreen', () => {
             jest.advanceTimersByTime(5000);
         });
 
+        expect(onStartGame).not.toHaveBeenCalled();
+    });
+
+    it('signale un joueur sans heartbeat recent et suspend le demarrage', () => {
+        jest.useFakeTimers();
+        const host = makePlayer('host', 'Hote');
+        const room = makeRoom([
+            host,
+            makePlayer('guest-1', 'Invite 1'),
+            makePlayer('guest-2', 'Invite 2'),
+        ]);
+        room.heartbeats = {
+            host: { toMillis: () => Date.now() },
+            'guest-1': { toMillis: () => Date.now() - 30_000 },
+            'guest-2': { toMillis: () => Date.now() },
+        };
+
+        const onStartGame = jest.fn();
+        const screen = render(
+            <LobbyScreen
+                roomData={room}
+                currentUserId={host.uid}
+                onStartGame={onStartGame}
+                onDeleteRoom={jest.fn()}
+            />,
+        );
+
+        expect(screen.getByLabelText('Invite 1 est déconnecté')).toBeTruthy();
+        expect(screen.getByText('Un joueur est déconnecté — démarrage suspendu')).toBeTruthy();
+        act(() => {
+            jest.advanceTimersByTime(3000);
+        });
         expect(onStartGame).not.toHaveBeenCalled();
     });
 });

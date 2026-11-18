@@ -39,6 +39,7 @@ import { LogService } from './LogService';
 import { resolveStartingHandSize } from '../startingHandSize';
 import { roomNameSchema } from '../validation/schemas';
 import { withoutUndefined } from '../utils/withoutUndefined';
+import { getMissingLobbyPresencePlayerIds } from '../lobbyPresence';
 
 // FIX-MULTI-P1: File séquentielle (FIFO) pour garantir l'ordre des écritures sans perte de données rapides
 const updateGameStateQueues = new Map<string, Promise<void>>();
@@ -446,20 +447,32 @@ export const startGame = async (roomId: string, initialGameState: GameState, cal
             sanitizedGameState.currentPlayerId = sanitizedGameState.players[0].id;
         }
 
-        const roomSnapshot = await getDoc(roomRef);
-        const currentRoom = roomSnapshot.exists() ? roomSnapshot.data() as GameRoom : null;
-        const participantIds = initialGameState.players
-            .filter(player => player.status !== 'BOT')
-            .map(player => player.id);
+        await runTransaction(db, async transaction => {
+            const roomSnapshot = await transaction.get(roomRef);
+            if (!roomSnapshot.exists()) throw new Error('La salle n’existe plus.');
 
-        await updateDoc(roomRef, {
-            status: RoomStatus.PLAYING,
-            gameState: sanitizedGameState,
-            coordinatorVersion: 1,
-            participantIds,
-            participantProfiles: currentRoom?.players ?? [],
-            finalization: null,
-            replaySessionId: doc(collection(db, 'replay_sessions')).id,
+            const currentRoom = roomSnapshot.data() as GameRoom;
+            if (currentRoom.status !== RoomStatus.WAITING || currentRoom.players.length !== 3) {
+                throw new Error('Le démarrage est annulé : la salle n’a plus trois joueurs.');
+            }
+
+            const missingPlayerIds = getMissingLobbyPresencePlayerIds(currentRoom);
+            if (missingPlayerIds.length > 0) {
+                throw new Error('Le démarrage est annulé : un joueur s’est déconnecté.');
+            }
+
+            const participantIds = currentRoom.players
+                .filter(player => player.status !== 'BOT')
+                .map(player => player.uid);
+            transaction.update(roomRef, {
+                status: RoomStatus.PLAYING,
+                gameState: sanitizedGameState,
+                coordinatorVersion: 1,
+                participantIds,
+                participantProfiles: currentRoom.players,
+                finalization: null,
+                replaySessionId: doc(collection(db, 'replay_sessions')).id,
+            });
         });
 
         // Enregistrer la room comme active uniquement pour l'appelant (l'hôte).

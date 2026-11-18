@@ -17,6 +17,7 @@ import { BotSelectionModal } from '../components/BotSelectionModal';
 import { BotDifficulty } from '../core/services/bot.service';
 import { PremiumButton } from '../components/common/PremiumButton';
 import { LogService } from '../core/services/LogService';
+import { getMissingLobbyPresencePlayerIds } from '../core/lobbyPresence';
 
 interface LobbyScreenProps {
     roomData: GameRoom;
@@ -40,7 +41,9 @@ const MODE_UNIT_LABELS: Record<string, string> = {
 export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserId, onStartGame, onDeleteRoom }) => {
     const insets = useSafeAreaInsets();
     const isHost = roomData.players[0]?.uid === currentUserId;
-    const canStart = roomData.players.length === 3;
+    const disconnectedPlayerIds = new Set(getMissingLobbyPresencePlayerIds(roomData));
+    const hasDisconnectedPlayer = disconnectedPlayerIds.size > 0;
+    const canStart = roomData.players.length === 3 && !hasDisconnectedPlayer;
     const canDeleteWaitingRoom = isHost && roomData.status === 'WAITING' && roomData.players.length <= 1 && !roomData.gameState;
     const [autoStartCountdown, setAutoStartCountdown] = useState<number | null>(null);
     const hasAutoStarted = useRef(false);
@@ -252,6 +255,14 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
                             <Text style={styles.playerStatus}>
                                 {slot.isCurrentUser ? '(Vous)' : slot.isHost ? 'HÔTE' : 'Joueur'}
                             </Text>
+                            {disconnectedPlayerIds.has(slot.player!.uid) && (
+                                <Text
+                                    style={styles.disconnectedPlayerStatus}
+                                    accessibilityLabel={`${slot.player!.displayName} est déconnecté`}
+                                >
+                                    ● Déconnecté
+                                </Text>
+                            )}
                             {/* [R3-M2] Badge grade Ligue */}
                             <GradeBadge grade={slot.player?.leagueGrade} size="xs" />
                         </>
@@ -348,7 +359,9 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
                         color={canStart ? '#81C784' : 'rgba(255,255,255,0.55)'}
                     />
                     <Text style={[styles.waitingText, canStart && styles.readyText]}>
-                        {waitingMessage}
+                        {hasDisconnectedPlayer && roomData.players.length === 3
+                            ? 'Un joueur est déconnecté — démarrage suspendu'
+                            : waitingMessage}
                     </Text>
                 </Animated.View>
             </Animated.ScrollView>
@@ -494,6 +507,12 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.4)',
         fontSize: 10,
         marginTop: 1,
+    },
+    disconnectedPlayerStatus: {
+        color: '#FFB74D',
+        fontSize: 10,
+        fontWeight: '700',
+        marginTop: 3,
     },
     emptyText: {
         color: 'rgba(255,255,255,0.3)',
