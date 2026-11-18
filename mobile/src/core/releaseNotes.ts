@@ -1,16 +1,27 @@
-export const RELEASE_VERSION = '2.4.0';
+export const RELEASE_VERSION = '2.5.3';
 
 export const RELEASE_SECTIONS = [
     { title: 'Nouveautés', notes: [
-        'Replays Premium : achète et sauvegarde un replay de match solo ou multijoueur pour 2 000 coins, après confirmation.',
-        'Retrouve ton replay dans ton espace Premium et revois-le gratuitement. Un emplacement est inclus ; tu peux remplacer ou supprimer son replay.',
-        'Pilote le replay à ton rythme : lecture, pause, vitesse, choix de la manche et de la partie. Affiche les mains adverses si tu le souhaites.',
-        'Découvre le nouvel espace Premium et ses accès directs aux replays, à l’atelier des skins, à l’entraînement avancé et à la boutique.',
+        'Les membres Premium peuvent consulter leur historique mensuel dans Mes Stats : parties jouées, victoires et cochons donnés.',
     ] },
     { title: 'Améliorations', notes: [
-        'Les campagnes et leurs images s’affichent mieux en mode paysage.',
-        'La récompense de base du vainqueur est de 250 coins, doublée pour les joueurs Premium. La mise est de 100 coins pour les trois niveaux de table.',
-        'Correction liée au démarrage de l’application sur Android 15.',
+        'Correction du remplacement d’un replay sauvegardé : le nouvel achat ne supprime l’ancien replay qu’après validation.',
+        'Un replay déjà acheté peut maintenant être relu gratuitement, sans nouvelle demande de paiement.',
+        'Amélioration de la fiabilité des appels replay et de la gestion des erreurs d’authentification.',
+        'Correction définitive de l’erreur unauthenticated [401] lors de la sauvegarde ou de la lecture d’un replay sur Android.',
+        'En cas de 401 pendant la récompense de fin de partie, un second chemin sécurisé avec jeton Bearer est utilisé automatiquement.',
+    ] },
+] as const;
+
+export const PREVIOUS_RELEASE_VERSION = '2.5.2';
+export const PREVIOUS_RELEASE_SECTIONS = [
+    { title: 'Nouveautés', notes: [
+        'Les membres Premium peuvent consulter leur historique mensuel dans Mes Stats : parties jouées, victoires et cochons donnés.',
+    ] },
+    { title: 'Améliorations', notes: [
+        'Correction du remplacement d’un replay sauvegardé : le nouvel achat ne supprime l’ancien replay qu’après validation.',
+        'Un replay déjà acheté peut maintenant être relu gratuitement, sans nouvelle demande de paiement.',
+        'Amélioration de la fiabilité des appels replay et de la gestion des erreurs d’authentification.',
     ] },
 ] as const;
 

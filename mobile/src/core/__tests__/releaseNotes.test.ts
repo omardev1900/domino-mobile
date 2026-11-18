@@ -13,7 +13,7 @@ describe('release notes', () => {
 
     it('contains player-facing changes', () => {
         expect(RELEASE_NOTES.length).toBeGreaterThan(0);
-        expect(RELEASE_VERSION).toBe('2.4.0');
-        expect(RELEASE_NOTES.some(note => note.includes('2 000 coins'))).toBe(true);
+        expect(RELEASE_VERSION).toBe('2.5.3');
+        expect(RELEASE_NOTES.some(note => note.includes('historique mensuel'))).toBe(true);
     });
 });
