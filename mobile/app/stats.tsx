@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, useWindowDimensions, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,10 +10,13 @@ import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-na
 import { statsService, MatchRecord, PlayerStats } from '../src/core/services/stats.service';
 import { MatchHistory } from '../src/components/MatchHistory';
 import { getStartOfCurrentMonthUtc } from '../src/core/services/leaderboard.time';
+import { authService } from '../src/core/services/auth.service';
+import { leaderboardService, PlayerMonthlyStats } from '../src/core/services/leaderboard.service';
+import { premiumService } from '../src/core/services/premium.service';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-type StatsMode = 'MONTHLY' | 'TOTAL';
+type StatsMode = 'MONTHLY' | 'TOTAL' | 'HISTORY';
 
 function WinRateCircle({ rate }: { rate: number }) {
     const size = 65;
@@ -154,6 +157,9 @@ export default function StatsScreen() {
     const [isLoading, setIsLoading] = useState(true);
     const [historyModalVisible, setHistoryModalVisible] = useState(false);
     const [activeMode, setActiveMode] = useState<StatsMode>('MONTHLY');
+    const [hasPremium, setHasPremium] = useState(false);
+    const [monthlyStats, setMonthlyStats] = useState<PlayerMonthlyStats[]>([]);
+    const [isMonthlyHistoryLoading, setIsMonthlyHistoryLoading] = useState(false);
 
     useFocusEffect(
         useCallback(() => {
@@ -180,11 +186,27 @@ export default function StatsScreen() {
     const loadPlayerStats = async () => {
         setIsLoading(true);
         try {
-            const stats = await statsService.getStats();
+            const [stats, currentUser] = await Promise.all([
+                statsService.getStats(),
+                authService.getCurrentUser(),
+            ]);
             setPlayerStats(stats);
+
+            if (currentUser?.uid) {
+                setIsMonthlyHistoryLoading(true);
+                const premium = await premiumService.hasActiveAccess(currentUser.uid);
+                setHasPremium(premium);
+                if (premium) {
+                    setMonthlyStats(await leaderboardService.getPlayerMonthlyStats(currentUser.uid));
+                } else {
+                    setMonthlyStats([]);
+                    setActiveMode((mode) => mode === 'HISTORY' ? 'MONTHLY' : mode);
+                }
+            }
         } catch (error) {
             console.error('Failed to load stats', error);
         } finally {
+            setIsMonthlyHistoryLoading(false);
             setIsLoading(false);
         }
     };
@@ -224,6 +246,7 @@ export default function StatsScreen() {
             {([
                 { key: 'MONTHLY', label: 'Ce mois-ci' },
                 { key: 'TOTAL', label: 'Cumulé' },
+                ...(hasPremium ? [{ key: 'HISTORY', label: 'Historique' }] : []),
             ] as { key: StatsMode; label: string }[]).map((mode) => {
                 const active = mode.key === activeMode;
                 return (
@@ -241,6 +264,47 @@ export default function StatsScreen() {
             })}
         </View>
     );
+
+    const renderMonthlyHistoryBlock = () => {
+        if (!hasPremium) return null;
+
+        return (
+            <Animated.View entering={FadeInUp.delay(100).duration(500)} style={[styles.bloc, styles.historyBlock]}>
+                <View style={styles.monthHeader}>
+                    <Text style={styles.monthTitle}>HISTORIQUE MENSUEL</Text>
+                    <Text style={styles.monthSub}>Réservé aux membres Premium</Text>
+                </View>
+
+                {isMonthlyHistoryLoading ? (
+                    <Text style={styles.monthEmpty}>Chargement de l’historique…</Text>
+                ) : monthlyStats.length === 0 ? (
+                    <Text style={styles.monthEmpty}>Aucun mois enregistré pour le moment.</Text>
+                ) : (
+                    <ScrollView style={styles.monthlyHistoryList} nestedScrollEnabled>
+                        <View style={styles.monthlyHistoryHeader}>
+                            <Text style={[styles.monthlyHistoryCell, styles.monthlyHistoryMonth]}>MOIS</Text>
+                            <Text style={styles.monthlyHistoryCell}>PARTIES</Text>
+                            <Text style={styles.monthlyHistoryCell}>VICTOIRES</Text>
+                            <Text style={styles.monthlyHistoryCell}>COCHONS</Text>
+                        </View>
+                        {monthlyStats.map((month) => (
+                            <View key={month.yearMonth} style={styles.monthlyHistoryRow}>
+                                <Text style={[styles.monthlyHistoryValue, styles.monthlyHistoryMonth]}>{month.yearMonth}</Text>
+                                <Text style={styles.monthlyHistoryValue}>{month.gamesPlayed ?? '—'}</Text>
+                                <Text style={styles.monthlyHistoryValue}>{month.gamesWon ?? '—'}</Text>
+                                <Text style={[styles.monthlyHistoryValue, styles.monthlyHistoryPigValue]}>{month.cochonsGiven ?? '—'}</Text>
+                            </View>
+                        ))}
+                    </ScrollView>
+                )}
+                {monthlyStats.some((month) => month.gamesWon === undefined) && (
+                    <Text style={styles.historyFootnote}>
+                        Les victoires sont disponibles à partir de l’enregistrement des nouveaux mois.
+                    </Text>
+                )}
+            </Animated.View>
+        );
+    };
 
     const renderSummaryBlock = () => {
         if (!activeSnapshot) return null;
@@ -355,10 +419,12 @@ export default function StatsScreen() {
                 </View>
             ) : (
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                    <View style={[styles.contentLayout, !isLandscape && { flexDirection: 'column' }]}>
-                        {renderSummaryBlock()}
-                        {renderPerformanceBlock()}
-                    </View>
+                    {activeMode === 'HISTORY' ? renderMonthlyHistoryBlock() : (
+                        <View style={[styles.contentLayout, !isLandscape && { flexDirection: 'column' }]}>
+                            {renderSummaryBlock()}
+                            {renderPerformanceBlock()}
+                        </View>
+                    )}
                 </ScrollView>
             )}
 
@@ -499,6 +565,54 @@ const styles = StyleSheet.create({
     blocA: {},
     blocB: {
         justifyContent: 'space-evenly',
+    },
+    historyBlock: {
+        margin: 8,
+        minHeight: 260,
+    },
+    monthlyHistoryList: {
+        maxHeight: 420,
+    },
+    monthlyHistoryHeader: {
+        flexDirection: 'row',
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,215,0,0.22)',
+    },
+    monthlyHistoryRow: {
+        flexDirection: 'row',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.08)',
+    },
+    monthlyHistoryCell: {
+        flex: 1,
+        color: 'rgba(255,255,255,0.45)',
+        fontSize: 10,
+        fontWeight: '800',
+        textAlign: 'center',
+    },
+    monthlyHistoryValue: {
+        flex: 1,
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+        textAlign: 'center',
+    },
+    monthlyHistoryMonth: {
+        flex: 1.15,
+        textAlign: 'left',
+    },
+    monthlyHistoryPigValue: {
+        color: '#FF3366',
+    },
+    historyFootnote: {
+        color: 'rgba(255,255,255,0.42)',
+        fontSize: 10,
+        fontStyle: 'italic',
+        lineHeight: 14,
+        marginTop: 10,
+        textAlign: 'center',
     },
     monthHeader: {
         marginBottom: 10,

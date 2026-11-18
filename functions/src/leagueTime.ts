@@ -24,6 +24,18 @@ export const getLeagueMonthKey = (timestamp: number | Date): string => {
     return `${parts.year}-${String(parts.month).padStart(2, '0')}`;
 };
 
+export const getLeagueDateKey = (timestamp: number | Date): string => {
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+    const parts = dateParts(date);
+    return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+};
+
+export const getLeagueHourKey = (timestamp: number | Date): string => {
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+    const parts = dateParts(date);
+    return String(parts.hour).padStart(2, '0');
+};
+
 export const getStartOfLeagueMonth = (now: number): number => {
     const current = dateParts(new Date(now));
     const utcNoonOnFirst = Date.UTC(current.year, current.month - 1, 1, 12);

@@ -67,6 +67,15 @@ export interface LeaderboardEntry {
 
 export type LeaderboardCategory = 'XP' | 'COINS' | 'COCHONS';
 
+export interface PlayerMonthlyStats {
+    yearMonth: string;
+    gamesPlayed?: number;
+    gamesWon?: number;
+    cochonsGiven?: number;
+    cochonsSubis?: number;
+    pointsAccumulated?: number;
+}
+
 /** Champ Firestore correspondant à chaque catégorie */
 const CATEGORY_FIELD: Record<LeaderboardCategory, string> = {
     XP: 'economy.xp',
@@ -255,6 +264,7 @@ class LeaderboardService {
             const monthlyHistory = matchHistory.filter(m => (m.timestamp ?? 0) >= startOfMonth);
 
             const cochonsGiven = monthlyHistory.reduce((sum, m) => sum + (m.cochons ?? 0), 0);
+            const gamesWon = monthlyHistory.filter(m => m.result === 'WIN').length;
             const pointsAccumulated = monthlyHistory.reduce((sum, m) => sum + (m.score ?? 0), 0);
             const cochonsSubis = monthlyHistory.reduce((sum, m) => {
                 const mancheResults = m.mancheLeaguePointsEarned?.length
@@ -274,6 +284,7 @@ class LeaderboardService {
                 cochonsSubis,
                 pointsAccumulated,
                 gamesPlayed,
+                gamesWon,
                 updatedAt: Date.now(),
             };
 
@@ -288,6 +299,29 @@ class LeaderboardService {
         } catch (error) {
             LogService.error('LeaderboardService', 'updateMonthlyStats error:', error);
         }
+    }
+
+    async getPlayerMonthlyStats(uid: string): Promise<PlayerMonthlyStats[]> {
+        if (!uid || uid.startsWith('guest_')) return [];
+
+        const snapshot = await getDocs(query(
+            collection(db, 'users_monthly_stats'),
+            where('userId', '==', uid),
+        ));
+
+        return snapshot.docs
+            .map((entry) => {
+                const data = entry.data();
+                return {
+                    yearMonth: String(data.yearMonth || entry.id.slice(-7)),
+                    gamesPlayed: typeof data.gamesPlayed === 'number' ? data.gamesPlayed : undefined,
+                    gamesWon: typeof data.gamesWon === 'number' ? data.gamesWon : undefined,
+                    cochonsGiven: typeof data.cochonsGiven === 'number' ? data.cochonsGiven : undefined,
+                    cochonsSubis: typeof data.cochonsSubis === 'number' ? data.cochonsSubis : undefined,
+                    pointsAccumulated: typeof data.pointsAccumulated === 'number' ? data.pointsAccumulated : undefined,
+                };
+            })
+            .sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
     }
 
     /**

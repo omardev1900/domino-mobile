@@ -16,7 +16,7 @@ import { Platform } from 'react-native';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import type { DocumentSnapshot } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { auth, db } from './firebase';
+import { auth, db, gameFunctions } from './firebase';
 import { LogService } from './LogService';
 import { PlayerEconomy, MatchReward, LeagueGrade, RewardCalculationInput, LeagueFrameId } from '../economy.types';
 import { NEW_PLAYER_COINS, DAILY_REWARD_COINS, AD_REWARD_COINS, MINIMUM_COIN_RESERVE } from '../economy.constants';
@@ -89,7 +89,7 @@ class EconomyService {
             throw new Error('Utilisateur non authentifie pour le fallback HTTP processMatchReward.');
         }
 
-        const idToken = await currentUser.getIdToken();
+        const idToken = await currentUser.getIdToken(true);
         const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
         if (!projectId) {
             throw new Error('EXPO_PUBLIC_FIREBASE_PROJECT_ID manquant pour le fallback HTTP processMatchReward.');
@@ -359,6 +359,11 @@ class EconomyService {
 
         try {
             LogService.info('EconomyService', 'Appel du Banquier Serveur pour le calcul de récompense...');
+            const currentUser = auth.currentUser;
+            if (!currentUser || currentUser.uid !== userId) {
+                throw new Error('Utilisateur non authentifié pour la récompense serveur.');
+            }
+            await currentUser.getIdToken(true);
             const functions = getFunctions();
             const processMatchRewardHook = httpsCallable<{ input: Partial<RewardCalculationInput> }, MatchReward>(functions, 'processMatchReward');
 
@@ -402,9 +407,11 @@ class EconomyService {
         } catch (e) {
             LogService.warn('EconomyService', 'Erreur avec le Banquier Serveur, tentative de fallback :', e);
 
-            if (this.shouldUseWebLocalRewardHttpFallback()) {
+            const errorCode = e && typeof e === 'object' && 'code' in e ? String((e as { code?: unknown }).code) : '';
+            const unauthenticated = errorCode === 'functions/unauthenticated' || errorCode === 'unauthenticated';
+            if (this.shouldUseWebLocalRewardHttpFallback() || unauthenticated) {
                 try {
-                    LogService.warn('EconomyService', '[FALLBACK] Retry via processMatchRewardHttp...');
+                    LogService.warn('EconomyService', `[FALLBACK] Retry via processMatchRewardHttp (${unauthenticated ? 'callable 401' : 'web local'})...`);
                     return await this.callAndApplyHttpReward(input, userId, profile);
                 } catch (httpFallbackError) {
                     LogService.error(
@@ -416,10 +423,7 @@ class EconomyService {
             }
 
 
-            const { RewardEngine } = require('../RewardEngine');
-            const reward = RewardEngine.calculate(input);
-            await this.applyReward(reward, userId, profile);
-            return reward;
+            throw e;
         }
     }
 
@@ -828,7 +832,10 @@ class EconomyService {
     }
 
     private async creditServerCoins(uid: string, kind: 'DAILY' | 'AD_MATCH' | 'AD_STORE' | 'WELCOME', operationId: string): Promise<{ credited: number; balance: number }> {
-        const credit = httpsCallable<{ operationId: string; kind: typeof kind }, { credited: number; balance: number }>(getFunctions(), 'creditCoins');
+        // Toutes les fonctions d'économie sont déployées dans europe-west1.
+        // Utiliser l'instance régionnée évite que l'appel parte par défaut vers
+        // us-central1, où `creditCoins` n'existe pas.
+        const credit = httpsCallable<{ operationId: string; kind: typeof kind }, { credited: number; balance: number }>(gameFunctions, 'creditCoins');
         return (await credit({ operationId, kind })).data;
     }
 

@@ -8,7 +8,7 @@ import { hasTransitionFingerprint, TransitionFingerprint } from './gameCoordinat
 import { GameRoom, PlayerProfile } from './gameCore/types';
 import { isActivePremiumEntitlement } from './premiumAccess';
 import { finishReplayCapture } from './replayCapture';
-import { getLeagueMonthKey, getStartOfLeagueMonth } from './leagueTime';
+import { getLeagueDateKey, getLeagueHourKey, getLeagueMonthKey, getStartOfLeagueMonth } from './leagueTime';
 
 type DocumentData = Record<string, unknown>;
 
@@ -163,6 +163,7 @@ export const buildPlayerFinalization = (
         }, 0),
         pointsAccumulated: monthlyHistory.reduce((sum, record) => sum + asNumber(asRecord(record).score), 0),
         gamesPlayed: monthlyHistory.length,
+        gamesWon: monthlyHistory.filter((record) => asRecord(record).result === 'WIN').length,
         displayName: getProfile(room, uid)?.displayName ?? player.name,
         avatarId: getProfile(room, uid)?.avatarId ?? player.avatarId ?? 'avatar_default',
         activeFrame: economy.activeFrame ?? null,
@@ -199,6 +200,20 @@ export const finalizeCoordinatedMatch = async (
         const userSnapshots = await Promise.all(userRefs.map(ref => transaction.get(ref)));
         const entitlementSnapshots = await Promise.all(entitlementRefs.map(ref => transaction.get(ref)));
         const now = Date.now();
+        const analyticsDate = getLeagueDateKey(now);
+        const analyticsRef = db.collection('analytics_daily').doc(analyticsDate);
+        const analyticsSnapshot = await transaction.get(analyticsRef);
+        const analytics = analyticsSnapshot.exists ? analyticsSnapshot.data() ?? {} : {};
+        const gameMode = state.gameMode ?? room.gameMode ?? 'MANCHE';
+        const winningCondition = String(state.winningCondition ?? room.winningCondition ?? 'unknown');
+        const winningConditionKey = `${gameMode}:${winningCondition}`;
+        const hour = getLeagueHourKey(now);
+        const increment = (group: unknown, key: string): Record<string, number> => ({
+            ...(group && typeof group === 'object' && !Array.isArray(group) ? group as Record<string, number> : {}),
+            [key]: ((group && typeof group === 'object' && !Array.isArray(group)
+                ? Number((group as Record<string, unknown>)[key])
+                : 0) || 0) + 1,
+        });
         const rewards: Record<string, MatchReward> = {};
 
         participantIds.forEach((uid, index) => {
@@ -237,6 +252,15 @@ export const finalizeCoordinatedMatch = async (
                 { merge: true }
             );
         });
+
+        transaction.set(analyticsRef, {
+            date: analyticsDate,
+            totalGames: Number(analytics.totalGames ?? 0) + 1,
+            byMode: increment(analytics.byMode, gameMode),
+            byWinningCondition: increment(analytics.byWinningCondition, winningConditionKey),
+            byHour: increment(analytics.byHour, hour),
+            updatedAt: now,
+        }, { merge: true });
 
         finishReplayCapture(db, transaction, roomId, room);
         transaction.update(roomRef, {

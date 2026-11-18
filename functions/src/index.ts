@@ -28,13 +28,14 @@ import { createRechargeCodeEmailSender } from './premiumBrevoEmail';
 import { createPremiumRechargeCodeReader } from './premiumRechargeCode';
 import { createStripeCustomerPortal } from './premiumStripePortal';
 import { getMonthlyCochonsFromHistory } from './matchFinalizer';
-import { getPreviousLeagueMonthKey } from './leagueTime';
+import { getPreviousLeagueMonthKey, getStartOfLeagueMonth } from './leagueTime';
 import { createDebitSoloBuyIn, createRefundSoloBuyIn } from './coinBuyIn';
 import { createSettleMultiplayerBuyIn, createSettleTournamentBuyIn } from './multiplayerBuyIn';
 import { createBuyReplaySlot, createGetReplayCapacity } from './replaySlotPurchase';
 import { createCreditCoins } from './coinCredits';
 import { createPurchaseStoreItem } from './storePurchase';
-import { createMigrateCoinAuthority } from './coinAuthority';
+import { createPurchaseChatItem } from './chatPurchase';
+import { createAuditCoinAuthority } from './coinAuthorityAudit';
 import {
     createBackfillGlobalLeaderboard,
     createGlobalLeaderboardProjection,
@@ -72,7 +73,8 @@ export const buyReplaySlot = createBuyReplaySlot(db);
 export const getReplayCapacity = createGetReplayCapacity(db);
 export const creditCoins = createCreditCoins(db);
 export const purchaseStoreItem = createPurchaseStoreItem(db);
-export const migrateCoinAuthority = createMigrateCoinAuthority(db);
+export const purchaseChatItem = createPurchaseChatItem(db);
+export const auditCoinAuthority = createAuditCoinAuthority(db);
 
 const LOCAL_WEB_ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
@@ -121,12 +123,18 @@ async function processMatchRewardInternal(
         const entrySnap = await transaction.get(entryRef);
         if (entrySnap.exists) return entrySnap.data()?.reward as ReturnType<typeof RewardEngine.calculate>;
 
+        // Le document mensuel est la source de vérité du compteur courant.
+        // Ne jamais le recalculer depuis stats.matchHistory : cette dernière
+        // pouvait être réécrite par une ancienne version du mobile.
+        const leagueMonth = new Date(getStartOfLeagueMonth(Date.now()));
+        const leagueMonthKey = `${leagueMonth.getUTCFullYear()}-${String(leagueMonth.getUTCMonth() + 1).padStart(2, '0')}`;
+        const monthId = `${uid}_${leagueMonthKey}`;
+        const monthlyRef = db.collection('users_monthly_stats').doc(monthId);
+        const monthlySnap = await transaction.get(monthlyRef);
+
         const userData = userSnap.exists ? userSnap.data() ?? {} : {};
         const existingEconomy: Record<string, any> = userData.economy ?? {};
-        const statsHistory = userData.stats?.matchHistory;
-        const currentCochonsGiven = Array.isArray(statsHistory)
-            ? getMonthlyCochonsFromHistory(statsHistory, Date.now())
-            : (existingEconomy.cochonsGiven ?? existingEconomy.leaguePoints ?? 0);
+        const currentCochonsGiven = Number(monthlySnap.data()?.cochonsGiven ?? existingEconomy.cochonsGiven ?? 0);
         const secureInput: RewardCalculationInput = {
             ...(clientInput as RewardCalculationInput),
             currentXP: existingEconomy.xp || 0,
@@ -163,6 +171,61 @@ async function processMatchRewardInternal(
             ])],
         };
         transaction.set(userRef, { economy: newEconomy }, { merge: true });
+
+        // Les statistiques d'un match authentifié sont écrites par le serveur,
+        // dans la même transaction que la récompense. Cela évite qu'un cache
+        // local ancien puisse remplacer les compteurs historiques.
+        const previousStats: Record<string, any> = userData.stats ?? {};
+        const mancheResults = Array.isArray(clientInput.mancheHistory)
+            ? clientInput.mancheHistory.map((manche: any) => manche.pointsEarned).filter((value: any) => [5, 4, 2, 1, -1].includes(value))
+            : [];
+        const playerFinalStats = clientInput.playerFinalStats as any;
+        const matchRecord = {
+            id: operationId,
+            timestamp: Date.now(),
+            result: playerFinalStats?.rank === 1 ? 'WIN' : 'LOSS',
+            score: Number(playerFinalStats?.totalPoints ?? 0),
+            cochons: Number(playerFinalStats?.totalCochons ?? 0),
+            roundsWon: Number(playerFinalStats?.mancheWins ?? playerFinalStats?.totalRoundWins ?? 0),
+            leaguePointsEarned: computed.leaguePointsEarned,
+            mancheLeaguePointsEarned: mancheResults,
+            opponents: [],
+            mode: clientInput.gameMode ?? 'SOLO',
+        };
+        const nextHistory = [matchRecord, ...(Array.isArray(previousStats.matchHistory) ? previousStats.matchHistory : [])].slice(0, 500);
+        const increment = (value: number) => mancheResults.filter((entry: number) => entry === value).length;
+        const nextStats = {
+            ...previousStats,
+            gamesPlayed: Number(previousStats.gamesPlayed ?? 0) + 1,
+            gamesWon: Number(previousStats.gamesWon ?? 0) + (playerFinalStats?.rank === 1 ? 1 : 0),
+            totalRoundsWon: Number(previousStats.totalRoundsWon ?? 0) + Number(playerFinalStats?.totalRoundWins ?? playerFinalStats?.mancheWins ?? 0),
+            totalCochonsInflicted: Number(previousStats.totalCochonsInflicted ?? 0) + Number(playerFinalStats?.totalCochons ?? 0),
+            totalCochonsSubis: Number(previousStats.totalCochonsSubis ?? 0) + increment(-1),
+            totalPointsAccumulated: Number(previousStats.totalPointsAccumulated ?? 0) + Number(playerFinalStats?.totalPoints ?? 0),
+            totalLeague5Pts: Number(previousStats.totalLeague5Pts ?? 0) + increment(5),
+            totalLeague4Pts: Number(previousStats.totalLeague4Pts ?? 0) + increment(4),
+            totalLeague2Pts: Number(previousStats.totalLeague2Pts ?? 0) + increment(2),
+            totalLeague1Pt: Number(previousStats.totalLeague1Pt ?? 0) + increment(1),
+            totalLeagueMinus1Pt: Number(previousStats.totalLeagueMinus1Pt ?? 0) + increment(-1),
+            matchHistory: nextHistory,
+            lastSync: Date.now(),
+        };
+        transaction.set(userRef, { stats: nextStats }, { merge: true });
+
+        const monthlyData = monthlySnap.exists ? monthlySnap.data() ?? {} : {};
+        transaction.set(monthlyRef, {
+            ...monthlyData,
+            userId: uid,
+            yearMonth: monthId.slice(-7),
+            // Le compteur mensuel suit exactement le barème du RewardEngine,
+            // comme economy.cochonsGiven, et non le champ de classement brut.
+            cochonsGiven: computed.newCochonsGiven,
+            cochonsSubis: Number(monthlyData.cochonsSubis ?? 0) + increment(-1),
+            pointsAccumulated: Number(monthlyData.pointsAccumulated ?? 0) + Number(playerFinalStats?.totalPoints ?? 0),
+            gamesPlayed: Number(monthlyData.gamesPlayed ?? 0) + 1,
+            gamesWon: Number(monthlyData.gamesWon ?? 0) + (playerFinalStats?.rank === 1 ? 1 : 0),
+            updatedAt: Date.now(),
+        }, { merge: true });
         transaction.create(entryRef, {
             amount: computed.coinsEarned,
             reason: 'MATCH_REWARD',

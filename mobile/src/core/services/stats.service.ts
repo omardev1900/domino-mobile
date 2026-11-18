@@ -323,9 +323,12 @@ class StatsService {
         // leaguePoints are now managed EXCLUSIVELY by RewardEngine via processServerReward() in GameScreen.
         // This prevents race conditions and ensures Firebase remains the single source of truth.
 
-        // If logged in, sync to Firebase
+        // Les comptes authentifiés sont désormais mis à jour par la Cloud
+        // Function de récompense, dans une transaction idempotente. Ne jamais
+        // repousser ici le snapshot local complet : une ancienne installation
+        // pouvait ainsi écraser l'historique serveur.
         if (userId && !userId.startsWith('guest_')) {
-            await this.pushStatsToFirebase(userId, stats);
+            LogService.info('StatsService', 'Stats authentifiées conservées localement; écriture serveur attendue via processMatchReward.');
         }
     }
 

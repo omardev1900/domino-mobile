@@ -10,7 +10,7 @@
  * ╚══════════════════════════════════════════════════════╝
  */
 
-import { doc, getDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { LogService } from './LogService';
 import {
@@ -116,69 +116,6 @@ class LeagueService {
             if (cochonsGiven < threshold) return threshold;
         }
         return null; // Grade max atteint
-    }
-
-    /**
-     * Met à jour Firestore avec les nouveaux cochons donnés et cadres débloqués.
-     * À appeler après processMatchReward (côté client ou Cloud Function).
-     *
-     * Champs mis à jour dans `users/{uid}`:
-     *   - `economy.cochonsGiven`   (incrémenté)
-     *   - `economy.unlockedFrames` (ajout des nouveaux cadres)
-     *   - `economy.coins`          (ajout des coins bonus des paliers)
-     *   - `economy.leagueGrade`    (grade recalculé)
-     */
-    async applyLeagueUnlocks(
-        uid: string,
-        cochonsGivenInMatch: number,
-        unlockEvents: FrameUnlockEvent[]
-    ): Promise<void> {
-        if (uid.startsWith('guest_') || cochonsGivenInMatch <= 0) return;
-
-        try {
-            const userRef = doc(db, 'users', uid);
-            const snap = await getDoc(userRef);
-            const currentEconomy = snap.exists() ? (snap.data().economy || {}) : {};
-            const currentCochons = currentEconomy.cochonsGiven ?? 0;
-            const newCochonsGiven = currentCochons + cochonsGivenInMatch;
-            const newGrade = this.getGradeFromCochons(newCochonsGiven);
-
-            const updates: Record<string, any> = {
-                'economy.cochonsGiven': newCochonsGiven,
-                'economy.leagueGrade': newGrade,
-            };
-
-            // Ajouter les coins bonus et les cadres débloqués
-            let bonusCoins = 0;
-            const newFrameIds: LeagueFrameId[] = [];
-
-            for (const event of unlockEvents) {
-                bonusCoins += event.coinsBonus;
-                newFrameIds.push(event.frameId);
-            }
-
-            if (bonusCoins > 0) {
-                // On incrémente les coins directement côté Firestore (opération atomique)
-                updates['economy.coins'] = (currentEconomy.coins ?? 0) + bonusCoins;
-            }
-
-            await updateDoc(userRef, updates);
-
-            // Ajout des cadres (arrayUnion est idempotent — pas de doublon possible)
-            if (newFrameIds.length > 0) {
-                await updateDoc(userRef, {
-                    'economy.unlockedFrames': arrayUnion(...newFrameIds),
-                });
-            }
-
-            LogService.info(
-                'LeagueService',
-                `[uid=${uid}] cochonsGiven: ${currentCochons} → ${newCochonsGiven} | grade: ${newGrade}` +
-                (unlockEvents.length > 0 ? ` | 🏆 ${unlockEvents.length} palier(s) débloqué(s) !` : '')
-            );
-        } catch (e) {
-            LogService.error('LeagueService', 'applyLeagueUnlocks error:', e);
-        }
     }
 
     /**

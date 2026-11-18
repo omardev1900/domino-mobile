@@ -207,8 +207,17 @@ service cloud.firestore {
         request.resource.data.get('economy', {}).get('coins', 300) == 300;
       allow update: if request.auth != null && request.auth.uid == userId &&
         (
-          !request.resource.data.get('economy', {}).diff(resource.data.get('economy', {})).affectedKeys().hasAny(['coins']) ||
-          resource.data.get('coinAuthority', 'legacy') != 'server'
+          // Les statistiques sont écrites exclusivement par les Cloud Functions.
+          // Les anciennes versions du mobile ne doivent plus pouvoir remplacer
+          // un historique serveur avec leur cache local.
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['stats']) ||
+            request.resource.data.stats.diff(resource.data.stats).affectedKeys().hasOnly(['inventory'])
+          ) &&
+          (
+            !request.resource.data.get('economy', {}).diff(resource.data.get('economy', {})).affectedKeys().hasAny(['coins']) ||
+            resource.data.get('coinAuthority', 'legacy') != 'server'
+          )
         );
     }
 

@@ -3,6 +3,7 @@ import { after, before, describe, it } from 'node:test';
 import * as admin from 'firebase-admin';
 
 import { getTransitionFingerprint } from './gameCoordinator';
+import { getLeagueDateKey } from './leagueTime';
 import { finalizeCoordinatedMatch } from './matchFinalizer';
 import { finalRoom } from './matchFinalizer.testUtils';
 
@@ -57,5 +58,10 @@ describe('matchFinalizer avec Firestore Emulator', () => {
             .where('userId', 'in', ['p1', 'p2'])
             .get();
         assert.equal(monthly.size, 2);
+
+        const analytics = (await db.collection('analytics_daily').doc(getLeagueDateKey(Date.now())).get()).data();
+        assert.equal(analytics?.totalGames, 1);
+        assert.equal(analytics?.byMode?.SCORE, 1);
+        assert.equal(analytics?.byWinningCondition?.['SCORE:10'], 1);
     });
 });
