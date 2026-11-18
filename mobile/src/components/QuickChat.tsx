@@ -9,6 +9,8 @@ import { economyService } from '../core/services/economy.service';
 import { authService } from '../core/services/auth.service';
 import { LogService } from '../core/services/LogService';
 import { premiumService } from '../core/services/premium.service';
+import { httpsCallable } from 'firebase/functions';
+import { gameFunctions } from '../core/services/firebase';
 
 // ─── Fallback codé en dur (si Firestore hors ligne) ──────────────────────────
 
@@ -217,25 +219,22 @@ export const QuickChat: React.FC<QuickChatProps> = ({ onSelectMessage, onSelectE
 
         try {
             await authService.getCurrentUser(); // s'assure que l'user est connecté
-            const newCoins = userCoins - item.costAmount;
+            const purchase = httpsCallable<
+                { itemId: string; requestId: string },
+                { balance: number; unlockedChatItems: string[]; chatInventory: Record<string, { remaining: number }> }
+            >(gameFunctions, 'purchaseChatItem');
+            const result = (await purchase({
+                itemId: item.firestoreId,
+                requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            })).data;
 
             if (isLifetime) {
-                // Achat à vie
-                const newUnlocked = [...unlockedIds, item.firestoreId];
-                await economyService.setEconomy({ coins: newCoins, unlockedChatItems: newUnlocked });
-                setUserCoins(newCoins);
-                setUnlockedIds(new Set(newUnlocked));
+                setUserCoins(result.balance);
+                setUnlockedIds(new Set(result.unlockedChatItems));
                 showMsg(`"${item.text}" débloqué à vie !`);
             } else {
-                // Achat consommable : ajouter N usages (rechargeable)
-                const currentRemaining = chatInventory[item.firestoreId]?.remaining ?? 0;
-                const newInventory = {
-                    ...chatInventory,
-                    [item.firestoreId]: { remaining: currentRemaining + item.usagesPerPurchase },
-                };
-                await economyService.setEconomy({ coins: newCoins, chatInventory: newInventory });
-                setUserCoins(newCoins);
-                setChatInventory(newInventory);
+                setUserCoins(result.balance);
+                setChatInventory(result.chatInventory);
                 showMsg(`+${item.usagesPerPurchase} envois achetés !`);
             }
 
