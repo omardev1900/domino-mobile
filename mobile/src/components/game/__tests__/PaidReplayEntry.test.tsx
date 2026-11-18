@@ -2,13 +2,13 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { httpsCallable } from 'firebase/functions';
 import { PaidReplayEntry } from '../PaidReplayEntry';
-import { listSavedReplays, openSavedReplay } from '../../../core/services/replayLibrary.service';
+import { listSavedReplays, readSavedReplay } from '../../../core/services/replayLibrary.service';
 const charge = jest.fn();
 jest.mock('firebase/functions', () => ({ httpsCallable: jest.fn() }));
-jest.mock('../../../core/services/firebase', () => ({ auth: { currentUser: { uid: 'player' } }, gameFunctions: {} }));
+jest.mock('../../../core/services/firebase', () => ({ auth: { currentUser: { uid: 'player', getIdToken: jest.fn().mockResolvedValue('token') } }, gameFunctions: {} }));
 jest.mock('../../../core/services/economy.service', () => ({ economyService: { applyConfirmedReplayBalance: jest.fn() } }));
 jest.mock('../../../core/services/replayBalance', () => ({ readConfirmedReplayBalance: jest.fn().mockResolvedValue(1000) }));
-jest.mock('../../../core/services/replayLibrary.service', () => ({ listSavedReplays: jest.fn(), openSavedReplay: jest.fn() }));
+jest.mock('../../../core/services/replayLibrary.service', () => ({ listSavedReplays: jest.fn(), readSavedReplay: jest.fn() }));
 beforeEach(() => {
     jest.clearAllMocks();
     jest.mocked(httpsCallable).mockReturnValue(charge as unknown as ReturnType<typeof httpsCallable>);
@@ -98,10 +98,10 @@ it('propose de remplacer un replay et envoie le choix après confirmation', asyn
 it('rouvre gratuitement un replay déjà sauvegardé pour cette partie', async () => {
     const item = { id: 'saved', metadata: { endedAt: 1700000000000, mode: 'SOLO' as const, sourceId: 'match', gameMode: 'SCORE', winningCondition: 10, opponents: ['Dédé'] } };
     jest.mocked(listSavedReplays).mockResolvedValue([item]);
-    jest.mocked(openSavedReplay).mockResolvedValue({ replay: { frames: [], localPlayerId: 'player', metadata: item.metadata } });
+    jest.mocked(readSavedReplay).mockResolvedValue({ replay: { frames: [], localPlayerId: 'player', metadata: item.metadata } });
     const p = props(); const view = render(<PaidReplayEntry {...p} />);
     fireEvent.press(view.getByLabelText('Ouvrir un replay pour 2 000 coins'));
     await waitFor(() => expect(p.onOpened).toHaveBeenCalledTimes(1));
-    expect(openSavedReplay).toHaveBeenCalledWith('saved', '');
+    expect(readSavedReplay).toHaveBeenCalledWith('saved');
     expect(charge).not.toHaveBeenCalled();
 });

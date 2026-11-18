@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { deleteSavedReplay, listSavedReplays, openSavedReplay, ReplaySummary, SavedReplay } from '../../core/services/replayLibrary.service';
+import { deleteSavedReplay, listSavedReplays, readSavedReplay, ReplaySummary, SavedReplay } from '../../core/services/replayLibrary.service';
 import { SoloReplay } from './SoloReplay';
 
 interface Props { visible: boolean; onClose: () => void }
@@ -18,7 +18,6 @@ export const ReplayLibraryModal = ({ visible, onClose }: Props) => {
     const [playing, setPlaying] = useState<SavedReplay | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
-    const attempt = useRef<{ id: string; requestId: string } | null>(null);
     const lock = useRef(false);
     const load = async () => { try { setItems(await listSavedReplays()); setError(''); } catch (e) { setError(e instanceof Error ? e.message : 'Chargement impossible.'); } };
     useEffect(() => { if (visible) void load(); }, [visible]);
@@ -26,9 +25,8 @@ export const ReplayLibraryModal = ({ visible, onClose }: Props) => {
         if (!selected || lock.current) return;
         lock.current = true; setBusy(true); setError('');
         try {
-            if (!attempt.current || attempt.current.id !== selected.id) attempt.current = { id: selected.id, requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}` };
-            const result = await openSavedReplay(selected.id, attempt.current.requestId);
-            attempt.current = null; setSelected(null); setPlaying(result.replay);
+            const result = await readSavedReplay(selected.id);
+            setSelected(null); setPlaying(result.replay);
         } catch (e) { setError(e instanceof Error ? e.message : 'Ouverture impossible.'); }
         finally { lock.current = false; setBusy(false); }
     };

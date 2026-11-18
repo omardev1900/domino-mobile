@@ -5,10 +5,10 @@ import { PlayerArea } from '../PlayerArea';
 import { GameState, Player } from '../../../core/types';
 
 // Mock PlayerAvatar so it doesn't render SVGs and complex views
-const MockPlayerAvatar = (props: any) => <View {...props} />;
+    const MockPlayerAvatar = (props: any) => <View {...props} />;
 jest.mock('../../PlayerAvatar', () => ({
-    PlayerAvatar: jest.fn(({ player, isActive, position }) => (
-        <MockPlayerAvatar testID={`mock-avatar-for-${player.id}`} isActive={isActive} position={position} />
+    PlayerAvatar: jest.fn(({ player, isActive, position, showTimer }) => (
+        <MockPlayerAvatar testID={`mock-avatar-for-${player.id}`} isActive={isActive} position={position} showTimer={showTimer} />
     ))
 }));
 
@@ -62,6 +62,19 @@ describe('PlayerArea Component', () => {
 
         expect(avatar1.props.isActive).toBe(true);
         expect(avatarLocal.props.isActive).toBe(false);
+    });
+
+    it('does not display a human countdown for a bot turn', () => {
+        const bot = { ...mockPlayer1, status: 'BOT' as const };
+        const { getByTestId } = render(
+            <PlayerArea
+                {...defaultProps}
+                opponents={[bot, mockPlayer2]}
+                gameState={{ ...mockGameState, currentPlayerId: bot.id }}
+            />
+        );
+
+        expect(getByTestId('mock-avatar-for-p1').props.showTimer).toBe(false);
     });
 
     it('renders the hand sort trigger for the local player', () => {

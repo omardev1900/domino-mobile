@@ -5,7 +5,7 @@ import { auth, gameFunctions } from '../../core/services/firebase';
 import { economyService } from '../../core/services/economy.service';
 import { readConfirmedReplayBalance } from '../../core/services/replayBalance';
 import { GameState } from '../../core/types';
-import { listSavedReplays, openSavedReplay, ReplaySummary } from '../../core/services/replayLibrary.service';
+import { listSavedReplays, readSavedReplay, ReplaySummary } from '../../core/services/replayLibrary.service';
 
 interface Props {
     enabled: boolean;
@@ -36,12 +36,14 @@ export const PaidReplayEntry = forwardRef<PaidReplayEntryHandle, Props>(({ enabl
     const checkSlots = async () => {
         setBusy(true); setChecked(false); setError('');
         try {
-            const uid = auth.currentUser?.uid;
-            if (!uid) throw new Error('Connexion requise.');
+            const currentUser = auth.currentUser;
+            const uid = currentUser?.uid;
+            if (!currentUser || !uid) throw new Error('Connexion requise.');
+            await currentUser.getIdToken(true);
             const saved = await listSavedReplays();
             const existing = saved.find(item => item.metadata.mode === (solo ? 'SOLO' : 'MULTIPLAYER') && item.metadata.sourceId === sourceId);
             if (existing) {
-                const result = await openSavedReplay(existing.id, '');
+                const result = await readSavedReplay(existing.id);
                 if (auth.currentUser?.uid !== uid) throw new Error('Le compte connecté a changé.');
                 setConfirm(false);
                 onOpened(result.replay.frames, '');
@@ -60,8 +62,10 @@ export const PaidReplayEntry = forwardRef<PaidReplayEntryHandle, Props>(({ enabl
         setBusy(true);
         setError('');
         try {
-            const uid = auth.currentUser?.uid;
-            if (!uid) throw new Error('Connexion requise.');
+            const currentUser = auth.currentUser;
+            const uid = currentUser?.uid;
+            if (!currentUser || !uid) throw new Error('Connexion requise.');
+            await currentUser.getIdToken(true);
             if (solo) {
                 if (!hasFrames) throw new Error('Cette partie ne dispose pas d’un replay complet.');
                 await settle();

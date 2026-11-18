@@ -87,7 +87,7 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
                             key={`${opponents[0]?.id}-${gameState.currentPlayerId}`}
                             player={opponents[0]}
                             isActive={gameState.currentPlayerId === opponents[0]?.id && isPlaying}
-                            showTimer={gameState.currentPlayerId === opponents[0]?.id && !isGameOver && isPlaying && gameState.turnDuration > 0}
+                            showTimer={opponents[0].status !== 'BOT' && gameState.currentPlayerId === opponents[0]?.id && !isGameOver && isPlaying && gameState.turnDuration > 0}
                             isPaused={isPaused}
                             timerDuration={gameState.turnDuration}
                             size={53}
@@ -130,7 +130,7 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
                             key={`${opponents[1]?.id}-${gameState.currentPlayerId}`}
                             player={opponents[1]}
                             isActive={gameState.currentPlayerId === opponents[1]?.id && isPlaying}
-                            showTimer={gameState.currentPlayerId === opponents[1]?.id && !isGameOver && isPlaying && gameState.turnDuration > 0}
+                            showTimer={opponents[1].status !== 'BOT' && gameState.currentPlayerId === opponents[1]?.id && !isGameOver && isPlaying && gameState.turnDuration > 0}
                             isPaused={isPaused}
                             timerDuration={gameState.turnDuration}
                             size={53}
