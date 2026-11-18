@@ -64,6 +64,6 @@ describe('resolveDominoSidePalette', () => {
         expect(hasAvatarImage('avatar_bot_03')).toBe(true);
         expect(getAvatarImage('avatar_bot_03')).toBe(getAvatarImage('bot_dede'));
         expect(hasAvatarImage('avatar_bot_07')).toBe(true);
-        expect(getAvatarImage('avatar_bot_07')).toBe(getAvatarImage('avatar_14'));
+        expect(getAvatarImage('avatar_bot_07')).toBe(getAvatarImage('bot_arrogante'));
     });
 });

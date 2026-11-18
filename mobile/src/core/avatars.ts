@@ -26,11 +26,8 @@ export const AVATAR_IMAGES = {
     avatar_default: require('@/assets/images/avatars/default.jpg'),
     Chip_1: require('@/assets/images/avatars/bot/Chip_1.png'),
     Spark_2: require('@/assets/images/avatars/bot/Spark_2.png'),
-    Atlas_3: require('@/assets/images/avatars/bot/Atlas_3.png'),
     Zenith_4: require('@/assets/images/avatars/bot/Zenith_4.png'),
-    bot_chabinex: require('@/assets/images/avatars/bot/bot_chabinex.jpg'),
     bot_dede: require('@/assets/images/avatars/bot/bot_dede.jpg'),
-    bot_jojo: require('@/assets/images/avatars/bot/bot_jojo.jpg'),
     bot_maxime: require('@/assets/images/avatars/bot/bot_maxime.jpg'),
     bot_manoux: require('@/assets/images/avatars/bot/bot_manoux.jpg'),
     bot_mariyan: require('@/assets/images/avatars/bot/bot_mariyan.jpg'),
@@ -53,14 +50,14 @@ const AVATAR_ALIASES: Record<string, AvatarId> = {
     default_asset: 'avatar_default',
     // Compatibilité avec les parties multijoueur créées par les anciennes versions.
     // Ces IDs pointaient vers des avatars qui n’étaient jamais embarqués dans l’app.
-    avatar_bot_01: 'avatar_17', // Ti-Sonson
-    avatar_bot_02: 'avatar_06', // Man-Yaya
+    avatar_bot_01: 'Chip_1', // Ti-Sonson
+    avatar_bot_02: 'Spark_2', // Man-Yaya
     avatar_bot_03: 'bot_dede', // Dédé
     avatar_bot_04: 'bot_maxime', // Maxime
-    avatar_bot_05: 'avatar_13', // Tonton-Léon
-    avatar_bot_06: 'avatar_10', // Eudorge
-    avatar_bot_07: 'avatar_14', // Man-Diab
-    avatar_bot_08: 'avatar_15', // Papa-Zombi
+    avatar_bot_05: 'bot_mariyan', // Tonton-Léon
+    avatar_bot_06: 'bot_yoyo', // Eudorge
+    avatar_bot_07: 'bot_arrogante', // Man-Diab
+    avatar_bot_08: 'bot_karnage', // Papa-Zombi
     // Les cinq avatars historiques étaient uniquement hébergés sur Storage.
     // Ils possèdent maintenant un équivalent embarqué, afin de ne plus afficher
     // une silhouette noire lorsqu'une ancienne URL Storage a expiré ou a été supprimée.

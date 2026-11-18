@@ -68,7 +68,7 @@ export const useMultiplayerGame = (gameId: string | undefined, userId: string | 
                         status: 'HUMAN' as const
                     };
                 } else {
-                    return { ...p, id: `bot-${i}`, name: `Bot ${i}`, status: 'BOT' as const, avatarId: i === 1 ? 'Spark_2' : i === 2 ? 'Atlas_3' : 'Zenith_4' };
+                    return { ...p, id: `bot-${i}`, name: `Bot ${i}`, status: 'BOT' as const, avatarId: i === 1 ? 'Spark_2' : i === 2 ? 'Chip_1' : 'Zenith_4' };
                 }
             });
 
