@@ -11,22 +11,18 @@ export interface BotProfile {
 /** Catalogue versionné des bots du jeu. Source : catalogue Firestore validé le 2026-11-18. */
 export const BOT_CATALOG: Record<BotDifficulty, readonly BotProfile[]> = {
     TI_MANMAY: [
-        { id: 'bot_ti_3', name: 'Doudou', avatarId: 'avatar_03', difficulty: 'TI_MANMAY' },
-        { id: 'bot_ti_5', name: 'Fifine', avatarId: 'avatar_12', difficulty: 'TI_MANMAY' },
-        { id: 'bot_ti_2', name: 'Man-Yaya', avatarId: 'avatar_06', difficulty: 'TI_MANMAY' },
-        { id: 'bot_ti_1', name: 'Ti-Sonson', avatarId: 'avatar_17', difficulty: 'TI_MANMAY' },
+        { id: 'bot_ti_3', name: 'Doudou', avatarId: 'Chip_1', difficulty: 'TI_MANMAY' },
+        { id: 'bot_ti_2', name: 'Man-Yaya', avatarId: 'Zenith_4', difficulty: 'TI_MANMAY' },
+        { id: 'bot_ti_1', name: 'Ti-Sonson', avatarId: 'bot_arrogante', difficulty: 'TI_MANMAY' },
     ],
     MAPIPI: [
-        { id: 'bot_mapipi_5', name: 'ChabineX', avatarId: 'bot_chabinex', difficulty: 'MAPIPI' },
         { id: 'bot_mapipi_1', name: 'Dédé', avatarId: 'bot_dede', difficulty: 'MAPIPI' },
-        { id: 'bot_mapipi_4', name: 'Jojo', avatarId: 'bot_jojo', difficulty: 'MAPIPI' },
+        { id: 'bot_mapipi_4', name: 'Jojo', avatarId: 'bot_neg_gwo_siwo', difficulty: 'MAPIPI' },
         { id: 'bot_mapipi_2', name: 'Maxime', avatarId: 'bot_maxime', difficulty: 'MAPIPI' },
     ],
     GRAN_MOUN: [
-        { id: 'bot_gran_3', name: 'Man-Zouzou', avatarId: 'avatar_04', difficulty: 'GRAN_MOUN' },
-        { id: 'bot_gran_1', name: 'Tonton-Léon', avatarId: 'avatar_13', difficulty: 'GRAN_MOUN' },
-        { id: 'bot_gran_4', name: 'Papi-Jo', avatarId: 'avatar_08', difficulty: 'GRAN_MOUN' },
-        { id: 'bot_gran_2', name: 'Eudorge', avatarId: 'avatar_10', difficulty: 'GRAN_MOUN' },
+        { id: 'bot_gran_3', name: 'Man-Zouzou', avatarId: 'bot_karnage', difficulty: 'GRAN_MOUN' },
+        { id: 'bot_gran_1', name: 'Tonton-Léon', avatarId: 'bot_mariyan', difficulty: 'GRAN_MOUN' },
         { id: 'bot_gran_manoux', name: 'ManouX', avatarId: 'bot_manoux', difficulty: 'GRAN_MOUN' },
     ],
     METKAYALI: [
