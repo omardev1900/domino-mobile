@@ -24,7 +24,13 @@
 
 - Développement : possibilité de commencer avec un seul domino en main.
 
+- Replay : vérification des emplacements avant achat, accès direct après achat et ouverture accélérée ; fonction d’achat mise à jour sur Firebase.
+
 ### 2026-11-03 — backend phase 1 déployé
+
+- Les bonus de coins des paliers de la Ligue des Cochons sont désormais accordés même si le joueur possède déjà l’ancien cadre correspondant.
+
+- Fonctions d’ouverture des replays déployées avec le tarif de 2 000 coins et la vérification du prix confirmé.
 
 - Le carrousel de découverte Premium présente chaque avantage avec ses couleurs et son motif ; les cartes d’accès sont réservées aux abonnés.
 

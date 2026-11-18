@@ -1,5 +1,15 @@
 # Retours client
 
+### 2026-11-16
+
+> Alerte Bugs ;
+>
+> 1 Un joueur se plaint d'avoir perdu tous les cochons et stats anciennes et son profil affiche uniquement les score du mois en cours. le joueur est le
+>
+> 2 un joueur essaie de enregsitrer un replay en ecrasant un ancien mais il recoit lerreur 410. j ai aussi etste2 avec al derniere version hebergé, je recois aussi unauithenticated [401]
+>
+> 3 plsuieurs joueurs ont reclame hier soir que le jeu est trop lent et que souvent les bots jouentt a leurs place> cela concerne la version 2.3.0
+
 ### 2026-11-09
 
 > Un joueur déclare que ça lui arrive que son adversaire en multi affiche la fin de son timer mais reste figé sans jouer pendant plusieurs secondes
