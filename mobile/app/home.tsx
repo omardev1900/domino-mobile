@@ -57,7 +57,7 @@ export default function HomeScreen() {
     const [showDailyReward, setShowDailyReward] = useState(false);
     const [showWelcomeReward, setShowWelcomeReward] = useState(false);
     const [showLowCoinsPrompt, setShowLowCoinsPrompt] = useState(false);
-    const [isClaimingWelcomeReward, setIsClaimingWelcomeReward] = useState(false);
+    const claimingWelcomeReward = useRef(false);
     const [dailyRewardAmount, setDailyRewardAmount] = useState(0);
     const [hasPremium, setHasPremium] = useState(false);
     const [premiumEntitlement, setPremiumEntitlement] = useState<PremiumEntitlement | null>(null);
@@ -191,7 +191,7 @@ export default function HomeScreen() {
 
                     if (isNewAccount) {
                         setTimeout(() => {
-                            if (!cancelled) setShowWelcomeReward(true);
+                            if (!cancelled && !claimingWelcomeReward.current) setShowWelcomeReward(true);
                         }, 1000);
                     } else if (dailyAvailable) {
                         const claimedAmount = await economyService.checkAndClaimDailyReward(u.uid);
@@ -248,12 +248,12 @@ export default function HomeScreen() {
     };
 
     // Appelé pour récupérer le bonus de bienvenue
-    const handleClaimWelcomeReward = async () => {
-        if (isClaimingWelcomeReward) return;
-        setIsClaimingWelcomeReward(true);
+    const handleClaimWelcomeReward = useCallback(async () => {
+        setShowWelcomeReward(false);
+        if (claimingWelcomeReward.current) return;
+        claimingWelcomeReward.current = true;
         try {
             await economyService.claimWelcomeGift();
-            setShowWelcomeReward(false);
 
             // Si le cadeau quotidien est aussi dispo, on l'affiche juste après avec un délai
             const dailyAvailable = await economyService.isDailyRewardAvailable();
@@ -269,9 +269,9 @@ export default function HomeScreen() {
         } catch (error) {
             LogService.warn('Home', 'Impossible de récupérer le cadeau de bienvenue.', error);
         } finally {
-            setIsClaimingWelcomeReward(false);
+            claimingWelcomeReward.current = false;
         }
-    };
+    }, [user?.uid]);
 
     const handleJoinCommunity = async () => {
         try {
@@ -562,7 +562,6 @@ export default function HomeScreen() {
                 onWatchAd={handleClaimWelcomeReward} // Même bouton pour récupérer
                 onSkip={handleClaimWelcomeReward} // S'ils skippent, ils récupèrent quand même car c'est un don
                 showAdReward={!hasPremium}
-                claiming={isClaimingWelcomeReward}
                 informational
                 autoDismissMs={3000}
                 onDismiss={handleClaimWelcomeReward}

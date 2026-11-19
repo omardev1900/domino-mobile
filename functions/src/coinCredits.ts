@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import { z } from 'zod';
+import { NEW_PLAYER_COINS } from './core/economy.constants';
 
 const creditSchema = z.object({
     operationId: z.string().regex(/^[A-Za-z0-9_-]{1,100}$/),
@@ -12,13 +13,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export async function creditCoins(db: admin.firestore.Firestore, uid: string, raw: unknown, now = Date.now()) {
     const { operationId, kind } = creditSchema.parse(raw);
+    if (kind !== 'WELCOME' && operationId.startsWith('welcome_')) {
+        throw new functions.https.HttpsError('invalid-argument', 'Identifiant de crédit réservé.');
+    }
     const userRef = db.collection('users').doc(uid);
-    const receiptRef = db.collection('coin_wallets').doc(uid).collection('entries').doc(operationId);
+    const receiptId = kind === 'WELCOME' ? `welcome_${uid}` : operationId;
+    const receiptRef = db.collection('coin_wallets').doc(uid).collection('entries').doc(receiptId);
     return db.runTransaction(async tx => {
         const [userSnap, receiptSnap] = await Promise.all([tx.get(userRef), tx.get(receiptRef)]);
         const economy = userSnap.data()?.economy ?? {};
         if (receiptSnap.exists) return { credited: 0, balance: economy.coins ?? 0, duplicate: true };
-        const coins = economy.coins;
+        const initializeWelcomeBalance = kind === 'WELCOME'
+            && economy.coins === undefined && economy.welcomeGiftClaimed !== true;
+        const coins = initializeWelcomeBalance ? 0 : economy.coins;
         if (typeof coins !== 'number' || !Number.isSafeInteger(coins) || coins < 0) throw new functions.https.HttpsError('failed-precondition', 'Solde indisponible.');
         if (kind === 'WELCOME' && economy.welcomeGiftClaimed) return { credited: 0, balance: coins, duplicate: true };
         if (kind === 'DAILY' && typeof economy.lastDailyRewardTimestamp === 'number' && now - economy.lastDailyRewardTimestamp < DAY_MS) {
@@ -27,13 +34,17 @@ export async function creditCoins(db: admin.firestore.Firestore, uid: string, ra
         if (kind === 'AD_STORE' && typeof economy.lastStoreAdTimestamp === 'number' && now - economy.lastStoreAdTimestamp < DAY_MS) {
             throw new functions.https.HttpsError('failed-precondition', 'Bonus boutique déjà réclamé récemment.');
         }
-        const credited = amounts[kind];
+        const credited = initializeWelcomeBalance ? NEW_PLAYER_COINS : amounts[kind];
         const balance = coins + credited;
         const economyUpdate: Record<string, unknown> = { 'economy.coins': balance };
         if (kind === 'WELCOME') economyUpdate['economy.welcomeGiftClaimed'] = true;
         if (kind === 'DAILY') economyUpdate['economy.lastDailyRewardTimestamp'] = now;
         if (kind === 'AD_STORE') economyUpdate['economy.lastStoreAdTimestamp'] = now;
-        tx.update(userRef, economyUpdate);
+        if (initializeWelcomeBalance) {
+            tx.set(userRef, { economy: { coins: balance, welcomeGiftClaimed: true } }, { merge: true });
+        } else {
+            tx.update(userRef, economyUpdate);
+        }
         tx.create(receiptRef, { amount: credited, reason: `COIN_CREDIT_${kind}`, balanceAfter: balance, createdAt: now });
         return { credited, balance, duplicate: false };
     });
