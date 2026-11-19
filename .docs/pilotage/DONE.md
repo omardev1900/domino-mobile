@@ -1,5 +1,11 @@
 # Taches terminees
 
+### 2026-11-19
+
+- [x] [Trello #138](https://trello.com/c/VxNmEWH0) Corriger la boucle de publicité et de résumé en fin de partie solo. Correctif vérifié sur Android en préproduction.
+- [x] [Trello #14](https://trello.com/c/tWSa407M) Corriger la régression du cadeau de bienvenue. Le solde initial est crédité une seule fois en préproduction.
+- [x] Préserver la réserve de 100 pièces des abonnés Premium en solo et en multijoueur. Cloud Functions déployées en production.
+
 ### 2026-11-18
 
 - [x] `UI-COMMUNITY-WHATSAPP-01` Ajouter sur la Homepage mobile un bouton

@@ -1,5 +1,12 @@
 # Changelog
 
+### 2026-11-19 — Android 2.5.4 préparée
+
+- Les abonnés Premium peuvent continuer à jouer avec leur réserve de 100 pièces.
+- La publicité de fin de partie solo et son résumé s’affichent une seule fois.
+- Le cadeau de bienvenue se ferme à la validation et le crédit initial est enregistré une seule fois.
+- Lorsque la coordination des pubs est activée, les tables mixtes démarrent sans publicité. En fin de match, seuls les joueurs gratuits voient une publicité si elle est disponible. Les scores restent accessibles indépendamment pour chaque joueur.
+
 ### 2026-11-18
 
 - L’accueil mobile propose désormais un bouton « Rejoindre la communauté »
