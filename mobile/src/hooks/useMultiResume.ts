@@ -55,8 +55,11 @@ export function useMultiResume(currentPath: string) {
             const roomSnap = await getDoc(roomRef);
             
             if (roomSnap.exists()) {
-                const roomData = roomSnap.data();
-                if (roomData && (roomData.status === 'PLAYING' || roomData.status === 'WAITING')) {
+                const roomData = roomSnap.data() as GameRoom;
+                const canResumeResults = roomData.adPolicy === 'SYNCHRONIZED'
+                    && roomData.status === 'FINISHED' && roomData.finalization?.status === 'COMPLETED'
+                    && roomData.participantIds?.includes(user.uid);
+                if (roomData.status === 'PLAYING' || roomData.status === 'WAITING' || canResumeResults) {
                     setResumeInfo({
                         roomId: activeRoomId,
                         status: roomData.status,
@@ -135,7 +138,7 @@ export function useMultiResume(currentPath: string) {
                     action: { type: 'SURRENDER' },
                 });
             } else {
-                await leaveRoom(activeRoomId, user.uid);
+                if (room.status !== 'FINISHED') await leaveRoom(activeRoomId, user.uid);
                 await setUserActiveRoom(user.uid, null);
             }
 

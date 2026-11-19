@@ -39,13 +39,13 @@ import { BeginnerOnboarding } from '../components/training/BeginnerOnboarding';
 import { shouldOfferMatchAdReward } from '../core/ads/matchRewardPolicy';
 
 // Core
-import { determineFirstPlayer, dealGameSolo, getForcedOpeningDominoId, getForcedTieBreakDominoId, dealGame } from '../core/LogicEngine';
+import { determineFirstPlayer, dealGameSolo, getForcedOpeningDominoId, getForcedTieBreakDominoId } from '../core/LogicEngine';
 import { getValidMoves } from '../core/DominoEngine';
 import { GameState, Player, PlayerId, GamePhase, Domino, GameRoom, GameMode } from '@/core/types';
-import { leaveRoom, startGame, clearRematchVotes, updatePlayerChat, resetRoomToLobby, markPlayerAsDebited, markRoomAsFinished, setUserActiveRoom, deleteWaitingRoomIfOwner, voteForRematch } from '../core/services/firebase';
+import { leaveRoom, clearRematchVotes, updatePlayerChat, resetRoomToLobby, markPlayerAsDebited, markRoomAsFinished, setUserActiveRoom, deleteWaitingRoomIfOwner, voteForRematch } from '../core/services/firebase';
 import SoundManager from '../core/audio/SoundManager';
 import HapticManager from '../core/audio/HapticManager';
-import { resolveHostHandSizeIndex, resolveStartingHandSize } from '../core/startingHandSize';
+import { resolveStartingHandSize } from '../core/startingHandSize';
 import SettingsManager from '../core/SettingsManager';
 import { TableTheme } from '../core/themes/tableThemes';
 import { authService } from '../core/services/auth.service';
@@ -59,6 +59,7 @@ import { markPlayersDisconnected } from '../hooks/game/playerPresence';
 import { getEstimatedPresenceServerNow, logPresenceDiagnostic } from '../hooks/game/presenceDiagnostics';
 import { getHeartbeatExpiryDecision, HEARTBEAT_TIMEOUT_MS } from '../hooks/game/heartbeatPolicy';
 import { getEffectivePlayerPresence, RtdbPlayerPresence } from '../hooks/game/presenceConnections';
+import { useMultiplayerAdCycle } from '../hooks/game/useMultiplayerAdCycle';
 import { useGameSync } from '../hooks/game/useGameSync';
 import { useGameTimers } from '../hooks/game/useGameTimers';
 import { useGameEngine } from '../hooks/game/useGameEngine';
@@ -75,7 +76,7 @@ import { TABLE_CONFIGS } from '../core/economy.constants';
 import { SkinConfig, StoreItem } from '../core/store.types';
 import { useInterstitialAd, TestIds, AdMobIds } from '../core/services/AdMobAdapter';
 import { isPremiumActive, premiumService } from '../core/services/premium.service';
-import { shouldShowMancheInterstitial, shouldShowSoloInterstitial } from '../core/ads/matchRewardPolicy';
+import { shouldShowMancheInterstitial, shouldShowLocalMatchEndInterstitial } from '../core/ads/matchRewardPolicy';
 import { rtdb, gameFunctions } from '../core/services/firebase';
 import { ref as rtdbRef, onValue as rtdbOnValue } from 'firebase/database';
 
@@ -173,11 +174,11 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // réinitialiser le chrono de présence sans attendre le prochain tick du setInterval.
     useEffect(() => {
         const prevPhase = gamePhaseForHBRef.current;
-        gamePhaseForHBRef.current = gameState?.phase;
-        if (gameState?.phase === 'PLAYING' && prevPhase !== 'PLAYING' && prevPhase !== undefined) {
+        gamePhaseForHBRef.current = roomData?.adCycle ? undefined : gameState?.phase;
+        if (roomData?.adCycle || (gameState?.phase === 'PLAYING' && prevPhase !== 'PLAYING' && prevPhase !== undefined)) {
             forceImmediatePing();
         }
-    }, [gameState?.phase, forceImmediatePing]);
+    }, [gameState?.phase, forceImmediatePing, roomData?.adCycle?.id]);
 
     const [timeLeftState, setTimeLeftState] = useState<number | null>(null);
     const [overtimeState, setOvertimeState] = useState<number | null>(null);
@@ -886,9 +887,15 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         }
     }, [hasPremium, isAdMobClosed, loadAdMob, premiumStatusResolved]);
 
-    const showSoloInterstitialBefore = useCallback((onContinue: () => void) => {
-        const currentPhase = gameStateRef.current?.phase ?? null;
-        if (!isSoloMode || !shouldShowSoloInterstitial(Platform.OS, currentPhase, !premiumStatusResolved || hasPremium, isAdMobLoaded)) {
+    const showFinalInterstitialBefore = useCallback((onContinue: () => void) => {
+        const state = gameStateRef.current;
+        const mixedTableParticipant = roomData?.adPolicy === 'NONE'
+            && roomData.participantIds?.includes(localPlayerId);
+        const startedWithPremium = mixedTableParticipant
+            && state?.players.some(player => player.id === localPlayerId && player.premiumActive === true);
+        if ((!isSoloMode && !mixedTableParticipant)
+            || !shouldShowLocalMatchEndInterstitial(Platform.OS, state?.phase ?? null,
+                !premiumStatusResolved || hasPremium || !!startedWithPremium, isAdMobLoaded)) {
             onContinue();
             return;
         }
@@ -908,17 +915,21 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         isAdVisibleRef.current = true;
         setIsAdVisible(true);
         interstitialFallbackRef.current = setTimeout(() => {
-            LogService.warn('GameScreen', 'AdMob fallback timeout before solo final results');
+            LogService.warn('GameScreen', 'AdMob fallback timeout before final results');
             finish();
         }, MATCH_EXIT_AD_FALLBACK_MS);
 
         try {
             showAdMob();
         } catch (error) {
-            LogService.error('GameScreen', 'Failed to show AdMob before solo final results', error);
+            LogService.error('GameScreen', 'Failed to show AdMob before final results', error);
             finish();
         }
-    }, [hasPremium, isAdMobLoaded, isSoloMode, premiumStatusResolved, showAdMob]);
+    }, [hasPremium, isAdMobLoaded, isSoloMode, localPlayerId, premiumStatusResolved, roomData?.adPolicy, roomData?.participantIds, showAdMob]);
+    const showFinalInterstitialBeforeRef = useRef(showFinalInterstitialBefore);
+    useEffect(() => {
+        showFinalInterstitialBeforeRef.current = showFinalInterstitialBefore;
+    }, [showFinalInterstitialBefore]);
 
     useEffect(() => () => {
         if (interstitialFallbackRef.current) {
@@ -969,9 +980,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             && currentState.phase !== 'MATCH_END';
 
         try {
-            if (isActiveMultiplayerSession && usesSystemCoordinator) {
+            if (isActiveMultiplayerSession && usesSystemCoordinator && !roomData?.adCancelled) {
                 await dispatch({ type: 'SURRENDER', playerId: localPlayerId });
-            } else if (isActiveMultiplayerSession && gameId) {
+            } else if (isActiveMultiplayerSession && gameId && !roomData?.adCancelled) {
                 await Promise.all([
                     leaveRoom(gameId, localPlayerId),
                     localPlayerId !== 'p1'
@@ -980,6 +991,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 ]);
             }
 
+            if ((!isActiveMultiplayerSession || roomData?.adCancelled) && gameId && localPlayerId !== 'p1') {
+                await setUserActiveRoom(localPlayerId, null);
+            }
             await AsyncStorage.removeItem('active_roomId');
         } catch (error) {
             isLeavingRoom.current = false;
@@ -1005,6 +1019,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         persistenceUserId,
         router,
         usesSystemCoordinator,
+        roomData?.adCancelled,
     ]);
 
     const handleExitPreservingSoloGame = useCallback(() => {
@@ -1160,7 +1175,14 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // showScoreOverlay : uniquement MANCHE_END / MATCH_END — PARTIE_END est géré par RoundResultCard + auto-continue
     // ✅ FIX [R2-B7] : on exclut la période d'affichage du RoundResultCard (zIndex 1500) pour éviter
     // qu'il masque l'UnifiedResultOverlay en fin de match.
-    const showScoreOverlay = (gameState?.phase === 'MANCHE_END' || gameState?.phase === 'MATCH_END')
+    const canShowInterstitial = !showRoundResult && (
+        roundResultSnapshot?.phase === 'MANCHE_END' || scoreOverlayPhase === 'MATCH_END'
+    );
+    const localAdPending = useMultiplayerAdCycle(roomData, localPlayerId, canShowInterstitial);
+    const finalCycleOpen = roomData?.adCycle?.kind === 'FINAL';
+    const finalAdPending = roomData?.adPolicy === 'SYNCHRONIZED' && gameState?.phase === 'MATCH_END'
+        && (!roomData.finalization || (finalCycleOpen && localAdPending));
+    const showScoreOverlay = !finalAdPending && (gameState?.phase === 'MANCHE_END' || gameState?.phase === 'MATCH_END')
         && scoreOverlayPhase === gameState.phase
         && !showRoundResult;
     const trainingHint = !gameState
@@ -1792,20 +1814,12 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             const triggerMatchEnd = () => {
                 setScoreOverlayPhase('MATCH_END');
             };
-            const triggerFinalResults = () => {
-                if (isSoloMode) {
-                    showSoloInterstitialBefore(triggerMatchEnd);
-                    return;
-                }
-                triggerMatchEnd();
-            };
-
             // Fin de match : le plateau reste lisible plus longtemps, puis les scores.
             setScoreOverlayPhase(null);
             setRoundResultSnapshot(gameState);
             setShowRoundResult(true);
             pendingRoundResultTransition.current = () => {
-                triggerFinalResults();
+                showFinalInterstitialBeforeRef.current(triggerMatchEnd);
             };
             if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
             roundResultTimerRef.current = setTimeout(handleDismissRoundResult, MATCH_RESULT_AUTO_ADVANCE_MS);
@@ -1820,7 +1834,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // Rejouer l'effet après le dernier domino : une transition Firestore peut
     // arriver pendant son animation. Sans cette dépendance, la fin de round
     // était ignorée de façon intermittente.
-    }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, isSoloMode, usesSystemCoordinator, isMoveAnimationActive, showSoloInterstitialBefore]);
+    }, [gameState?.phase, gameState?.gameId, gameState?.mancheNumber, gameState?.roundNumber, gameState?.turnId, isSoloMode, usesSystemCoordinator, isMoveAnimationActive]);
 
     // Laisser les scores lisibles avant d'afficher le cadeau de fin de match.
     // Uniquement en mode SOLO — en multi la pub interstitielle AdMob est déjà gérée ailleurs.
@@ -1851,7 +1865,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // Audio & Firebase Subscription
     // Buy-in Deduction (Delayed)
     useEffect(() => {
-        if (isSoloMode || !gameId || !gameState || gameState.phase !== 'PLAYING') return;
+        if (isSoloMode || !gameId || !gameState || gameState.phase !== 'PLAYING'
+            || typeof roomData?.managedBuyIn === 'number') return;
         if (hasBeenDebited.current) return;
 
         const deductBuyInAction = async () => {
@@ -1879,7 +1894,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         if (!hasLegacyHostAuthority) {
             deductBuyInAction();
         }
-    }, [gameState?.phase, hasLegacyHostAuthority, isSoloMode, gameId, activeTableTier, localPlayerId]);
+    }, [gameState?.phase, hasLegacyHostAuthority, isSoloMode, gameId, activeTableTier, localPlayerId, roomData?.managedBuyIn]);
     useEffect(() => {
         // Le solo est local-first : les cosmétiques et le profil continuent à se
         // charger en arrière-plan, mais ne doivent jamais retarder le deal.
@@ -2081,109 +2096,17 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     }, [isStarting, difficulty, playerDisplayName, gameMode, winningCondition, turnDuration, startingHandSize, playerOnlyHandSize, playerAvatarId, setGameState, setIsStarting, soloBuyInId, gameId, persistenceUserId]);
 
     // Multiplayer Start Handler
-    const handleStartGame = async () => {
+    const previousSession = roomData?.replaySessionId ?? null;
+    const handleStartGame = useCallback(async () => {
+        if (!gameId) return;
         SoundManager.unlockAudio();
-        if (!gameId || !roomData) return;
-
-        // 1. Débit immédiat pour l'hôte
-        const tableConfig = TABLE_CONFIGS[activeTableTier];
-        const meInRoom = roomData.players.find(p => p.uid === localPlayerId);
-
-        if (tableConfig && tableConfig.buyIn > 0 && !hasBeenDebited.current && !meInRoom?.hasBeenDebited) {
-            const settle = httpsCallable<{ roomId: string; action: 'debit' }, { balance: number }>(gameFunctions, 'settleMultiplayerBuyIn');
-            await settle({ roomId: gameId, action: 'debit' });
-            hasBeenDebited.current = true;
-            await markPlayerAsDebited(gameId, localPlayerId);
-            setDebitFeedback(`-${tableConfig.buyIn} 🪙`);
-            setTimeout(() => setDebitFeedback(null), 2500);
-        }
-
-        setIsStarting(true);
-
-        try {
-            const playerNames = roomData.players.map(p => p.displayName);
-            const botDifficulty = (roomData.difficulty || 'MAPIPI') as any;
-            const botConfigs = await botService.getBotsForLevel(botDifficulty, 3);
-            let botIndex = 0;
-
-            while (playerNames.length < 3) {
-                if (botIndex < botConfigs.length) {
-                    playerNames.push(botConfigs[botIndex].name);
-                    botIndex++;
-                } else {
-                    playerNames.push(`Bot ${playerNames.length}`);
-                }
-            }
-
-            const multiplayerStartingHandSize = resolveStartingHandSize(roomData.startingHandSize);
-            const hostHandIndex = resolveHostHandSizeIndex(roomData.handSizeForHostOnly, roomData.createdBy, roomData.players);
-            const fullState = dealGame(playerNames, multiplayerStartingHandSize, hostHandIndex) as GameState;
-            if (hostHandIndex !== undefined) fullState.startingHandPlayerId = roomData.createdBy;
-
-            // Apply room settings manually to the partial state if needed
-            fullState.gameMode = roomData.gameMode || 'MANCHE';
-            fullState.winningCondition = roomData.winningCondition || 3;
-            fullState.turnDuration = roomData.turnDuration || 15;
-            fullState.gameId = gameId; // Ensure gameId is present
-
-            // ✅ FIX: Champs manquants que dealGame() ne définit pas (contrairement à dealGameSolo)
-            // Sans eux, computeNextRoundState lit roundNumber=undefined → calcule toujours round 2 = R1
-            fullState.roundNumber = 1;
-            fullState.mancheNumber = 1;
-            fullState.mancheHistory = [];
-            fullState.history = [];
-            fullState.firstPlayerOfRound = null;
-            fullState.mancheResult = null;
-            fullState.startingHandSize = multiplayerStartingHandSize;
-
-            // Re-assign IDs to actual UIDs for real players, and configure Bots
-            fullState.players = fullState.players.map((p, i) => {
-                if (i < roomData.players.length) {
-                    const uid = roomData.players[i].uid;
-                    const roomPlayer = roomData.players[i];
-                    return {
-                        ...p,
-                        id: uid,
-                        avatarId: roomPlayer.avatarId || 'avatar_default',
-                        leagueGrade: roomPlayer.leagueGrade,   // Propagé depuis PlayerProfile
-                        activeFrame: roomPlayer.activeFrame,   // Propagé depuis PlayerProfile
-                        premiumActive: roomPlayer.premiumActive,
-                        status: roomPlayer.status === 'BOT' ? 'BOT' : 'HUMAN',
-                        difficulty: roomPlayer.status === 'BOT' ? (roomPlayer as any).difficulty : undefined
-                    };
-                } else {
-                    const relativeBotIdx = i - roomData.players.length;
-                    const config = botConfigs[relativeBotIdx] || botConfigs[0];
-                    return {
-                        ...p,
-                        id: `bot-${i}`,
-                        name: config.name,
-                        status: 'BOT',
-                        avatarId: config.avatarId,
-                        difficulty: config.difficulty as any
-                    };
-                }
-            });
-
-            fullState.currentPlayerId = determineFirstPlayer(fullState.players);
-            await startGame(gameId, fullState, localPlayerId);
-
-        } catch (error) {
-            LogService.error('GameScreen', "Failed to start game:", error);
-            if (hasBeenDebited.current) {
-                try {
-                    const refund = httpsCallable<{ roomId: string; action: 'refund' }, { balance: number }>(gameFunctions, 'settleMultiplayerBuyIn');
-                    await refund({ roomId: gameId, action: 'refund' });
-                    hasBeenDebited.current = false;
-                } catch (refundError) {
-                    LogService.error('GameScreen', 'Failed to refund multiplayer buy-in after start failure.', refundError);
-                }
-            }
-            Alert.alert("Error", "Could not start game");
-            setIsStarting(false);
-        }
-    };
-
+        const start = httpsCallable<
+            { roomId: string; previousSession: string | null },
+            { started: boolean; error?: string }
+        >(gameFunctions, 'startCoordinatedRoom', { timeout: 12000 });
+        const { data } = await start({ roomId: gameId, previousSession });
+        if (!data.started) throw new Error(data.error ?? 'La salle a changé. Réessaie.');
+    }, [gameId, previousSession]);
 
     // --- BOT LOGIC HANDLING ---
     // The "Industrial" bot loop (lines 1200+) handles all bot moves consistently.
@@ -2322,7 +2245,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // CHIRÉ et les écrans de résultat sans score passeraient sinon directement
     // à la manche suivante sans afficher la pub prévue.
     useEffect(() => {
-        if (!usesSystemCoordinator || !gameState) return;
+        if (!usesSystemCoordinator || !gameState || roomData?.adPolicy) return;
         const allHumanPlayersFree = gameState.players
             .filter(player => player.status !== 'BOT')
             .every(player => player.premiumActive !== true);
@@ -2364,7 +2287,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             LogService.error('GameScreen', 'Failed to show AdMob before coordinated manche continuation', error);
             finishMancheAd();
         }
-    }, [gameState?.gameId, gameState?.mancheNumber, gameState?.phase, gameState?.players, hasPremium, isAdMobLoaded, premiumStatusResolved, showAdMob, usesSystemCoordinator]);
+    }, [gameState?.gameId, gameState?.mancheNumber, gameState?.phase, gameState?.players, hasPremium, isAdMobLoaded, premiumStatusResolved, showAdMob, usesSystemCoordinator, roomData?.adPolicy]);
 
     const interceptOverlayContinue = useCallback(() => {
         // La navigation définitive quand l'overlay (qui gère déjà Scores / Historique / Gains) est fermé.
@@ -2373,7 +2296,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             && !!gameState?.players
                 .filter(player => player.status !== 'BOT')
                 .every(player => player.premiumActive !== true);
-        const shouldShowMancheAd = shouldShowMancheInterstitial(
+        const shouldShowMancheAd = !roomData?.adPolicy && shouldShowMancheInterstitial(
             Platform.OS,
             isSoloMode,
             gameState?.phase ?? null,
@@ -2411,7 +2334,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         if (gameState?.phase === 'MATCH_END') {
             // La publicité ne doit jamais recouvrir le dernier domino ni les scores.
             // Elle est différée au geste explicite de sortie du joueur.
-            if (!premiumStatusResolved || hasPremium || isSoloMode || Platform.OS === 'web' || !isAdMobLoaded) {
+            if (roomData?.adPolicy || !premiumStatusResolved || hasPremium || isSoloMode || Platform.OS === 'web' || !isAdMobLoaded) {
                 handleLeaveRoom();
                 return;
             }
@@ -2457,7 +2380,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             }
             handleOverlayContinue(); // Continue vers la prochaine manche
         }
-    }, [gameState?.phase, gameState?.mancheNumber, gameState?.roundNumber, hasPremium, isSoloMode, usesSystemCoordinator, handleLeaveRoom, handleOverlayContinue, isAdMobLoaded, premiumStatusResolved, showAdMob]);
+    }, [gameState?.phase, gameState?.mancheNumber, gameState?.roundNumber, hasPremium, isSoloMode, usesSystemCoordinator, handleLeaveRoom, handleOverlayContinue, isAdMobLoaded, premiumStatusResolved, showAdMob, roomData?.adPolicy]);
 
 
 
@@ -2481,6 +2404,32 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     }, [gameState?.players, localPlayerId]);
 
     // RENDER LOGIC
+
+    if (roomData?.adCancelled) {
+        return (
+            <View style={styles.loading}>
+                <Text style={styles.text}>Partie annulée. Les mises ont été remboursées.</Text>
+                <Text accessibilityRole="button" style={styles.text} onPress={handleLeaveRoom}>Retour à l’accueil</Text>
+            </View>
+        );
+    }
+    if (roomData?.adCycle?.kind === 'START'
+        || (roomData?.adCycle?.kind === 'INTERMISSION' && canShowInterstitial)) {
+        return (
+            <View style={styles.loading}>
+                <Text accessibilityLiveRegion="polite" style={styles.text}>
+                    {roomData?.adCycle?.reconnecting ? 'En attente de reconnexion…' : 'En attente des joueurs…'}
+                </Text>
+            </View>
+        );
+    }
+    if (finalAdPending && scoreOverlayPhase === 'MATCH_END' && !showRoundResult) {
+        return (
+            <View style={styles.loading}>
+                <Text accessibilityLiveRegion="polite" style={styles.text}>Préparation des résultats…</Text>
+            </View>
+        );
+    }
 
     if (!gameState) {
         if (!roomData) return <View key="loading-no-room" style={styles.loading}><Text style={styles.text}>Loading...</Text></View>;
@@ -2707,7 +2656,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 localPlayerId={localPlayerId}
                 onOverlayContinue={interceptOverlayContinue}
                 onLeaveRoom={handleLeaveRoom}
-                onReplay={handleReplay}
+                onReplay={finalCycleOpen ? undefined : handleReplay}
                 replayPurchased={purchasedReplayKey !== null && purchasedReplayKey === replayKey()}
                 replayPremiumOffer={!hasPremium}
                 onWatchReplay={premiumStatusResolved && !showSoloReplay && !isTrainingMode && gameState?.phase === 'MATCH_END' && showScoreOverlay ? () => {

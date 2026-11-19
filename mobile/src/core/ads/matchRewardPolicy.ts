@@ -27,14 +27,14 @@ export function shouldShowMancheInterstitial(
         && (isSoloMode || allMultiplayerPlayersFree);
 }
 
-export function shouldShowSoloInterstitial(
+export function shouldShowLocalMatchEndInterstitial(
     platform: string,
     phase: GamePhase | null,
     hasPremium: boolean,
     isAdLoaded: boolean
 ): boolean {
     return platform !== 'web'
-        && (phase === 'MANCHE_END' || phase === 'MATCH_END')
+        && phase === 'MATCH_END'
         && !hasPremium
         && isAdLoaded;
 }

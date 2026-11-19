@@ -106,7 +106,7 @@ export const useGameSync = ({
                             LogService.error('useGameSync', 'Error in self-reconnect signal', e)
                         );
                     }
-                } else if (data.status === 'WAITING') {
+                } else if (data.status === 'WAITING' || data.adCancelled) {
                     // A rematch reset clears the shared game state. Every client,
                     // including the former host, must return to the same lobby.
                     setGameState(null);

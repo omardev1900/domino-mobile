@@ -51,7 +51,6 @@ import { GameModeCard } from "../src/components/GameModeCard";
 import { SelectedModeHeader } from "../src/components/SelectedModeHeader";
 import { describeMultiplayerJoinError } from "../src/core/utils/describeMultiplayerJoinError";
 import { useMatchmakingPresence } from "../src/hooks/useMatchmakingPresence";
-import { AdMobIds, isAdMobEnabled, useInterstitialAd } from "../src/core/services/AdMobAdapter";
 import { premiumService } from "../src/core/services/premium.service";
 
 type LobbyTab = "CREATE" | "JOIN" | "PUBLIC";
@@ -87,11 +86,6 @@ export default function LobbyScreen() {
     const [hostedWaitingRoomId, setHostedWaitingRoomId] = useState<
         string | null
     >(null);
-    const [hasPremium, setHasPremium] = useState(false);
-    const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
-    const pendingJoinRef = useRef<string | null>(null);
-    const joinAdFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const { isLoaded: isJoinAdLoaded, isClosed: isJoinAdClosed, load: loadJoinAd, show: showJoinAd } = useInterstitialAd(AdMobIds.INTERSTITIAL_LIGUE);
 
     // — JOIN tab state —
     const [roomIdToJoin, setRoomIdToJoin] = useState("");
@@ -129,6 +123,7 @@ export default function LobbyScreen() {
         const economy = await economyService.getEconomy();
         return {
             ...currentUser,
+            multiplayerAdVersion: 1,
             premiumActive: await premiumService.hasActiveAccess(currentUser.uid),
             ...(economy.leagueGrade != null
                 ? { leagueGrade: economy.leagueGrade }
@@ -179,8 +174,6 @@ export default function LobbyScreen() {
                             activeFrame: eco.activeFrame ?? undefined,
                         };
                         setCurrentUser(enrichedUser);
-                        setHasPremium(premiumActive);
-                        setPremiumStatusResolved(true);
                         const hostedRoom = await findHostedWaitingRoom(
                             user.uid,
                         );
@@ -201,18 +194,11 @@ export default function LobbyScreen() {
         }, []),
     );
 
-    useEffect(() => {
-        if (premiumStatusResolved && !hasPremium && isAdMobEnabled) loadJoinAd();
-    }, [hasPremium, loadJoinAd, premiumStatusResolved]);
-
-    const clearJoinAdFallback = useCallback(() => {
-        if (joinAdFallbackRef.current) {
-            clearTimeout(joinAdFallbackRef.current);
-            joinAdFallbackRef.current = null;
-        }
-    }, []);
-
-    const continueJoin = useCallback(async (roomId: string) => {
+    const joiningRoom = useRef(false);
+    const continueJoin = async (roomId: string) => {
+        if (joiningRoom.current) return;
+        joiningRoom.current = true;
+        setLoading(true);
         try {
             const enrichedProfile = await getEnrichedProfile();
             if (!enrichedProfile) return;
@@ -221,34 +207,10 @@ export default function LobbyScreen() {
         } catch (error: unknown) {
             setJoinFeedback(describeMultiplayerJoinError(error));
         } finally {
+            joiningRoom.current = false;
             setLoading(false);
         }
-    }, [currentUser, router, tableTier]);
-
-    const finishJoinAfterAd = useCallback(() => {
-        clearJoinAdFallback();
-        const roomId = pendingJoinRef.current;
-        pendingJoinRef.current = null;
-        if (roomId) void continueJoin(roomId);
-    }, [clearJoinAdFallback, continueJoin]);
-
-    useEffect(() => {
-        if (pendingJoinRef.current && isJoinAdClosed) finishJoinAfterAd();
-    }, [finishJoinAfterAd, isJoinAdClosed]);
-
-    const joinWithOptionalAd = useCallback((roomId: string) => {
-        if (hasPremium || !premiumStatusResolved || !isAdMobEnabled || !isJoinAdLoaded) {
-            void continueJoin(roomId);
-            return;
-        }
-        pendingJoinRef.current = roomId;
-        joinAdFallbackRef.current = setTimeout(finishJoinAfterAd, 5000);
-        try {
-            showJoinAd();
-        } catch {
-            finishJoinAfterAd();
-        }
-    }, [continueJoin, finishJoinAfterAd, hasPremium, isJoinAdLoaded, premiumStatusResolved, showJoinAd]);
+    };
 
     useEffect(() => {
         let unsubscribe: (() => void) | null = null;
@@ -405,8 +367,6 @@ export default function LobbyScreen() {
             // Affiché avant toute lecture distante : la création ne doit plus
             // donner l'impression que le bouton ne répond pas.
             setLoading(true);
-            const economy = await economyService.getEconomy();
-
             if (hostedWaitingRoomId) {
                 Alert.alert(
                     "Table existante",
@@ -430,15 +390,7 @@ export default function LobbyScreen() {
                 return;
             }
 
-            const tableConfig = TABLE_CONFIGS[tableTier];
-            if (economy.coins - tableConfig.buyIn < MINIMUM_COIN_RESERVE) {
-                Alert.alert(
-                    "Coins insuffisants 🪙",
-                    `Cette mise doit vous laisser au moins ${MINIMUM_COIN_RESERVE} coins. Regardez une vidéo dans la boutique pour recharger votre solde.`,
-                    [{ text: "OK", style: "cancel" }],
-                );
-                return;
-            }
+            if (!(await checkBalanceOnly())) return;
 
             // [R3-M2] Garantir leagueGrade + activeFrame dans le profil écrit en Firestore
             // (ne pas dépendre du state React qui peut être en retard)
@@ -489,32 +441,15 @@ export default function LobbyScreen() {
         }
         if (await ensureNoConflictingActiveRoom(cleanRoomId)) return;
         if (!(await checkBalanceOnly())) return; // ❌ Solde insuffisant
-        try {
-            setLoading(true);
-            joinWithOptionalAd(cleanRoomId);
-        } catch (error: unknown) {
-            const message = describeMultiplayerJoinError(error);
-            setJoinFeedback(message);
-        } finally {
-            setLoading(false);
-        }
+        await continueJoin(cleanRoomId);
     };
 
     const handleJoinPublicRoom = async (roomId: string) => {
-        if (!requireAccountForMultiplayer()) return;
-        if (!currentUser) return;
+        if (!requireAccountForMultiplayer() || !currentUser) return;
         setJoinFeedback(null);
         if (await ensureNoConflictingActiveRoom(roomId)) return;
-        if (!(await checkBalanceOnly())) return; // ❌ Solde insuffisant
-        try {
-            setLoading(true);
-            joinWithOptionalAd(roomId);
-        } catch (error: unknown) {
-            const message = describeMultiplayerJoinError(error);
-            setJoinFeedback(message);
-        } finally {
-            setLoading(false);
-        }
+        if (!(await checkBalanceOnly())) return;
+        await continueJoin(roomId);
     };
 
     const handleFindPlayers = async () => {

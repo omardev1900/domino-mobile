@@ -3,44 +3,52 @@ import * as functions from 'firebase-functions';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { MINIMUM_COIN_RESERVE } from './core/economy.constants';
-import { applyCoinOperation } from './coinLedger';
+import { applyCoinOperation, applyCoinOperationInTransaction } from './coinLedger';
 
-const operationKey = (prefix: string, ...parts: string[]) =>
+export const operationKey = (prefix: string, ...parts: string[]) =>
     `${prefix}_${createHash('sha256').update(parts.join(':')).digest('hex').slice(0, 48)}`;
 
 export async function settleRoomBuyIn(db: admin.firestore.Firestore, uid: string, roomId: string, action: 'debit' | 'refund', now = Date.now()) {
-    const roomSnap = await db.collection('rooms').doc(roomId).get();
-    if (!roomSnap.exists) return { ok: false as const, reason: 'ROOM_NOT_FOUND' as const };
-    const room = roomSnap.data() ?? {};
-    const participant = Array.isArray(room.players)
-        ? room.players.find((player: any) => player.uid === uid)
-        : null;
-    if (!participant) return { ok: false as const, reason: 'NOT_A_PARTICIPANT' as const };
-    const amount = room.buyIn ?? 100;
-    if (!Number.isSafeInteger(amount) || amount < 0) return { ok: false as const, reason: 'INVALID_BUY_IN' as const };
+    return db.runTransaction(async tx => {
+        const roomSnap = await tx.get(db.collection('rooms').doc(roomId));
+        if (!roomSnap.exists) return { ok: false as const, reason: 'ROOM_NOT_FOUND' as const };
+        const room = roomSnap.data() ?? {};
+        const participant = Array.isArray(room.players)
+            ? room.players.find((player: any) => player.uid === uid)
+            : null;
+        if (typeof room.managedBuyIn === 'number') {
+            if (action === 'refund') return { ok: false as const, reason: 'REFUND_NOT_ELIGIBLE' as const };
+            if (!participant) return { ok: false as const, reason: 'NOT_A_PARTICIPANT' as const };
+            const account = await tx.get(db.collection('users').doc(uid));
+            return { ok: true as const, balance: Number(account.data()?.economy?.coins ?? 0), duplicate: true };
+        }
+        if (!participant) return { ok: false as const, reason: 'NOT_A_PARTICIPANT' as const };
+        const amount = room.buyIn ?? 100;
+        if (!Number.isSafeInteger(amount) || amount < 0) return { ok: false as const, reason: 'INVALID_BUY_IN' as const };
 
-    if (action === 'refund') {
-        if (room.status !== 'WAITING') return { ok: false as const, reason: 'REFUND_NOT_ELIGIBLE' as const };
-        const debitId = operationKey('room_buyin', roomId, uid);
-        const debit = await db.collection('coin_wallets').doc(uid).collection('entries').doc(debitId).get();
-        if (!debit.exists) return { ok: false as const, reason: 'BUY_IN_NOT_FOUND' as const };
-        if (debit.data()?.amount !== -amount) return { ok: false as const, reason: 'INVALID_BUY_IN' as const };
-        return applyCoinOperation(db, {
+        if (action === 'refund') {
+            if (room.status !== 'WAITING') return { ok: false as const, reason: 'REFUND_NOT_ELIGIBLE' as const };
+            const debitId = operationKey('room_buyin', roomId, uid);
+            const debit = await tx.get(db.collection('coin_wallets').doc(uid).collection('entries').doc(debitId));
+            if (!debit.exists) return { ok: false as const, reason: 'BUY_IN_NOT_FOUND' as const };
+            if (debit.data()?.amount !== -amount) return { ok: false as const, reason: 'INVALID_BUY_IN' as const };
+            return applyCoinOperationInTransaction(db, tx, {
+                uid,
+                operationId: operationKey('room_refund', roomId, uid),
+                amount,
+                reason: 'MULTIPLAYER_BUY_IN_REFUND',
+                now,
+            });
+        }
+
+        return applyCoinOperationInTransaction(db, tx, {
             uid,
-            operationId: operationKey('room_refund', roomId, uid),
-            amount,
-            reason: 'MULTIPLAYER_BUY_IN_REFUND',
+            operationId: operationKey('room_buyin', roomId, uid),
+            amount: -amount,
+            reason: 'MULTIPLAYER_BUY_IN',
+            minimumBalance: MINIMUM_COIN_RESERVE,
             now,
         });
-    }
-
-    return applyCoinOperation(db, {
-        uid,
-        operationId: operationKey('room_buyin', roomId, uid),
-        amount: -amount,
-        reason: 'MULTIPLAYER_BUY_IN',
-        minimumBalance: MINIMUM_COIN_RESERVE,
-        now,
     });
 }
 

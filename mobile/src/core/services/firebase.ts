@@ -841,6 +841,8 @@ export const findActiveRoomForUser = async (userId: string): Promise<string | nu
             const persistedRoomSnap = await readFirestoreWithTimeout('findActiveRoomForUser.persistedRoom', () => getDoc(persistedRoomRef));
             if (persistedRoomSnap.exists()) {
                 const persistedRoom = persistedRoomSnap.data() as GameRoom;
+                const canResumeResults = persistedRoom.status === RoomStatus.FINISHED
+                    && persistedRoom.adPolicy === 'SYNCHRONIZED' && persistedRoom.finalization?.status === 'COMPLETED';
                 const isActive = persistedRoom.status === RoomStatus.PLAYING || persistedRoom.status === RoomStatus.WAITING;
                 const isInPlayersList = persistedRoom.players.some(p => p.uid === userId);
                 const isInGameState = persistedRoom.gameState?.players?.some(p => p.id === userId) ?? false;
@@ -856,7 +858,7 @@ export const findActiveRoomForUser = async (userId: string): Promise<string | nu
                     return null;
                 }
 
-                if (isActive && (isInPlayersList || isInGameState || isInPlayerIds)) {
+                if ((isActive || canResumeResults) && (isInPlayersList || isInGameState || isInPlayerIds)) {
                     LogService.debug('Firebase', `Found persisted active room for user ${userId}: ${persistedRoomId}`);
                     return persistedRoomId;
                 }

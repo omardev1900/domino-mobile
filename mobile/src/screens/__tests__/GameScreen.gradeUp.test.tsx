@@ -3,6 +3,8 @@ import { act, render, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import GameScreen from '../GameScreen';
 import { MatchReward } from '../../core/economy.types';
+import * as AdMobAdapter from '../../core/services/AdMobAdapter';
+import { premiumService } from '../../core/services/premium.service';
 
 jest.setTimeout(15000);
 
@@ -773,6 +775,61 @@ describe('GameScreen grade-up flow', () => {
 
         view.unmount();
         jest.runOnlyPendingTimers();
+    });
+
+    it.each([
+        { profile: 'joueur gratuit à une table mixte', mode: 'multiplayer', startedPremium: false, hasAccess: false, loaded: true, showsAd: true },
+        { profile: 'joueur Premium à une table mixte', mode: 'multiplayer', startedPremium: true, hasAccess: false, loaded: true, showsAd: false },
+        { profile: 'joueur devenu Premium en cours de match', mode: 'multiplayer', startedPremium: false, hasAccess: true, loaded: true, showsAd: false },
+        { profile: 'joueur gratuit sans pub disponible', mode: 'multiplayer', startedPremium: false, hasAccess: false, loaded: false, showsAd: false },
+    ] as const)('gère la pub avant les scores pour $profile', async ({ mode, startedPremium, hasAccess, loaded, showsAd }) => {
+        jest.useFakeTimers();
+        const show = jest.fn();
+        const load = jest.fn();
+        let adState = { isLoaded: loaded as boolean, isClosed: false };
+        if (mode === 'multiplayer') {
+            mockCurrentGameState = {
+                ...mockCurrentGameState,
+                players: mockCurrentGameState.players.map(player => ({
+                    ...player, premiumActive: player.id === 'p1' ? startedPremium : !startedPremium,
+                })),
+            };
+            mockRoomData = {
+                roomId: 'game-123', status: 'FINISHED', createdBy: 'p1',
+                players: [{ uid: 'p1' }, { uid: 'bot-1' }], gameState: mockCurrentGameState,
+                participantIds: ['p1', 'bot-1'], coordinatorVersion: 1, adPolicy: 'NONE',
+            };
+        }
+        const adHook = jest.spyOn(AdMobAdapter, 'useInterstitialAd').mockImplementation(() => ({
+            ...adState, isOpened: false, isShowing: false, isClicked: false, show, load,
+        }));
+        const premium = jest.spyOn(premiumService, 'hasActiveAccess').mockResolvedValue(hasAccess);
+        const screen = () => <GameScreen gameId="game-123" userId="p1" mode={mode} />;
+        const view = render(screen());
+        try {
+            await act(async () => { await Promise.resolve(); });
+            expect(getLastRoundResultProps().visible).toBe(true);
+
+            await act(async () => getLastRoundResultProps().onDismiss());
+            expect(show).toHaveBeenCalledTimes(showsAd ? 1 : 0);
+            expect(getLastOverlayProps().showScoreOverlay).toBe(!showsAd);
+
+            adState = { isLoaded: false, isClosed: true };
+            view.rerender(screen());
+            expect(getLastOverlayProps().showScoreOverlay).toBe(true);
+            expect(getLastRoundResultProps().visible).toBe(false);
+
+            adState = { isLoaded: true, isClosed: false };
+            view.rerender(screen());
+            await act(async () => { await jest.advanceTimersByTimeAsync(12_000); });
+            expect(getLastOverlayProps().showScoreOverlay).toBe(true);
+            expect(getLastRoundResultProps().visible).toBe(false);
+            expect(show).toHaveBeenCalledTimes(showsAd ? 1 : 0);
+        } finally {
+            view.unmount();
+            adHook.mockRestore();
+            premium.mockRestore();
+        }
     });
 
     it('n initialise le RoundResultCard BOUDE qu une seule fois pour le meme etat bloque', async () => {

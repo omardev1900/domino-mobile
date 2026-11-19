@@ -95,6 +95,8 @@ export enum RoomStatus {
 }
 
 export interface PlayerProfile {
+    multiplayerAdVersion?: number;
+    difficulty?: Player['difficulty'];
     uid: string;
     displayName: string;
     email?: string;
@@ -117,7 +119,21 @@ export interface PlayerProfile {
     hasBeenDebited?: boolean; // NEW: Persistant buy-in check
 }
 
+export interface MultiplayerAdCycle {
+    id: string;
+    kind: 'START' | 'INTERMISSION' | 'FINAL';
+    confirmedPlayerIds: string[];
+    deadline: number;
+    reconnecting: boolean;
+}
+
 export interface GameRoom {
+    replaySessionId?: string;
+    managedBuyIn?: number | null;
+    launchError?: string | null;
+    adPolicy?: 'NONE' | 'SYNCHRONIZED' | null;
+    adCycle?: MultiplayerAdCycle | null;
+    adCancelled?: boolean;
     roomId: string;
     createdAt: number;
     lastActivity: number; // Timestamp of last activity for cleanup

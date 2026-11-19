@@ -2,6 +2,8 @@ export const initializeAdMob = async () => {
     return Promise.resolve();
 };
 
+const noop = () => {};
+
 export const useRewardedAd = (id: string) => ({
     isLoaded: false,
     isOpened: false,
@@ -26,8 +28,8 @@ export const useInterstitialAd = (id: string) => ({
     error: undefined,
     reward: undefined,
     revenue: undefined,
-    load: () => {},
-    show: () => {}
+    load: noop,
+    show: noop
 });
 
 export const useAppOpenAd = (id: string) => ({

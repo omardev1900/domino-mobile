@@ -8,6 +8,7 @@ import {
 } from './gameCoordinator';
 import { GameRoom } from './gameCore/types';
 import { recordReplayTransition } from './replayCapture';
+import { makeAdCycle, needsIntermission, advanceAdCycle } from './multiplayerAdCycle';
 import { finalizeCoordinatedMatch } from './matchFinalizer';
 
 // L'animation client révèle le vainqueur après son entrée. Six secondes lui
@@ -34,12 +35,13 @@ const removeUndefinedValues = (value: unknown): unknown => {
 export const applyTerminalTransition = async (
     db: admin.firestore.Firestore,
     roomId: string,
-    expected: ReturnType<typeof getTransitionFingerprint>
+    expected: ReturnType<typeof getTransitionFingerprint>,
+    expectedSession?: string,
 ): Promise<boolean> => {
     if (!expected) return false;
 
     if (expected.phase === 'MATCH_END') {
-        return finalizeCoordinatedMatch(db, roomId, expected);
+        return finalizeCoordinatedMatch(db, roomId, expected, expectedSession);
     }
 
     const roomRef = db.collection('rooms').doc(roomId);
@@ -51,9 +53,20 @@ export const applyTerminalTransition = async (
         const currentState = currentRoom.gameState;
         if (
             currentRoom.coordinatorVersion !== 1
+            || (expectedSession !== undefined && currentRoom.replaySessionId !== expectedSession)
             || !currentState
             || !hasTransitionFingerprint(currentState, expected)
         ) return false;
+
+        if (needsIntermission(currentRoom) && currentRoom.replaySessionId) {
+            if (currentRoom.adCycle) return false;
+            const now = Date.now();
+            transaction.update(roomRef, {
+                adCycle: makeAdCycle(currentRoom.replaySessionId, 'INTERMISSION', currentState, now),
+                lastActivity: now,
+            });
+            return true;
+        }
 
         const decision = computeCoordinatorDecision(currentState);
         if (!decision) return false;
@@ -91,6 +104,17 @@ export const createTerminalGameCoordinator = (
             if (!change) return;
             const afterRoom = change.after.data() as GameRoom;
             if (afterRoom.coordinatorVersion !== 1) return;
+            if (afterRoom.adCycle) {
+                const beforeRoom = change.before.data() as GameRoom;
+                const cycle = afterRoom.adCycle;
+                if (cycle.kind !== 'FINAL' && cycle.id === beforeRoom.adCycle?.id
+                    && (afterRoom.participantIds?.every(id => cycle.confirmedPlayerIds.includes(id))
+                        || afterRoom.gameState?.players.some(player => player.status === 'SURRENDERED'))) {
+                    await advanceAdCycle(db, event.params.roomId, cycle.id);
+                }
+                return;
+            }
+            if (afterRoom.finalization?.status === 'COMPLETED') return;
 
             const expected = afterRoom.gameState
                 ? getTransitionFingerprint(afterRoom.gameState)
@@ -100,6 +124,6 @@ export const createTerminalGameCoordinator = (
 
             await wait(TERMINAL_TRANSITION_DELAY_MS);
 
-            await applyTerminalTransition(db, event.params.roomId, expected);
+            await applyTerminalTransition(db, event.params.roomId, expected, afterRoom.replaySessionId);
         }
     );

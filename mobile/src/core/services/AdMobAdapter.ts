@@ -6,6 +6,8 @@ const isDev = __DEV__;
 // Les publicités, même de test, ne doivent pas interrompre les parcours de
 // développement. Elles restent actives dans les builds de production natives.
 export const isAdMobEnabled = !isDev && Platform.OS !== 'web';
+export const multiplayerTestAdsEnabled = isDev && Platform.OS !== 'web'
+    && process.env.EXPO_PUBLIC_MULTIPLAYER_TEST_ADS === 'true';
 
 const createDisabledAdState = () => ({
     isLoaded: false, isOpened: false, isClosed: false, isClicked: false,
@@ -21,7 +23,7 @@ export const AdMobIds = {
 };
 
 export const initializeAdMob = async () => {
-    if (!isAdMobEnabled) return Promise.resolve();
+    if (!isAdMobEnabled && !multiplayerTestAdsEnabled) return Promise.resolve();
     return mobileAds().initialize();
 };
 

@@ -1,3 +1,4 @@
+import { makeAdCycle } from './multiplayerAdCycle';
 import * as admin from 'firebase-admin';
 import { createHash } from 'node:crypto';
 
@@ -176,7 +177,8 @@ export const buildPlayerFinalization = (
 export const finalizeCoordinatedMatch = async (
     db: admin.firestore.Firestore,
     roomId: string,
-    expected: TransitionFingerprint
+    expected: TransitionFingerprint,
+    expectedSession?: string,
 ): Promise<boolean> => {
     const roomRef = db.collection('rooms').doc(roomId);
     return db.runTransaction(async transaction => {
@@ -186,12 +188,14 @@ export const finalizeCoordinatedMatch = async (
         const state = room.gameState;
         if (
             room.coordinatorVersion !== 1
+            || (expectedSession !== undefined && room.replaySessionId !== expectedSession)
             || !state
             || !hasTransitionFingerprint(state, expected)
             || state.phase !== 'MATCH_END'
         ) return false;
 
-        const finalizationId = `match:${roomId}:${state.stateVersion ?? 0}:${state.mancheNumber}:${state.roundNumber}`;
+        const matchKey = typeof room.managedBuyIn === 'number' && room.replaySessionId ? `${roomId}:${room.replaySessionId}` : roomId;
+        const finalizationId = `match:${matchKey}:${state.stateVersion ?? 0}:${state.mancheNumber}:${state.roundNumber}`;
         if (room.finalization?.id === finalizationId && room.finalization.status === 'COMPLETED') return false;
 
         const participantIds = getMatchParticipantIds(room);
@@ -216,6 +220,8 @@ export const finalizeCoordinatedMatch = async (
         });
         const rewards: Record<string, MatchReward> = {};
 
+        const finalAd = room.adPolicy === 'SYNCHRONIZED' && room.replaySessionId
+            ? makeAdCycle(room.replaySessionId, 'FINAL', state, now) : null;
         participantIds.forEach((uid, index) => {
             const userData = userSnapshots[index].exists
                 ? userSnapshots[index].data() as DocumentData
@@ -231,7 +237,7 @@ export const finalizeCoordinatedMatch = async (
                 economy: finalized.economy,
                 stats: finalized.stats,
             };
-            if (userData.activeRoomId === roomId) userUpdate.activeRoomId = null;
+            if (!finalAd && userData.activeRoomId === roomId) userUpdate.activeRoomId = null;
             transaction.set(userRefs[index], userUpdate, { merge: true });
             const rewardOperationId = `match_reward_${createHash('sha256').update(`${finalizationId}:${uid}`).digest('hex').slice(0, 48)}`;
             transaction.create(
@@ -265,6 +271,7 @@ export const finalizeCoordinatedMatch = async (
         finishReplayCapture(db, transaction, roomId, room);
         transaction.update(roomRef, {
             status: 'FINISHED',
+            ...(finalAd ? { adCycle: finalAd } : {}),
             finalization: {
                 id: finalizationId,
                 status: 'COMPLETED',

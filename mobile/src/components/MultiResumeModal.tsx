@@ -44,11 +44,13 @@ export function MultiResumeModal({ resumeInfo, onResume, onAbandon }: MultiResum
                         <View style={styles.iconContainer}>
                             <Ionicons name="people" size={24} color="#FFD700" />
                         </View>
-                        <Text style={styles.title}>Partie en cours</Text>
+                        <Text style={styles.title}>{resumeInfo.status === 'FINISHED' ? 'Partie terminée' : 'Partie en cours'}</Text>
                     </View>
 
                     <Text style={styles.text}>
-                        Vous avez une table multijoueur en attente ou en cours.
+                        {resumeInfo.status === 'FINISHED'
+                            ? 'Les résultats de votre dernière partie sont disponibles.'
+                            : 'Vous avez une table multijoueur en attente ou en cours.'}
                     </Text>
 
                     {resumeInfo.status === 'PLAYING' && (
@@ -87,7 +89,9 @@ export function MultiResumeModal({ resumeInfo, onResume, onAbandon }: MultiResum
                                 {isResuming ? (
                                     <ActivityIndicator color="#1a0505" />
                                 ) : (
-                                    <Text style={styles.resumeText}>Rejoindre</Text>
+                                    <Text style={styles.resumeText}>
+                                        {resumeInfo.status === 'FINISHED' ? 'Voir les résultats' : 'Rejoindre'}
+                                    </Text>
                                 )}
                             </LinearGradient>
                         </TouchableOpacity>

@@ -1,3 +1,5 @@
+import { createStartCoordinatedRoom } from './coordinatedRoomStart';
+import { createConfirmMultiplayerAd, createExpireMultiplayerAds } from './multiplayerAdCycle';
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import { createHash } from 'node:crypto';
@@ -67,6 +69,9 @@ export const projectGlobalLeaderboard = createGlobalLeaderboardProjection(db);
 export const backfillGlobalLeaderboard = createBackfillGlobalLeaderboard(db);
 export const debitSoloBuyIn = createDebitSoloBuyIn(db);
 export const refundSoloBuyIn = createRefundSoloBuyIn(db);
+export const startCoordinatedRoom = createStartCoordinatedRoom(db);
+export const confirmMultiplayerAd = createConfirmMultiplayerAd(db);
+export const expireMultiplayerAds = createExpireMultiplayerAds(db);
 export const settleMultiplayerBuyIn = createSettleMultiplayerBuyIn(db);
 export const settleTournamentBuyIn = createSettleTournamentBuyIn(db);
 export const buyReplaySlot = createBuyReplaySlot(db);

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import React from 'react';
-import { act, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { GameRoom, PlayerProfile, RoomStatus } from '../../core/types';
 import { LobbyScreen } from '../LobbyScreen';
 
@@ -57,6 +57,7 @@ jest.mock('../../core/services/firebase', () => ({
 jest.mock('../../core/services/LogService', () => ({
     LogService: {
         info: jest.fn(),
+        warn: jest.fn(),
     },
 }));
 
@@ -124,7 +125,7 @@ describe('LobbyScreen', () => {
         expect(screen.queryByLabelText('Supprimer la table')).toBeNull();
     });
 
-    it('conserve le demarrage automatique lorsque les trois joueurs sont presents', () => {
+    it('conserve le demarrage automatique lorsque les trois joueurs sont presents', async () => {
         jest.useFakeTimers();
         const host = makePlayer('host', 'Hote');
         const onStartGame = jest.fn();
@@ -143,11 +144,25 @@ describe('LobbyScreen', () => {
             />,
         );
 
-        act(() => {
+        await act(async () => {
             jest.advanceTimersByTime(2000);
         });
 
         expect(onStartGame).toHaveBeenCalledTimes(1);
+    });
+
+    it('permet à l’hôte de relancer après un échec', async () => {
+        jest.useFakeTimers();
+        const room = makeRoom([makePlayer('host', 'Hôte'), makePlayer('a', 'A'), makePlayer('b', 'B')]);
+        const onStartGame = jest.fn()
+            .mockRejectedValueOnce(new Error('Mise indisponible'))
+            .mockResolvedValueOnce(undefined);
+        const screen = render(<LobbyScreen roomData={room} currentUserId="host" onStartGame={onStartGame} />);
+
+        await act(async () => { jest.advanceTimersByTime(2000); });
+        expect(screen.getByText('Mise indisponible')).toBeTruthy();
+        await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'Relancer la partie' })); });
+        expect(onStartGame).toHaveBeenCalledTimes(2);
     });
 
     it('ne tente pas de demarrer la partie depuis un invite', () => {

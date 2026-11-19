@@ -1,4 +1,4 @@
-import { shouldOfferMatchAdReward, shouldShowMancheInterstitial, shouldShowSoloInterstitial } from '../matchRewardPolicy';
+import { shouldOfferMatchAdReward, shouldShowMancheInterstitial, shouldShowLocalMatchEndInterstitial } from '../matchRewardPolicy';
 
 describe('shouldOfferMatchAdReward', () => {
     it('autorise la recompense apres un match solo Android', () => {
@@ -37,14 +37,14 @@ describe('shouldShowMancheInterstitial', () => {
     });
 });
 
-describe('shouldShowSoloInterstitial', () => {
+describe('shouldShowLocalMatchEndInterstitial', () => {
     it('autorise une pub avant les resultats finaux du solo gratuit', () => {
-        expect(shouldShowSoloInterstitial('android', 'MATCH_END', false, true)).toBe(true);
+        expect(shouldShowLocalMatchEndInterstitial('android', 'MATCH_END', false, true)).toBe(true);
     });
 
     it('exclut Premium, le web et une pub non chargee', () => {
-        expect(shouldShowSoloInterstitial('android', 'MATCH_END', true, true)).toBe(false);
-        expect(shouldShowSoloInterstitial('web', 'MATCH_END', false, true)).toBe(false);
-        expect(shouldShowSoloInterstitial('android', 'MATCH_END', false, false)).toBe(false);
+        expect(shouldShowLocalMatchEndInterstitial('android', 'MATCH_END', true, true)).toBe(false);
+        expect(shouldShowLocalMatchEndInterstitial('web', 'MATCH_END', false, true)).toBe(false);
+        expect(shouldShowLocalMatchEndInterstitial('android', 'MATCH_END', false, false)).toBe(false);
     });
 });

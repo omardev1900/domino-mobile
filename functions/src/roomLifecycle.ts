@@ -32,7 +32,7 @@ export const requestCoordinatedRematch = async (
             throw new functions.https.HttpsError('not-found', 'Salle introuvable.');
         }
         const room = snapshot.data() as GameRoom;
-        if (room.coordinatorVersion !== 1 || room.finalization?.status !== 'COMPLETED' || !room.gameState) {
+        if (room.coordinatorVersion !== 1 || room.finalization?.status !== 'COMPLETED' || room.adCycle || !room.gameState) {
             throw new functions.https.HttpsError('failed-precondition', 'Match non finalise.');
         }
 
@@ -77,6 +77,10 @@ export const requestCoordinatedRematch = async (
             hostId: nextHost,
             rematchVotes: [],
             finalization: null,
+            adCycle: null,
+            adPolicy: null,
+            managedBuyIn: null,
+            launchError: null,
             lastActivity: Date.now(),
         });
         return { reset: true, votes };

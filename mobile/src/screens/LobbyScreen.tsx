@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Linking as RNLinking, Platform, Alert } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Linking as RNLinking, Platform, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { GameRoom } from '../core/types';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
@@ -22,7 +22,7 @@ import { getMissingLobbyPresencePlayerIds } from '../core/lobbyPresence';
 interface LobbyScreenProps {
     roomData: GameRoom;
     currentUserId: string;
-    onStartGame: () => void;
+    onStartGame: () => void | Promise<void>;
     onDeleteRoom?: () => void;
 }
 
@@ -47,6 +47,33 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
     const canDeleteWaitingRoom = isHost && roomData.status === 'WAITING' && roomData.players.length <= 1 && !roomData.gameState;
     const [autoStartCountdown, setAutoStartCountdown] = useState<number | null>(null);
     const hasAutoStarted = useRef(false);
+    const requestInProgress = useRef(false);
+    const [launchError, setLaunchError] = useState<string | null>(null);
+    const [waitingExpired, setWaitingExpired] = useState(false);
+    const [launching, setLaunching] = useState(false);
+
+    const tryStartGame = useCallback(async () => {
+        if (!isHost || !canStart || requestInProgress.current) return;
+        requestInProgress.current = true;
+        setLaunching(true);
+        setLaunchError(null);
+        try {
+            await onStartGame();
+        } catch (error) {
+            LogService.warn('LobbyScreen', 'Multiplayer launch failed.', error);
+            setLaunchError(error instanceof Error ? error.message : 'Le lancement a échoué. Réessaie.');
+        } finally {
+            requestInProgress.current = false;
+            setLaunching(false);
+        }
+    }, [canStart, isHost, onStartGame]);
+
+    useEffect(() => {
+        setWaitingExpired(false);
+        if (!canStart) return;
+        const timer = setTimeout(() => setWaitingExpired(true), 15000);
+        return () => clearTimeout(timer);
+    }, [canStart]);
     const rootRef = useRef<View>(null);
     const [botModalVisible, setBotModalVisible] = useState(false);
     const [isAddingBot, setIsAddingBot] = useState(false);
@@ -113,7 +140,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
         // invités reçoivent la transition via leur listener Firestore ; s'ils
         // tentent eux aussi startGame, ils affichent une fausse erreur après
         // que l'hôte a déjà lancé la partie.
-        if (!canStart || !isHost || hasAutoStarted.current) {
+        if (!canStart || !isHost || hasAutoStarted.current || roomData.launchError) {
             return;
         }
 
@@ -137,7 +164,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
             if (roomData.players.length === 3 && !hasAutoStarted.current) {
                 hasAutoStarted.current = true;
                 LogService.info('LobbyScreen', 'Lancement automatique par l\'hôte.');
-                onStartGame();
+                void tryStartGame();
             }
         }, delay);
 
@@ -145,7 +172,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
             clearTimeout(autoStartTimer);
             clearInterval(countdownInterval);
         };
-    }, [canStart, isHost, roomData.players.length, onStartGame]);
+    }, [canStart, isHost, roomData.players.length, roomData.launchError, tryStartGame]);
 
     // Create array of 3 slots with player data
     const slots = Array.from({ length: 3 }, (_, index) => {
@@ -158,11 +185,17 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
         };
     });
     const missingPlayerCount = Math.max(0, 3 - roomData.players.length);
-    const waitingMessage = autoStartCountdown !== null
-        ? `Démarrage dans ${autoStartCountdown}...`
-        : canStart
-            ? 'Préparation de la partie...'
-            : `En attente de ${missingPlayerCount} joueur${missingPlayerCount > 1 ? 's' : ''}...`;
+    const failure = launchError || roomData.launchError;
+    let waitingMessage = `En attente de ${missingPlayerCount} joueur${missingPlayerCount > 1 ? 's' : ''}...`;
+    if (hasDisconnectedPlayer && roomData.players.length === 3) {
+        waitingMessage = 'Un joueur est déconnecté — démarrage suspendu';
+    } else if (canStart) {
+        if (autoStartCountdown !== null) waitingMessage = `Démarrage dans ${autoStartCountdown}...`;
+        else if (launching) waitingMessage = 'Lancement de la partie…';
+        else if (failure) waitingMessage = failure;
+        else if (waitingExpired) waitingMessage = 'En attente d’une relance par l’hôte.';
+        else waitingMessage = 'Préparation de la partie...';
+    }
 
     const shareToWhatsApp = () => {
         const deepLink = `https://domino-martinique.online/join/${roomData.roomId}`;
@@ -358,12 +391,15 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
                         size={18}
                         color={canStart ? '#81C784' : 'rgba(255,255,255,0.55)'}
                     />
-                    <Text style={[styles.waitingText, canStart && styles.readyText]}>
-                        {hasDisconnectedPlayer && roomData.players.length === 3
-                            ? 'Un joueur est déconnecté — démarrage suspendu'
-                            : waitingMessage}
+                    <Text accessibilityLiveRegion="polite" style={[styles.waitingText, canStart && styles.readyText]}>
+                        {waitingMessage}
                     </Text>
                 </Animated.View>
+                {canStart && isHost && !launching && (failure || waitingExpired) && (
+                    <Pressable accessibilityRole="button" onPress={tryStartGame} style={styles.waitingStatus}>
+                        <Text style={[styles.waitingText, styles.readyText]}>Relancer la partie</Text>
+                    </Pressable>
+                )}
             </Animated.ScrollView>
         </LinearGradient>
         <BotSelectionModal
