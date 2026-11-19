@@ -1,6 +1,7 @@
 {
   "projects": {
-    "default": "domino-martinique-v1"
+    "default": "domino-martinique-v1",
+    "staging": "domino-martinique-staging"
   },
   "targets": {},
   "etags": {}
