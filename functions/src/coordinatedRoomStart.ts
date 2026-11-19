@@ -89,7 +89,7 @@ export async function startCoordinatedRoom(
         const adPolicy = synchronizeAds && compatible ? (premiumIds.length ? 'NONE' : 'SYNCHRONIZED') : null;
         const paused = adPolicy === 'SYNCHRONIZED';
         const gameState = initialState(roomId, room, premiumIds, paused, now);
-        const buyIn = await prepareRoomBuyIn(db, tx, roomId, sessionId, participantIds, amount, 'debit', now, !previousSession);
+        const buyIn = await prepareRoomBuyIn(db, tx, roomId, sessionId, participantIds, amount, 'debit', now, !previousSession, premiumIds);
         if (buyIn.blocked) return fail('Au moins un joueur n’a pas assez de coins pour la mise.');
         buyIn.apply();
         tx.update(ref, {

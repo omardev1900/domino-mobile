@@ -22,4 +22,33 @@ describe('mises et remboursements serveur', () => {
         assert.deepEqual(await settleMatchBuyIn(db, uid, 'match1', 'debit', now), { ok: false, reason: 'ALREADY_REFUNDED' });
         assert.equal((await db.collection('coin_wallets').doc(uid).collection('entries').get()).size, 2);
     });
+
+    it('maintient la réserve Premium en solo et rembourse seulement les mises payées', async () => {
+        const premium = 'solo-premium-reserve';
+        const user = db.collection('users').doc(premium);
+        await user.set({ economy: { coins: 0 } });
+        await db.collection('premium_entitlements').doc(premium).set({
+            expiresAt: admin.firestore.Timestamp.fromMillis(now + 10_000),
+        });
+        await Promise.all(['premium-1', 'premium-2'].map(id => settleMatchBuyIn(db, premium, id, 'debit', now)));
+        assert.equal((await user.get()).get('economy.coins'), 100);
+        await settleMatchBuyIn(db, premium, 'premium-1', 'refund', now);
+        assert.equal((await user.get()).get('economy.coins'), 100);
+
+        for (const balance of [100, 199, 200]) {
+            await user.update({ 'economy.coins': balance });
+            const id = `premium-balance-${balance}`;
+            const debit = await settleMatchBuyIn(db, premium, id, 'debit', now);
+            assert.ok(debit.ok && 'paidAmount' in debit);
+            assert.equal(debit.paidAmount, balance === 200 ? 100 : 0);
+            assert.equal((await user.get()).get('economy.coins'), balance === 200 ? 100 : balance);
+            await settleMatchBuyIn(db, premium, id, 'refund', now);
+            assert.equal((await user.get()).get('economy.coins'), balance);
+        }
+
+        await user.update({ 'economy.coins': 100 });
+        assert.deepEqual(await settleMatchBuyIn(db, premium, 'expired', 'debit', now + 10_000), {
+            ok: false, reason: 'INSUFFICIENT_COINS',
+        });
+    });
 });

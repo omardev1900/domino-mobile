@@ -1,6 +1,8 @@
 import * as admin from 'firebase-admin';
 import { createHash } from 'node:crypto';
-import { MINIMUM_COIN_RESERVE, TABLE_CONFIGS } from './core/economy.constants';
+import { TABLE_CONFIGS } from './core/economy.constants';
+import { resolveMatchBuyIn } from './matchBuyInPolicy';
+import { isActivePremiumEntitlement } from './premiumAccess';
 import * as functions from 'firebase-functions';
 import { z } from 'zod';
 
@@ -22,19 +24,22 @@ export async function settleMatchBuyIn(db: admin.firestore.Firestore, uid: strin
         if (typeof balance !== 'number' || !Number.isSafeInteger(balance) || balance < 0) return { ok: false as const, reason: 'INVALID_BALANCE' as const };
         if (action === 'debit') {
             if (refundSnap.exists) return { ok: false as const, reason: 'ALREADY_REFUNDED' as const };
-            if (debitSnap.exists) return { ok: true as const, balance, duplicate: true };
-            if (balance - amount < MINIMUM_COIN_RESERVE) return { ok: false as const, reason: 'INSUFFICIENT_COINS' as const };
-            tx.update(user, { 'economy.coins': balance - amount });
-            tx.create(debit, { amount: -amount, reason: 'MATCH_BUY_IN', matchId, balanceAfter: balance - amount, createdAt: now });
-            return { ok: true as const, balance: balance - amount, duplicate: false };
+            if (debitSnap.exists) return { ok: true as const, balance, paidAmount: debitSnap.get('paidAmount') ?? amount, duplicate: true };
+            const entitlement = await tx.get(db.collection('premium_entitlements').doc(uid));
+            const buyIn = resolveMatchBuyIn(balance, amount, isActivePremiumEntitlement(entitlement.data(), now));
+            if (!buyIn) return { ok: false as const, reason: 'INSUFFICIENT_COINS' as const };
+            const { balanceAfter, paidAmount } = buyIn;
+            if (balanceAfter !== balance) tx.update(user, { 'economy.coins': balanceAfter });
+            tx.create(debit, { amount: balanceAfter - balance, paidAmount, reason: 'MATCH_BUY_IN', matchId, balanceAfter, createdAt: now });
+            return { ok: true as const, balance: balanceAfter, paidAmount, duplicate: false };
         }
         if (!debitSnap.exists) return { ok: false as const, reason: 'BUY_IN_NOT_FOUND' as const };
         if (refundSnap.exists) return { ok: true as const, balance, duplicate: true };
-        const charged = debitSnap.data()?.amount;
-        if (charged !== -amount || !Number.isSafeInteger(balance + amount)) return { ok: false as const, reason: 'INVALID_BUY_IN' as const };
-        tx.update(user, { 'economy.coins': balance + amount });
-        tx.create(refund, { amount, reason: 'MATCH_BUY_IN_REFUND', matchId, balanceAfter: balance + amount, createdAt: now });
-        return { ok: true as const, balance: balance + amount, duplicate: false };
+        const paidAmount = debitSnap.get('paidAmount') ?? -debitSnap.get('amount');
+        if ((paidAmount !== 0 && paidAmount !== amount) || !Number.isSafeInteger(balance + paidAmount)) return { ok: false as const, reason: 'INVALID_BUY_IN' as const };
+        if (paidAmount) tx.update(user, { 'economy.coins': balance + paidAmount });
+        tx.create(refund, { amount: paidAmount, reason: 'MATCH_BUY_IN_REFUND', matchId, balanceAfter: balance + paidAmount, createdAt: now });
+        return { ok: true as const, balance: balance + paidAmount, duplicate: false };
     });
 }
 

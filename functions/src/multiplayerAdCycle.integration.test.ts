@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import * as admin from 'firebase-admin';
 import { startCoordinatedRoom } from './coordinatedRoomStart';
+import { prepareRoomBuyIn } from './coordinatedRoomBuyIn';
 import { settleRoomBuyIn } from './multiplayerBuyIn';
 import { advanceAdCycle } from './multiplayerAdCycle';
 import { getTransitionFingerprint } from './gameCoordinator';
@@ -98,6 +99,22 @@ describe('Multiplayer ad coordination on Firestore', () => {
         await advanceAdCycle(db, room.ref.id, final.adCycle!.id, undefined, () => final.adCycle!.deadline);
         assert.equal((await room.read()).adCycle, null);
         assert.equal((await room.read()).finalization?.id, final.finalization?.id);
+    });
+
+    it('preserves the Premium reserve and refunds only paid stakes in a mixed room', async () => {
+        const room = await lobby('premium-low-coins', { premiumSeat: 1, poorSeat: 1 });
+        await Promise.all([room.start(), room.start()]);
+        assert.deepEqual(await room.coins(), [900, 100, 900]);
+        const started = await room.read();
+        assert.equal(started.adPolicy, 'NONE');
+
+        const refund = () => db.runTransaction(async tx => {
+            const result = await prepareRoomBuyIn(db, tx, room.ref.id, started.replaySessionId!, room.ids, 100, 'refund', Date.now());
+            assert.equal(result.blocked, false);
+            result.apply();
+        });
+        await Promise.all([refund(), refund()]);
+        assert.deepEqual(await room.coins(), [1000, 100, 1000]);
     });
 
     it('freezes the no-ad policy for a Premium host or guest and keeps mixed versions compatible', async () => {

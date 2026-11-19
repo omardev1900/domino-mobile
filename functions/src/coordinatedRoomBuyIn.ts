@@ -1,5 +1,5 @@
 import * as admin from 'firebase-admin';
-import { MINIMUM_COIN_RESERVE } from './core/economy.constants';
+import { resolveMatchBuyIn } from './matchBuyInPolicy';
 import { operationKey } from './multiplayerBuyIn';
 
 export async function prepareRoomBuyIn(
@@ -12,6 +12,7 @@ export async function prepareRoomBuyIn(
     action: 'debit' | 'refund',
     now: number,
     adoptLegacyDebit = false,
+    premiumIds: readonly string[] = [],
 ): Promise<{ blocked: boolean; apply: () => void }> {
     const operations = await Promise.all(playerIds.map(async uid => {
         const user = db.collection('users').doc(uid);
@@ -28,10 +29,8 @@ export async function prepareRoomBuyIn(
         const balance = account.data()?.economy?.coins;
         const clearActiveRoom = action === 'refund' && account.get('activeRoomId') === roomId;
         if (action === 'debit') {
-            const balanceAfter = alreadyPaid ? balance : balance - amount;
-            const validBalance = Number.isSafeInteger(balance) && balance >= 0;
-            const buyIn = alreadyPaid || (validBalance && (amount === 0 || balanceAfter >= MINIMUM_COIN_RESERVE))
-                ? { balanceAfter, paidAmount: amount } : null;
+            const buyIn = alreadyPaid ? { balanceAfter: balance, paidAmount: amount }
+                : resolveMatchBuyIn(balance, amount, premiumIds.includes(uid));
             return { user, entry, balance, buyIn, clearActiveRoom, record: true };
         }
 

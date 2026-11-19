@@ -286,7 +286,8 @@ export default function LobbyScreen() {
         if (tableConfig.buyIn <= 0) return true;
 
         const economy = await economyService.getEconomy();
-        const hasEnough = economy.coins - tableConfig.buyIn >= MINIMUM_COIN_RESERVE;
+        const hasEnough = economy.coins - tableConfig.buyIn >= MINIMUM_COIN_RESERVE
+            || (currentUser ? await premiumService.hasActiveAccess(currentUser.uid) : false);
 
         if (!hasEnough) {
             Alert.alert(

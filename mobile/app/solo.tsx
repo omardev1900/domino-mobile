@@ -154,9 +154,11 @@ export default function SoloScreen() {
         buyInId = USE_SERVER_SOLO_BUY_IN ? await soloBuyInIntents.getOrCreate(user.uid) : '';
         // ── ANTI-QUIT : Déduire le buy-in AVANT de lancer la partie ──
         if (tableConfig.buyIn > 0) {
+            let paidAmount = tableConfig.buyIn;
             if (USE_SERVER_SOLO_BUY_IN) {
-                const debit = httpsCallable<{ matchId: string; tableTier: TableTier }, { balance: number }>(gameFunctions, 'debitSoloBuyIn');
-                await debit({ matchId: buyInId, tableTier });
+                const debit = httpsCallable<{ matchId: string; tableTier: TableTier }, { balance: number; paidAmount?: number }>(gameFunctions, 'debitSoloBuyIn');
+                const { data } = await debit({ matchId: buyInId, tableTier });
+                paidAmount = data.paidAmount ?? paidAmount;
                 buyInDebited = true;
                 const coins = await readConfirmedReplayBalance(user.uid);
                 await economyService.applyConfirmedReplayBalance(coins);
@@ -168,7 +170,7 @@ export default function SoloScreen() {
                 }
             }
             // 💸 Feedback visuel de débit
-            setDebitFeedback(`-${tableConfig.buyIn} 🪙`);
+            setDebitFeedback(paidAmount > 0 ? `-${paidAmount} 🪙` : 'Mise offerte · Premium');
             setEconomyRefresh(v => v + 1); // met à jour le solde visible
             setTimeout(() => setDebitFeedback(null), 1800);
         }

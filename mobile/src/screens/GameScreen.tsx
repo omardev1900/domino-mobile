@@ -720,6 +720,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const replayFramesRef = useRef<GameState[]>([]);
     const paidReplayEntryRef = useRef<PaidReplayEntryHandle>(null);
     const matchSettlementRef = useRef<Promise<void> | null>(null);
+    const soloRematchPendingRef = useRef(false);
     const [showSoloReplay, setShowSoloReplay] = useState(false);
     const [purchasedReplayKey, setPurchasedReplayKey] = useState<string | null>(null);
     const recordSoloTransition = useCallback((_before: GameState, after: GameState) => {
@@ -730,23 +731,37 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
     const handleReplay = async () => {
         if (isSoloMode) {
-            boudeSessionEpochRef.current += 1;
-            boudeRecoveryRef.current.clear();
-            if (boudeTimerRef.current) {
-                clearTimeout(boudeTimerRef.current);
-                boudeTimerRef.current = null;
+            if (soloRematchPendingRef.current) return;
+            soloRematchPendingRef.current = true;
+            let nextBuyInId: string | undefined;
+            let buyInConfirmed = false;
+            try {
+                if (!isTrainingMode && persistenceUserId && (gameState?.soloBuyInId || soloBuyInId)) {
+                    nextBuyInId = await soloBuyInIntents.getOrCreate(persistenceUserId);
+                    const debit = httpsCallable<{ matchId: string; tableTier: TableTier }, { balance: number }>(gameFunctions, 'debitSoloBuyIn');
+                    const { data } = await debit({ matchId: nextBuyInId, tableTier: activeTableTier });
+                    buyInConfirmed = true;
+                    await economyService.applyConfirmedReplayBalance(data.balance);
+                }
+                if (gameId) await AsyncStorage.removeItem(`@solo_game_state:${gameId}`);
+                if (!(await startSoloGame(nextBuyInId))) throw new Error('Impossible de relancer la partie.');
+                setScoreOverlayPhase(null);
+                setShowMatchRewardModal(false);
+            } catch (error) {
+                if (buyInConfirmed && nextBuyInId && persistenceUserId) {
+                    try {
+                        const refund = httpsCallable<{ matchId: string; tableTier: TableTier }, { balance: number }>(gameFunctions, 'refundSoloBuyIn');
+                        const { data } = await refund({ matchId: nextBuyInId, tableTier: activeTableTier });
+                        await soloBuyInIntents.clear(persistenceUserId, nextBuyInId);
+                        await economyService.applyConfirmedReplayBalance(data.balance);
+                    } catch (refundError) {
+                        LogService.error('GameScreen', 'Échec du remboursement de la relance solo', refundError);
+                    }
+                }
+                Alert.alert('Mise indisponible', error instanceof Error ? error.message : 'Vérifie ta connexion et réessaie.');
+            } finally {
+                soloRematchPendingRef.current = false;
             }
-            setBoudeRecoveryKey(null);
-            setIsBoudeRecoveryResolving(false);
-            if (gameId) {
-                await AsyncStorage.removeItem(`@solo_game_state:${gameId}`);
-            }
-            setIsStarting(false);
-            setGameState(null);
-            setScoreOverlayPhase(null);
-            setShowMatchRewardModal(false);
-            
-            startSoloGame();
             return;
         }
 
@@ -1905,7 +1920,9 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         if (isSoloMode) {
             if (gameState) return;
             setIsStarting(false); // Ensure loading is off
-            startSoloGame();
+            void startSoloGame().then(started => {
+                if (!started) Alert.alert('Partie indisponible', 'Impossible de lancer la partie solo.');
+            });
             return;
         }
 
@@ -1984,8 +2001,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // In multiplayer, errors are re-thrown so they can be handled normally.
     // -------------------------------------------------------------------------
 
-    const startSoloGame = useCallback(async () => {
-        if (isStarting) return;
+    const startSoloGame = useCallback(async (buyInId = soloBuyInId): Promise<boolean> => {
+        if (isStarting) return false;
         setIsStarting(true);
         try {
             // Tenter de restaurer l'état de jeu solo sauvegardé
@@ -2006,7 +2023,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                                 LogService.info('GameScreen', `[SOLO] Restored saved solo game state for ${gameId}`);
                                 replayFramesRef.current = [];
                                 setGameState(parsedState);
-                                return; // Restauration réussie, quitter startSoloGame
+                                return true;
                             }
                         }
                     } catch (parseErr) {
@@ -2029,6 +2046,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             // encore en vol et toutes les clés du match précédent.
             boudeSessionEpochRef.current += 1;
             boudeRecoveryRef.current.clear();
+            setBoudeRecoveryKey(null);
+            setIsBoudeRecoveryResolving(false);
             if (boudeTimerRef.current) {
                 clearTimeout(boudeTimerRef.current);
                 boudeTimerRef.current = null;
@@ -2082,24 +2101,24 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             if (!fullState.startingHandSize) fullState.startingHandSize = startingHandSize || 7;
             if (!fullState.talonMort) fullState.talonMort = [];
 
-            if (soloBuyInId && gameId && persistenceUserId) {
-                fullState.soloBuyInId = soloBuyInId;
+            if (buyInId && gameId && persistenceUserId) {
+                fullState.soloBuyInId = buyInId;
                 await AsyncStorage.setItem(`@solo_game_state:${gameId}`, JSON.stringify(fullState));
-                await soloBuyInIntents.clear(persistenceUserId, soloBuyInId).catch(() => undefined);
+                await soloBuyInIntents.clear(persistenceUserId, buyInId).catch(() => undefined);
             }
 
             replayFramesRef.current = [structuredClone(fullState)];
             matchSettlementRef.current = null;
             setGameState(fullState);
+            return true;
         } catch (error) {
             LogService.error('GameScreen', 'Error starting solo game:', error);
-            Alert.alert('Error', 'Failed to start local game');
+            return false;
         } finally {
             setIsStarting(false);
         }
     }, [isStarting, difficulty, playerDisplayName, gameMode, winningCondition, turnDuration, startingHandSize, playerOnlyHandSize, playerAvatarId, setGameState, setIsStarting, soloBuyInId, gameId, persistenceUserId]);
 
-    // Multiplayer Start Handler
     const previousSession = roomData?.replaySessionId ?? null;
     const handleStartGame = useCallback(async () => {
         if (!gameId) return;
