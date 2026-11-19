@@ -243,3 +243,10 @@ dependencies {
 }
 
 apply plugin: 'com.google.gms.google-services'
+
+// Keep the embedded Expo manifest in sync with the release bundle and its assets.
+tasks.matching { it.name == "createReleaseUpdatesResources" }.configureEach {
+    inputs.files(tasks.named("createBundleReleaseJsAndAssets"))
+        .withPropertyName("releaseReactBundle")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
