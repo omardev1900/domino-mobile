@@ -1122,6 +1122,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     const isFirstChatLoad = useRef<boolean>(true);
     const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingRoundResultTransition = useRef<(() => void) | null>(null);
+    const dismissedMatchResultKeyRef = useRef<string | null>(null);
 
     const handleDismissRoundResult = useCallback(() => {
         if (roundResultTimerRef.current) {
@@ -1635,6 +1636,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         && activeBoudeResultKeyRef.current === currentBoudeResultKey;
 
     useEffect(() => {
+        if (gameState?.phase !== 'MATCH_END') dismissedMatchResultKeyRef.current = null;
         if (!gameState) return;
         const boudeResultKey = `${boudeSessionEpochRef.current}:${gameState.gameId}:${gameState.mancheNumber}:${gameState.roundNumber}:${gameState.turnId}`;
 
@@ -1811,6 +1813,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         }
 
         if (gameState.phase === 'MATCH_END') {
+            if (dismissedMatchResultKeyRef.current === boudeResultKey) return;
             const triggerMatchEnd = () => {
                 setScoreOverlayPhase('MATCH_END');
             };
@@ -1819,6 +1822,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             setRoundResultSnapshot(gameState);
             setShowRoundResult(true);
             pendingRoundResultTransition.current = () => {
+                dismissedMatchResultKeyRef.current = boudeResultKey;
                 showFinalInterstitialBeforeRef.current(triggerMatchEnd);
             };
             if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);

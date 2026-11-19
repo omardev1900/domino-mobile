@@ -778,6 +778,7 @@ describe('GameScreen grade-up flow', () => {
     });
 
     it.each([
+        { profile: 'joueur gratuit en solo', mode: 'solo', startedPremium: false, hasAccess: false, loaded: true, showsAd: true },
         { profile: 'joueur gratuit à une table mixte', mode: 'multiplayer', startedPremium: false, hasAccess: false, loaded: true, showsAd: true },
         { profile: 'joueur Premium à une table mixte', mode: 'multiplayer', startedPremium: true, hasAccess: false, loaded: true, showsAd: false },
         { profile: 'joueur devenu Premium en cours de match', mode: 'multiplayer', startedPremium: false, hasAccess: true, loaded: true, showsAd: false },
