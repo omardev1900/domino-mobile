@@ -41,7 +41,7 @@ import { shouldOfferMatchAdReward } from '../core/ads/matchRewardPolicy';
 // Core
 import { determineFirstPlayer, dealGameSolo, getForcedOpeningDominoId, getForcedTieBreakDominoId } from '../core/LogicEngine';
 import { getValidMoves } from '../core/DominoEngine';
-import { GameState, Player, PlayerId, GamePhase, Domino, GameRoom, GameMode } from '@/core/types';
+import { GameState, Player, PlayerId, GamePhase, Domino, GameMode } from '@/core/types';
 import { leaveRoom, clearRematchVotes, updatePlayerChat, resetRoomToLobby, markPlayerAsDebited, markRoomAsFinished, setUserActiveRoom, releaseWaitingRoomSeat, voteForRematch } from '../core/services/firebase';
 import SoundManager from '../core/audio/SoundManager';
 import HapticManager from '../core/audio/HapticManager';
@@ -77,7 +77,7 @@ import { SkinConfig, StoreItem } from '../core/store.types';
 import { useInterstitialAd, TestIds, AdMobIds } from '../core/services/AdMobAdapter';
 import { isPremiumActive, premiumService } from '../core/services/premium.service';
 import { shouldShowMancheInterstitial, shouldShowLocalMatchEndInterstitial } from '../core/ads/matchRewardPolicy';
-import { rtdb, gameFunctions } from '../core/services/firebase';
+import { rtdb, gameFunctions, readFirestoreWithTimeout } from '../core/services/firebase';
 import { ref as rtdbRef, onValue as rtdbOnValue } from 'firebase/database';
 
 interface GameScreenProps {
@@ -1925,8 +1925,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         }
     }, [gameState?.phase, hasLegacyHostAuthority, isSoloMode, gameId, activeTableTier, localPlayerId, roomData?.managedBuyIn]);
     useEffect(() => {
-        // Le solo est local-first : les cosmétiques et le profil continuent à se
-        // charger en arrière-plan, mais ne doivent jamais retarder le deal.
+        // Le solo reste jouable si la vérification Premium échoue.
         if (isSoloMode) {
             if (gameState) return;
             setIsStarting(false); // Ensure loading is off
@@ -2046,6 +2045,11 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
             const botDifficulty = difficulty || 'MAPIPI';
 
+            const canCaptureReplay = !isTrainingMode && persistenceUserId
+                ? readFirestoreWithTimeout('solo.replayEligibility', () => premiumService.hasActiveAccess(persistenceUserId))
+                    .catch(() => false)
+                : false;
+
             // Le catalogue versionné embarqué est la seule source des bots en solo.
             const botProfiles = await botService.getBotsForLevel(botDifficulty, 2);
 
@@ -2118,7 +2122,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 await soloBuyInIntents.clear(persistenceUserId, buyInId).catch(() => undefined);
             }
 
-            replayFramesRef.current = [structuredClone(fullState)];
+            replayFramesRef.current = await canCaptureReplay ? [structuredClone(fullState)] : [];
             matchSettlementRef.current = null;
             setGameState(fullState);
             return true;
@@ -2128,7 +2132,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         } finally {
             setIsStarting(false);
         }
-    }, [isStarting, difficulty, playerDisplayName, gameMode, winningCondition, turnDuration, startingHandSize, playerOnlyHandSize, playerAvatarId, setGameState, setIsStarting, soloBuyInId, gameId, persistenceUserId]);
+    }, [isStarting, difficulty, playerDisplayName, gameMode, winningCondition, turnDuration, startingHandSize, playerOnlyHandSize, playerAvatarId, setGameState, setIsStarting, soloBuyInId, gameId, persistenceUserId, isTrainingMode]);
 
     const previousSession = roomData?.replaySessionId ?? null;
     const handleStartGame = useCallback(async () => {
@@ -2511,9 +2515,16 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             const startedAt = replayFramesRef.current[0]?.lastActionTimestamp;
             return typeof startedAt === 'number' ? `solo_${startedAt}` : null;
         }
-        const session = (roomData as (GameRoom & { replaySessionId?: string }) | null)?.replaySessionId;
+        const session = roomData?.replaySessionId;
         return gameId && session ? `${gameId}_${session}` : null;
     };
+
+    const hasMatchReplay = isSoloMode
+        ? replayFramesRef.current.length > 1
+        : Boolean(roomData?.replaySessionId && (roomData.replayCaptureEnabled ?? (typeof roomData.managedBuyIn === 'number'
+            && roomData.gameState?.players.some(player => player.premiumActive === true))));
+    const showReplayEntry = hasMatchReplay && premiumStatusResolved && !showSoloReplay && !isTrainingMode
+        && gameState?.phase === 'MATCH_END' && showScoreOverlay;
 
     return (
         <View key="game-container" style={styles.container} ref={rootRef as any} tabIndex={-1}>
@@ -2697,7 +2708,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 onReplay={finalCycleOpen ? undefined : handleReplay}
                 replayPurchased={purchasedReplayKey !== null && purchasedReplayKey === replayKey()}
                 replayPremiumOffer={!hasPremium}
-                onWatchReplay={premiumStatusResolved && !showSoloReplay && !isTrainingMode && gameState?.phase === 'MATCH_END' && showScoreOverlay ? () => {
+                onWatchReplay={showReplayEntry ? () => {
                     if (!hasPremium) { setShowReplayPremiumOffer(true); return; }
                     const key = replayKey();
                     if (purchasedReplayKey !== null && purchasedReplayKey === key) setShowSoloReplay(true);
@@ -2715,11 +2726,11 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             <PaidReplayEntry
                 ref={paidReplayEntryRef}
                 hideEntry
-                key={isSoloMode ? replayFramesRef.current[0]?.lastActionTimestamp : (roomData as (GameRoom & { replaySessionId?: string }) | null)?.replaySessionId}
-                enabled={hasPremium && !showSoloReplay && !isTrainingMode && gameState?.phase === 'MATCH_END' && showScoreOverlay}
+                key={isSoloMode ? replayFramesRef.current[0]?.lastActionTimestamp : roomData?.replaySessionId}
+                enabled={hasPremium && showReplayEntry}
                 solo={isSoloMode}
                 matchId={isSoloMode ? `${gameId ?? 'solo'}_${replayFramesRef.current[0]?.lastActionTimestamp ?? 0}` : gameId ?? 'multi'}
-                sessionId={(roomData as (GameRoom & { replaySessionId?: string }) | null)?.replaySessionId}
+                sessionId={roomData?.replaySessionId}
                 finalized={roomData?.finalization?.status === 'COMPLETED'}
                 settle={async () => {
                     if (!matchSettlementRef.current) throw new Error('Le résultat du match est encore en cours de traitement.');

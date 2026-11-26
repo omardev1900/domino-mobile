@@ -111,7 +111,7 @@ describe('submitGameAction avec Firestore Emulator', () => {
         await roomRef.set({
             coordinatorVersion: 1, coordinator: { version: 1 },
             playerIds: ['p1', 'p2', 'p3'], participantIds: ['p1', 'p2', 'p3'],
-            replaySessionId: 'session-one', status: 'PLAYING',
+            replaySessionId: 'session-one', replayCaptureEnabled: true, status: 'PLAYING',
             gameState: { ...gameState(), gameId: roomRef.id }, lastActivity: 1000,
         });
         await submitGameActionTransaction(db, 'p1', {
@@ -124,6 +124,25 @@ describe('submitGameAction avec Firestore Emulator', () => {
         assert.equal(frames.docs[0].data().state.players[0].hand.length, 2);
         assert.equal(frames.docs[1].data().state.players[0].hand.length, 1);
         assert.deepEqual((await capture.get()).data()?.participants, ['p1', 'p2', 'p3']);
+    });
+
+    it('valide le coup sans écrire de replay lorsque la capture est désactivée', async () => {
+        const roomRef = db.collection('rooms').doc('replay-free-human-test');
+        await roomRef.set({
+            coordinatorVersion: 1, coordinator: { version: 1 },
+            playerIds: ['p1', 'p2', 'p3'], participantIds: ['p1', 'p2', 'p3'],
+            replaySessionId: 'session-one', replayCaptureEnabled: false, status: 'PLAYING',
+            gameState: { ...gameState(), gameId: roomRef.id }, lastActivity: 1000,
+        });
+        const result = await submitGameActionTransaction(db, 'p1', {
+            roomId: roomRef.id, expectedStateVersion: 12, expectedTurnId: 8,
+            action: { type: 'PLAY_TILE', dominoId: 'p1-6-5', side: 'right' },
+        });
+        assert.equal(result.applied, true);
+        assert.equal((await roomRef.get()).get('gameState.stateVersion'), 13);
+        const capture = db.collection('replay_sessions').doc('replay-free-human-test_session-one');
+        assert.equal((await capture.get()).exists, false);
+        assert.equal((await capture.collection('frames').get()).empty, true);
     });
 
     it('retire atomiquement un joueur actif tout en conservant les participants du match', async () => {

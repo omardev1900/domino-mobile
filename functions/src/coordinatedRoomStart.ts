@@ -105,6 +105,7 @@ export async function startCoordinatedRoom(
             participantProfiles: room.players,
             finalization: null,
             replaySessionId: sessionId,
+            replayCaptureEnabled: premiumIds.length > 0,
             managedBuyIn: amount,
             adPolicy,
             adCycle: paused ? makeAdCycle(sessionId, 'START', gameState, now) : null,

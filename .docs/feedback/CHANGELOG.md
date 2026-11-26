@@ -1,5 +1,9 @@
 # Changelog
 
+### Replays en préparation
+
+- La capture d’un replay démarre en solo pour un joueur Premium et en multijoueur dès qu’un participant est Premium au lancement du match. Le bouton Replay s’affiche pour les matchs capturés.
+
 ### 2026-11-26 — Accueil mobile
 
 - La carte Premium affiche « Découvrir Premium » après un essai déjà utilisé.

@@ -2,6 +2,8 @@
 
 ### 2026-11-26
 
+- [x] `REPLAY-CAPTURE-PREMIUM-01` Réserver la capture au solo Premium et aux matchs multijoueurs avec au moins un participant Premium au démarrage. Masquer l’accès au replay dans les résultats des matchs sans capture. Validation locale effectuée, publication à faire.
+
 - [x] Enregistrer la présence dans la même transaction que l’arrivée en table et afficher la connexion en attente du premier signal. Conserver la jointure lorsque les règles Firestore précédentes exigent un signal séparé.
 
 - [x] Afficher l’offre d’essai Premium sur l’accueil mobile uniquement lorsque le compte est éligible.

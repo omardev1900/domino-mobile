@@ -143,7 +143,7 @@ service cloud.firestore {
       }
 
       function serverMatchFields() {
-        return ['managedBuyIn', 'launchError', 'adPolicy', 'adCycle', 'adCancelled'];
+        return ['managedBuyIn', 'launchError', 'adPolicy', 'adCycle', 'adCancelled', 'replayCaptureEnabled'];
       }
 
       function hasValidPlayerCapacity() {

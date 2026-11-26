@@ -5,6 +5,10 @@ import GameScreen from '../GameScreen';
 import { MatchReward } from '../../core/economy.types';
 import * as AdMobAdapter from '../../core/services/AdMobAdapter';
 import { premiumService } from '../../core/services/premium.service';
+import { botService } from '../../core/services/bot.service';
+import { dealGameSolo } from '../../core/LogicEngine';
+import { useGameEngine } from '../../hooks/game/useGameEngine';
+import type { GameState } from '../../core/types';
 
 jest.setTimeout(15000);
 
@@ -18,6 +22,9 @@ const mockGameTable = jest.fn((props: any) => null as any);
 const mockHandleOverlayContinue = jest.fn();
 const mockDispatch = jest.fn();
 const mockBoudeRecoveryPanel = jest.fn((props: any) => null as any);
+const mockSetGameState = jest.fn();
+const mockSoloReplay = jest.fn((_props: { frames: GameState[] }) => null);
+let mockNeedsSoloStart = false;
 
 const getLastOverlayProps = () => mockGameOverlays.mock.calls[mockGameOverlays.mock.calls.length - 1][0];
 const getLastRoundResultProps = () => mockRoundResultCard.mock.calls[mockRoundResultCard.mock.calls.length - 1][0];
@@ -95,6 +102,9 @@ jest.mock('../../components/game/MancheEndFlow', () => ({
 }));
 jest.mock('../../components/game/GameOverlays', () => ({
     GameOverlays: (props: any) => mockGameOverlays(props),
+}));
+jest.mock('../../components/game/SoloReplay', () => ({
+    SoloReplay: (props: { frames: GameState[] }) => mockSoloReplay(props),
 }));
 jest.mock('../../components/game/PlayerArea', () => ({
     PlayerArea: (props: any) => mockPlayerArea(props),
@@ -183,12 +193,12 @@ let mockRoomData: Record<string, unknown> | null = null;
 
 jest.mock('../../hooks/game/useGameSync', () => ({
     useGameSync: () => ({
-        gameState: mockCurrentGameState,
+        gameState: mockNeedsSoloStart ? null : mockCurrentGameState,
         roomData: mockRoomData,
         isStarting: false,
         setIsStarting: jest.fn(),
         safeUpdateGameState: jest.fn().mockResolvedValue(undefined),
-        setGameState: jest.fn(),
+        setGameState: mockSetGameState,
         setRoomData: jest.fn(),
     }),
 }));
@@ -204,7 +214,7 @@ jest.mock('../../hooks/game/useGameTimers', () => ({
 }));
 
 jest.mock('../../hooks/game/useGameEngine', () => ({
-    useGameEngine: () => ({
+    useGameEngine: jest.fn(() => ({
         dispatch: mockDispatch,
         handlePlayDomino: jest.fn(),
         confirmSidePlay: jest.fn(),
@@ -213,7 +223,7 @@ jest.mock('../../hooks/game/useGameEngine', () => ({
         handleOverlayContinue: mockHandleOverlayContinue,
         pendingDomino: null,
         isProcessingMove: false,
-    }),
+    })),
 }));
 
 jest.mock('../../core/LogicEngine', () => ({
@@ -337,6 +347,7 @@ jest.mock('../../core/services/auth.service', () => ({
 }));
 
 jest.mock('../../core/services/firebase', () => ({
+    readFirestoreWithTimeout: jest.fn(async (_operation: string, read: () => Promise<unknown>) => read()),
     leaveRoom: jest.fn().mockResolvedValue(undefined),
     startGame: jest.fn().mockResolvedValue(undefined),
     clearRematchVotes: jest.fn().mockResolvedValue(undefined),
@@ -365,6 +376,7 @@ describe('GameScreen grade-up flow', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        mockNeedsSoloStart = false;
         mockDispatch.mockImplementation(async () => ({
             status: 'applied',
             state: { ...mockCurrentGameState, phase: 'PARTIE_END' },
@@ -425,6 +437,31 @@ describe('GameScreen grade-up flow', () => {
             mancheNumber: 1,
             startingHandSize: 7,
         };
+    });
+
+    it.each([false, true])('capture le solo selon le droit Premium au démarrage (%s)', async (hasAccess) => {
+        mockNeedsSoloStart = true;
+        const initial = { ...structuredClone(mockCurrentGameState), phase: 'PLAYING' } as unknown as GameState;
+        jest.mocked(dealGameSolo).mockReturnValueOnce(initial);
+        jest.mocked(botService.getBotsForLevel).mockResolvedValueOnce(botService.getLocalBotsForLevel('MAPIPI', 2));
+        const premium = jest.spyOn(premiumService, 'hasActiveAccess').mockResolvedValue(hasAccess);
+        const screen = () => <GameScreen gameId="game-123" userId="p1" mode="solo" />;
+        const view = render(screen());
+        try {
+            await act(async () => { await Promise.resolve(); });
+            expect(mockSetGameState).toHaveBeenCalledWith(initial);
+            mockNeedsSoloStart = false;
+            mockCurrentGameState = { ...mockCurrentGameState, phase: 'PLAYING' };
+            const after: GameState = { ...initial, turnId: initial.turnId + 1 };
+            const engine = jest.mocked(useGameEngine).mock.lastCall?.[0];
+            expect(engine?.onSoloTransition).toEqual(expect.any(Function));
+            engine?.onSoloTransition?.(initial, after);
+            view.rerender(screen());
+            expect(mockSoloReplay.mock.lastCall?.[0].frames).toEqual(hasAccess ? [initial, after] : []);
+        } finally {
+            view.unmount();
+            premium.mockRestore();
+        }
     });
 
     it('garde visuellement le joueur qui vient de jouer actif pendant l animation du domino', async () => {

@@ -129,6 +129,7 @@ export interface MultiplayerAdCycle {
 
 export interface GameRoom {
     replaySessionId?: string;
+    replayCaptureEnabled?: boolean;
     managedBuyIn?: number | null;
     launchError?: string | null;
     adPolicy?: 'NONE' | 'SYNCHRONIZED' | null;

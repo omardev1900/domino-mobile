@@ -143,6 +143,7 @@ describe('Multiplayer ad coordination on Firestore', () => {
         await Promise.all([room.start(), room.start()]);
         assert.deepEqual(await room.coins(), [900, 900, 900]);
         const initial = await room.read();
+        assert.equal(initial.replayCaptureEnabled, false);
         const cycle = initial.adCycle!;
         assert.equal(cycle.kind, 'START');
         assert.equal(initial.gameState?.phase, 'DEALING');
@@ -175,6 +176,7 @@ describe('Multiplayer ad coordination on Firestore', () => {
         await applyTerminalTransition(db, room.ref.id, getTransitionFingerprint((await room.read()).gameState!));
         const final = await room.read();
         assert.equal(final.finalization?.status, 'COMPLETED');
+        assert.equal((await db.collection('replay_sessions').doc(`${room.ref.id}_${final.replaySessionId}`).get()).exists, false);
         assert.equal(final.adCycle?.kind, 'FINAL');
         await advanceAdCycle(db, room.ref.id, final.adCycle!.id, undefined, () => final.adCycle!.deadline);
         assert.equal((await room.read()).adCycle, null);
@@ -202,6 +204,7 @@ describe('Multiplayer ad coordination on Firestore', () => {
             const room = await lobby(`ads-premium-${seat}`, { premiumSeat: seat });
             await room.start();
             const started = await room.read();
+            assert.equal(started.replayCaptureEnabled, true);
             assert.equal(started.adPolicy, 'NONE');
             assert.equal(started.adCycle, null);
             assert.equal(started.gameState?.phase, 'PLAYING');

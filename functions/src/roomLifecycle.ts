@@ -81,6 +81,7 @@ export const requestCoordinatedRematch = async (
             adCycle: null,
             adPolicy: null,
             managedBuyIn: null,
+            replayCaptureEnabled: false,
             launchError: null,
             lastActivity: Date.now(),
         });
