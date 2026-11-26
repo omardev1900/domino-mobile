@@ -4,6 +4,8 @@
 
 - [x] Afficher les articles publics pendant la vérification Premium et actualiser l’inventaire et le solde après un achat payé sans relire la boutique. Regrouper les lectures Firestore de la transaction. Tests locaux passés, mesure en production à faire après déploiement.
 
+- [x] Déployer les fonctions de gestion des places et de lancement du lobby ainsi que les règles Firestore du commit `7cae53c` en production. Publication vérifiée sur `domino-martinique-v1`. Tests du lobby validés.
+
 - [x] Corriger l’erreur 400 sur les avatars dont l’identifiant contient des espaces, une apostrophe ou des accents. Garder la compatibilité avec les anciennes versions et retirer les lectures redondantes avant l’appel d’achat mobile.
 
 - [x] Remplacer le libellé « Acheter » par une icône de caddie dans la boutique mobile. Garder le prix visible et annoncer le nom de l’article avec un lecteur d’écran.
@@ -12,7 +14,7 @@
 
 - [x] `PREMIUM-LOBBY-MODERATION-01` Permettre au créateur Premium d’exclure un invité avant le démarrage. La fonction vérifie le droit Premium et les règles Firestore protègent les places des nouvelles tables.
 
-- [x] `BUG-MULTI-START-01` Rétablir le lancement automatique après une reconnexion et gérer les départs du lobby dans une transaction, avec transfert d’hôte et remplacement d’un joueur absent. Correctif local, validation sur appareil et publication suivies dans les tâches actives.
+- [x] `BUG-MULTI-START-01` Rétablir le lancement automatique après une reconnexion et gérer les départs du lobby dans une transaction, avec transfert d’hôte et remplacement d’un joueur absent. La publication de la version mobile est suivie dans les tâches actives.
 
 ### 2026-11-19
 
