@@ -16,10 +16,39 @@ describe('achats boutique serveur', () => {
             purchaseStoreItem(db, 'store-player', { itemId: 'pack_test', requestId: 'purchase-one' }),
             purchaseStoreItem(db, 'store-player', { itemId: 'pack_test', requestId: 'purchase-one' }),
         ]);
-        assert.equal(results.every(result => result?.success === true), true);
+        assert.deepEqual(results, [
+            { success: true, itemId: 'pack_test', coins: 1600, diamonds: 10 },
+            { success: true, itemId: 'pack_test', coins: 1600, diamonds: 10 },
+        ]);
         const economy = (await db.collection('users').doc('store-player').get()).data()?.economy;
         assert.equal(economy.coins, 1600);
         assert.equal(economy.diamonds, 10);
         assert.equal((await db.collection('coin_wallets').doc('store-player').collection('entries').where('reason', '==', 'STORE_PURCHASE').get()).size, 1);
+    });
+
+    for (const [uid, itemId, requestId] of [
+        ['avatar-buyer', 'avatar_Le Stratège des Vents', 'store_1795700000000_test'],
+        ['legacy-avatar-buyer', "avatar_L'Ancien", "store_avatar_L'Ancien_1795700000000_test"],
+    ]) {
+        it(`achète ${itemId} et traite un nouvel envoi sans deuxième débit`, async () => {
+            const user = db.collection('users').doc(uid);
+            await db.collection('store_catalog').doc(itemId).set({ type: 'AVATAR', priceCoins: 50 });
+            await user.set({ economy: { coins: 100 } });
+
+            const result = await purchaseStoreItem(db, uid, { itemId, requestId });
+            const retry = await purchaseStoreItem(db, uid, { itemId, requestId });
+            const player = (await user.get()).data();
+
+            assert.equal(result?.success, true);
+            assert.deepEqual(retry, result);
+            assert.equal(player?.economy.coins, 50);
+            assert.deepEqual(player?.inventory.ownedItems, [itemId]);
+        });
+    }
+
+    it('refuse les chemins Firestore à la place des identifiants', async () => {
+        await assert.rejects(purchaseStoreItem(db, 'store-player', {
+            itemId: 'avatar/nested/item', requestId: 'valid-request',
+        }), { name: 'ZodError' });
     });
 });

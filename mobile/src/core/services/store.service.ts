@@ -9,12 +9,14 @@ import { DEFAULT_INVENTORY, DEFAULT_OWNED_ITEMS, STORE_CATALOG } from '../store.
 import { premiumService } from './premium.service';
 import { hasAvatarImage } from '../avatars';
 import { removeInventoryEntry } from '../inventoryDeletion';
-import { perfDefer, perfJsonSize, perfMark } from './perf';
+import { perfDefer, perfJsonSize, perfMark, perfTime } from './perf';
 import { userDocumentService } from './userDocument.service';
+import { LogService } from './LogService';
 
 const STORE_COLLECTION = 'store_catalog';
 const STORAGE_KEY_GUEST_INVENTORY = '@guest_inventory';
 const IS_DEVELOPMENT = typeof __DEV__ !== 'undefined' && __DEV__;
+type StoreBalances = { coins: number; diamonds: number };
 
 /** Keep bundled Premium cosmetics visible while their Firestore record is being rolled out. */
 function mergeBundledPremiumItems(catalog: StoreItem[]): StoreItem[] {
@@ -303,7 +305,26 @@ export class StoreService {
     /**
      * Purchase an item (Cosmetic or Currency Pack)
      */
-    async purchaseItem(itemId: string, userId?: string): Promise<{ success: boolean; message?: string }> {
+    async purchaseItem(itemId: string, userId?: string): Promise<{ success: boolean; message?: string; balances?: StoreBalances }> {
+        const currentUserId = userId || (await authService.getCurrentUser())?.uid;
+        if (currentUserId && !currentUserId.startsWith('guest_')) {
+            const requestId = `store_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+            const purchase = httpsCallable<{ itemId: string; requestId: string }, { success: boolean } & StoreBalances>(gameFunctions, 'purchaseStoreItem');
+            try {
+                const { data: result } = await perfTime('store.purchase.server', () => purchase({ itemId, requestId }));
+                const balances = { coins: result.coins, diamonds: result.diamonds };
+                try {
+                    await perfTime('store.purchase.persistBalance', () => economyService.applyConfirmedServerEconomy(balances));
+                } catch (error) {
+                    LogService.error('StoreService', 'Impossible de synchroniser le solde après l’achat.', error);
+                }
+                return { success: result.success, balances };
+            } catch (error) {
+                LogService.error('StoreService', 'Erreur lors de l’achat serveur.', error);
+                return { success: false, message: error instanceof Error ? error.message : 'Erreur lors de la transaction financière.' };
+            }
+        }
+
         const catalog = await this.getCatalog();
         const item = catalog.find(i => i.id === itemId);
         if (!item) return { success: false, message: "Item introuvable" };
@@ -334,21 +355,6 @@ export class StoreService {
         const updatedEconomy = { ...economy };
         if (item.priceCoins) updatedEconomy.coins -= item.priceCoins;
         if (item.priceDiamonds) updatedEconomy.diamonds -= item.priceDiamonds;
-
-        const currentUserId = userId || (await authService.getCurrentUser())?.uid;
-
-        if (currentUserId && !currentUserId.startsWith('guest_')) {
-            const requestId = `store_${item.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-            try {
-                const purchase = httpsCallable<{ itemId: string; requestId: string }, { success: boolean; coins: number; diamonds: number }>(gameFunctions, 'purchaseStoreItem');
-                const result = (await purchase({ itemId: item.id, requestId })).data;
-                await economyService.applyConfirmedServerEconomy({ coins: result.coins, diamonds: result.diamonds });
-                return { success: result.success };
-            } catch (e) {
-                console.error('Erreur lors de l’achat serveur :', e);
-                return { success: false, message: e instanceof Error ? e.message : 'Erreur lors de la transaction financière.' };
-            }
-        }
 
         try {
             // 4. Save updated economy FIRST (transactional priority)

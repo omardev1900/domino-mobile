@@ -2,6 +2,12 @@
 
 ### 2026-11-26
 
+- [x] Afficher les articles publics pendant la vérification Premium et actualiser l’inventaire et le solde après un achat payé sans relire la boutique. Regrouper les lectures Firestore de la transaction. Tests locaux passés, mesure en production à faire après déploiement.
+
+- [x] Corriger l’erreur 400 sur les avatars dont l’identifiant contient des espaces, une apostrophe ou des accents. Garder la compatibilité avec les anciennes versions et retirer les lectures redondantes avant l’appel d’achat mobile.
+
+- [x] Remplacer le libellé « Acheter » par une icône de caddie dans la boutique mobile. Garder le prix visible et annoncer le nom de l’article avec un lecteur d’écran.
+
 - [x] Centrer le bouton de démarrage dans le lobby et proposer aux invités une sortie par icône avec confirmation dans le bloc TABLE. Réduire le bloc de partage et placer l’exclusion en rouge en haut de la fiche du joueur. Placer la libération de place en orange en bas de la fiche, avec confirmation.
 
 - [x] `PREMIUM-LOBBY-MODERATION-01` Permettre au créateur Premium d’exclure un invité avant le démarrage. La fonction vérifie le droit Premium et les règles Firestore protègent les places des nouvelles tables.

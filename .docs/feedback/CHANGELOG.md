@@ -1,5 +1,11 @@
 # Changelog
 
+### 2026-11-26 — Boutique mobile
+
+- Les articles publics s’affichent pendant la vérification de l’accès Premium. Le solde et l’inventaire se mettent à jour dès la confirmation d’un achat payant.
+- La boutique accepte les achats d’avatars dont l’identifiant contient des espaces, une apostrophe ou des accents.
+- Les articles payants affichent une icône de caddie à côté du prix. Le caddie ouvre la confirmation d’achat.
+
 ### Correctifs multijoueurs en préparation
 
 - Le lancement automatique reprend quand les joueurs se reconnectent. Une place libérée peut être occupée par un nouvel invité ou un bot, et un invité connecté peut reprendre la table si l’hôte se déconnecte.

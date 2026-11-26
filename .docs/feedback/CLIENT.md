@@ -2,6 +2,15 @@
 
 ### 2026-11-26
 
+> ca a fonctionné, mais la boutiaue a mis trop de temps pour safficher et pareil pour valider lachat
+> mais cest deja une bon pas vers la solution du probleme
+
+> le bouton est bien affiché
+>
+> j ai essayer d'acheter un avater et le bouton achat est devenu un spinner en mpuvement pendant longtemps puis une alerte Achat invalide [400] est apparu
+>
+> j ai fait ce test en local avec al commande npx expo start
+
 > depuis la derniere mise a jour, il y a des parties multiples qui ne se lancent pas
 
 Deux lobbies signalés, l’un en attente d’une relance par l’hôte et l’autre suspendu pour déconnexion. Un autre joueur n’arrive pas à lancer une partie.

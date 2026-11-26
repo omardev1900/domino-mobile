@@ -13,6 +13,7 @@ import { BundledImage } from '../src/components/common/BundledImage';
 import { StoreItemPreview } from '../src/components/store/StoreItemPreview';
 import { SkinPreviewModal } from '../src/components/store/SkinPreviewModal';
 import { economyService } from '../src/core/services/economy.service';
+import { PlayerEconomy } from '../src/core/economy.types';
 import { getAccessibleInventory, storeService } from '../src/core/services/store.service';
 import { StoreItem, StoreItemType, PlayerInventory } from '../src/core/store.types';
 import { useRewardedAd, AdMobIds } from '../src/core/services/AdMobAdapter';
@@ -39,9 +40,9 @@ export default function StoreScreen() {
     const isLandscape = width > height;
 
     const [activeTab, setActiveTab] = useState<TabType>('WORKSHOP');
-    const [inventory, setInventory] = useState<PlayerInventory | null>(null);
+    const [rawInventory, setInventory] = useState<PlayerInventory | null>(null);
     const [catalog, setCatalog] = useState<StoreItem[]>([]);
-    const [economy, setEconomy] = useState<any>(null);
+    const [economy, setEconomy] = useState<PlayerEconomy | null>(null);
     const [loading, setLoading] = useState(true);
     const [processingPurchase, setProcessingPurchase] = useState<string | null>(null);
     const [economyRefresh, setEconomyRefresh] = useState(0);
@@ -49,6 +50,11 @@ export default function StoreScreen() {
     const [hasPremium, setHasPremium] = useState(false);
     const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
     const [previewedSkin, setPreviewedSkin] = useState<StoreItem | null>(null);
+    const purchaseInProgressRef = useRef(false);
+    const purchaseRevisionRef = useRef(0);
+
+    const visibleCatalog = useMemo(() => hasPremium ? catalog : catalog.filter(item => !item.isPremium), [catalog, hasPremium]);
+    const inventory = useMemo(() => rawInventory && getAccessibleInventory(rawInventory, catalog, hasPremium), [rawInventory, catalog, hasPremium]);
 
     const runIdRef = useRef(storeRunCounter);
     const dataVersionRef = useRef(0);
@@ -64,29 +70,36 @@ export default function StoreScreen() {
         const runId = ++storeRunCounter;
         runIdRef.current = runId;
         const startedAt = perfStart();
+        const purchaseRevision = purchaseRevisionRef.current;
+        setPremiumStatusResolved(false);
+        void perfTime('store.load.premium', () => premiumService.hasActiveAccess(), { run: runId })
+            .catch(() => false)
+            .then(premiumActive => {
+                if (runIdRef.current !== runId) return;
+                setHasPremium(premiumActive);
+                setPremiumStatusResolved(true);
+            });
         try {
-            setPremiumStatusResolved(false);
-            const [inv, cat, eco, premiumActive] = await Promise.all([
+            const [inv, cat, eco] = await Promise.all([
                 perfTime('store.load.inventory', () => storeService.getInventory(), { run: runId }),
                 perfTime('store.load.catalog', () => storeService.getCatalog(), { run: runId }),
                 perfTime('store.load.economy', () => economyService.getEconomy(), { run: runId }),
-                perfTime('store.load.premium', () => premiumService.hasActiveAccess(), { run: runId }),
             ]);
-            const visibleCatalog = premiumActive ? cat : cat.filter(item => !item.isPremium);
-            setInventory(getAccessibleInventory(inv, cat, premiumActive));
-            setCatalog(visibleCatalog);
-            setEconomy(eco);
-            setHasPremium(premiumActive);
+            if (runIdRef.current !== runId) return;
+            if (purchaseRevisionRef.current === purchaseRevision) {
+                setInventory(inv);
+                setEconomy(eco);
+            }
+            setCatalog(cat);
             dataVersionRef.current += 1;
             setDataVersion(dataVersionRef.current);
             perfMark('store.loadData.done', {
                 run: runId,
                 catalog: cat.length,
-                premium: premiumActive,
             });
             perfDefer('store.loadData.payload', () => ({
                 run: runId,
-                jsonBytes: perfJsonSize(visibleCatalog),
+                jsonBytes: perfJsonSize(cat),
             }));
         } catch (error) {
             perfMark('store.loadData.error', {
@@ -94,8 +107,7 @@ export default function StoreScreen() {
                 error: error instanceof Error ? error.message : String(error),
             });
         } finally {
-            setPremiumStatusResolved(true);
-            setLoading(false);
+            if (runIdRef.current === runId) setLoading(false);
             perfMark('store.loadData.total', { run: runId, ms: Date.now() - startedAt });
         }
     };
@@ -108,18 +120,18 @@ export default function StoreScreen() {
     );
 
     const dynamicTabs = useMemo(() => {
-        const types = Array.from(new Set(catalog.map(item => item.type)));
+        const types = Array.from(new Set(visibleCatalog.map(item => item.type)));
         const tabs: { id: TabType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [];
 
         // Les créations Premium sont regroupées à part des objets à équiper.
-        if (hasPremium && catalog.some(item => item.isPremium && item.id !== SKIN_WORKSHOP_ID)) tabs.push({ id: 'PREMIUM', label: 'Premium', icon: 'star' });
-        if (hasPremium && catalog.some(item => item.id === SKIN_WORKSHOP_ID)) tabs.push({ id: 'WORKSHOP', label: 'Creators', icon: 'color-wand' });
+        if (hasPremium && visibleCatalog.some(item => item.isPremium && item.id !== SKIN_WORKSHOP_ID)) tabs.push({ id: 'PREMIUM', label: 'Premium', icon: 'star' });
+        if (hasPremium && visibleCatalog.some(item => item.id === SKIN_WORKSHOP_ID)) tabs.push({ id: 'WORKSHOP', label: 'Creators', icon: 'color-wand' });
         if (types.includes('AVATAR')) tabs.push({ id: 'AVATAR', label: 'Avatars', icon: 'person' });
         if (types.includes('SKIN')) tabs.push({ id: 'SKIN', label: 'Skins', icon: 'color-palette' });
         if (types.includes('CURRENCY_PACK')) tabs.push({ id: 'CURRENCY_PACK', label: 'Devises', icon: 'diamond' });
         if (types.includes('EMOTE')) tabs.push({ id: 'EMOTE', label: 'Emotions', icon: 'happy' });
         return tabs;
-    }, [catalog, hasPremium]);
+    }, [visibleCatalog, hasPremium]);
 
     // Jalon JS, émis une fois par run : après le commit qui porte la nouvelle
     // version de données, deux frames laissent passer la passe de layout.
@@ -168,8 +180,8 @@ export default function StoreScreen() {
     }, [activeTab, dynamicTabs]);
 
     useEffect(() => {
-        if ((tab === 'PREMIUM' || tab === 'WORKSHOP') && hasPremium) setActiveTab(tab);
-    }, [hasPremium, tab]);
+        if (!loading && (tab === 'PREMIUM' || tab === 'WORKSHOP') && hasPremium) setActiveTab(tab);
+    }, [hasPremium, loading, tab]);
 
     useEffect(() => {
         if (isClosed) {
@@ -209,16 +221,28 @@ export default function StoreScreen() {
     };
 
     const handlePurchase = async (item: StoreItem) => {
+        if (purchaseInProgressRef.current) return;
         const isFreeItem = !item.isPremium
             && item.type !== 'CURRENCY_PACK'
             && item.priceCoins === 0
             && item.priceDiamonds === undefined;
 
         const processPurchase = async (equipImmediately = false) => {
+            if (purchaseInProgressRef.current) return;
+            purchaseInProgressRef.current = true;
             setProcessingPurchase(item.id);
-            const result = await storeService.purchaseItem(item.id);
+            try {
+                const result = await storeService.purchaseItem(item.id);
+                if (!result.success) throw new Error(result.message || 'Une erreur est survenue.');
 
-            if (result.success) {
+                const balances = result.balances ?? (await economyService.getEconomy());
+                purchaseRevisionRef.current += 1;
+                setEconomy(current => current && { ...current, coins: balances.coins, diamonds: balances.diamonds });
+                if (item.type !== 'CURRENCY_PACK') {
+                    setInventory(current => current && !current.ownedItems.includes(item.id)
+                        ? { ...current, ownedItems: [...current.ownedItems, item.id] }
+                        : current);
+                }
                 setEconomyRefresh(prev => prev + 1);
 
                 if (equipImmediately) {
@@ -230,6 +254,7 @@ export default function StoreScreen() {
                             Alert.alert('Erreur', equipResult.message || "Impossible d'activer cet objet.");
                         }
                     }
+                    await loadData();
                 } else if (item.type !== 'CURRENCY_PACK') {
                     setPurchaseSuccessItem({ id: item.id, name: item.name });
                 } else if (Platform.OS === 'web') {
@@ -237,15 +262,17 @@ export default function StoreScreen() {
                 } else {
                     Alert.alert('Succès', 'Devises ajoutées avec succès !');
                 }
-
-                await loadData();
-            } else if (Platform.OS === 'web') {
-                window.alert(result.message || 'Une erreur est survenue.');
-            } else {
-                Alert.alert('Erreur', result.message || 'Une erreur est survenue.');
+            } catch (error) {
+                const message = error instanceof Error ? error.message : 'Une erreur est survenue.';
+                if (Platform.OS === 'web') {
+                    window.alert(message);
+                } else {
+                    Alert.alert('Erreur', message);
+                }
+            } finally {
+                purchaseInProgressRef.current = false;
+                setProcessingPurchase(null);
             }
-
-            setProcessingPurchase(null);
         };
 
         if (isFreeItem) {
@@ -266,7 +293,7 @@ export default function StoreScreen() {
             `Voulez-vous acheter ${item.name} ?`,
             [
                 { text: 'Annuler', style: 'cancel' },
-                { text: 'Acheter', style: 'default', onPress: processPurchase },
+                { text: 'Acheter', style: 'default', onPress: () => processPurchase() },
             ]
         );
     };
@@ -292,10 +319,10 @@ export default function StoreScreen() {
     };
 
     const filteredCatalog = activeTab === 'WORKSHOP'
-        ? catalog.filter(item => item.id === SKIN_WORKSHOP_ID)
+        ? visibleCatalog.filter(item => item.id === SKIN_WORKSHOP_ID)
         : activeTab === 'PREMIUM'
-            ? catalog.filter(item => item.isPremium && item.id !== SKIN_WORKSHOP_ID)
-            : catalog.filter(item => item.type === activeTab && item.id !== SKIN_WORKSHOP_ID);
+            ? visibleCatalog.filter(item => item.isPremium && item.id !== SKIN_WORKSHOP_ID)
+            : visibleCatalog.filter(item => item.type === activeTab && item.id !== SKIN_WORKSHOP_ID);
 
     renderSnapshotRef.current = { tab: activeTab, items: filteredCatalog.length };
 
@@ -479,11 +506,18 @@ export default function StoreScreen() {
                         </TouchableOpacity>
                     ) : (
                         <TouchableOpacity
-                            style={[styles.buyButton, !canAfford && { opacity: 0.5 }]}
+                            style={[styles.buyButton, !isFreeItem && styles.cartButton, !canAfford && { opacity: 0.5 }]}
                             onPress={() => onPurchase(item)}
                             disabled={!canAfford}
+                            accessibilityRole="button"
+                            accessibilityLabel={isFreeItem ? `Obtenir ${item.name}` : `Acheter ${item.name}`}
+                            accessibilityState={{ disabled: !canAfford }}
                         >
-                            <Text style={styles.buyButtonText}>{isFreeItem ? '+' : 'Acheter'}</Text>
+                            {isFreeItem ? (
+                                <Text style={styles.buyButtonText}>+</Text>
+                            ) : (
+                                <Ionicons name="cart-outline" size={22} color="#1A0E2E" />
+                            )}
                         </TouchableOpacity>
                     )}
                 </View>
@@ -583,7 +617,7 @@ export default function StoreScreen() {
                 </View>
             ) : (
                 <>
-                    {activeTab === 'CURRENCY_PACK' && !hasPremium && inventory && economy && (
+                    {activeTab === 'CURRENCY_PACK' && premiumStatusResolved && !hasPremium && inventory && economy && (
                         <StoreAdCard playerEconomy={economy} />
                     )}
                     <ScrollView
@@ -789,6 +823,13 @@ const styles = StyleSheet.create({
     buyButtonText: {
         color: '#FFF',
         fontWeight: 'bold',
+    },
+    cartButton: {
+        minWidth: 48,
+        minHeight: 48,
+        paddingHorizontal: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     equipButton: {
         backgroundColor: 'rgba(255,255,255,0.2)',
