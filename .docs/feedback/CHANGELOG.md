@@ -1,6 +1,6 @@
 # Changelog
 
-### Replays en préparation
+### Android 2.5.5
 
 - La capture d’un replay démarre en solo pour un joueur Premium et en multijoueur dès qu’un participant est Premium au lancement du match. Le bouton Replay s’affiche pour les matchs capturés.
 
