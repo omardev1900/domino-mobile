@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { View, Text, StyleSheet, useWindowDimensions, Linking as RNLinking, Platform, Alert } from 'react-native';
+import { ActivityIndicator, View, Text, StyleSheet, useWindowDimensions, Linking as RNLinking, Platform, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { GameRoom } from '../core/types';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
@@ -17,7 +17,7 @@ import { BotSelectionModal } from '../components/BotSelectionModal';
 import { BotDifficulty } from '../core/services/bot.service';
 import { PremiumButton } from '../components/common/PremiumButton';
 import { LogService } from '../core/services/LogService';
-import { getLobbyHostId, getMissingLobbyPresencePlayerIds } from '../core/lobbyPresence';
+import { getLobbyHostId, getMissingLobbyPresencePlayerIds, heartbeatToMillis, LOBBY_HEARTBEAT_MAX_AGE_MS } from '../core/lobbyPresence';
 import { getEstimatedPresenceServerNow } from '../hooks/game/presenceDiagnostics';
 
 interface LobbyScreenProps {
@@ -58,13 +58,34 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
         const interval = setInterval(refreshPresence, 1000);
         return () => clearInterval(interval);
     }, []);
-    const serverNow = getEstimatedPresenceServerNow() ?? null;
-    const disconnectedPlayerIds = new Set(getMissingLobbyPresencePlayerIds(roomData, serverNow));
-    const hasDisconnectedPlayer = disconnectedPlayerIds.size > 0;
+    const [missingSince, setMissingSince] = useState<ReadonlyMap<string, number>>(() => new Map());
+    const { players, heartbeats } = roomData;
+    useEffect(() => {
+        const now = performance.now();
+        setMissingSince(previous => {
+            const next = new Map<string, number>();
+            for (const player of players) {
+                if (player.status !== 'BOT' && heartbeatToMillis(heartbeats?.[player.uid]) === undefined) {
+                    next.set(player.uid, previous.get(player.uid) ?? now);
+                }
+            }
+            return next.size === previous.size && [...next.keys()].every(uid => previous.has(uid))
+                ? previous
+                : next;
+        });
+    }, [players, heartbeats]);
+
+    const presenceNow = performance.now();
+    const unconfirmedPlayerIds = getMissingLobbyPresencePlayerIds(roomData, getEstimatedPresenceServerNow() ?? null);
+    const connectingPlayerIds = new Set(unconfirmedPlayerIds.filter(uid =>
+        heartbeatToMillis(heartbeats?.[uid]) === undefined &&
+        presenceNow - (missingSince.get(uid) ?? presenceNow) < LOBBY_HEARTBEAT_MAX_AGE_MS,
+    ));
+    const disconnectedPlayerIds = new Set(unconfirmedPlayerIds.filter(uid => !connectingPlayerIds.has(uid)));
     const successor = roomData.players.find(player =>
-        player.uid !== hostId && player.status !== 'BOT' && !disconnectedPlayerIds.has(player.uid),
+        player.uid !== hostId && player.status !== 'BOT' && !unconfirmedPlayerIds.includes(player.uid),
     )?.uid;
-    const canStart = roomData.players.length === 3 && !hasDisconnectedPlayer
+    const canStart = roomData.players.length === 3 && unconfirmedPlayerIds.length === 0
         && (!isCreator || premiumStatusResolved);
     const shouldAutoStart = canStart && isHost && !canEjectPlayers;
     const canDeleteWaitingRoom = isHost && roomData.status === 'WAITING' && roomData.players.length <= 1 && !roomData.gameState;
@@ -121,17 +142,18 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
         }
     };
 
-    const [releasingPlayer, setReleasingPlayer] = useState<string | null>(null);
+    const [releasingSeat, setReleasingSeat] = useState<{ playerId: string; action?: 'EJECT' } | null>(null);
+    const releasingPlayer = releasingSeat?.playerId ?? null;
     const handleReleaseSeat = async (playerId: string, action?: 'EJECT') => {
         if (releasingPlayer) return;
-        setReleasingPlayer(playerId);
+        setReleasingSeat({ playerId, action });
         try {
             await releaseWaitingRoomSeat(roomData.roomId, playerId, action);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Réessaie dans un instant.';
             Alert.alert('Impossible de libérer la place', message);
         } finally {
-            setReleasingPlayer(null);
+            setReleasingSeat(null);
         }
     };
 
@@ -233,8 +255,10 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
     const showLeaveButton = onLeaveRoom && !isHost && roomData.status === 'WAITING'
         && slots.some(slot => slot.isCurrentUser);
     let waitingMessage: string | null = `En attente de ${missingPlayerCount} joueur${missingPlayerCount > 1 ? 's' : ''}...`;
-    if (hasDisconnectedPlayer && roomData.players.length === 3) {
+    if (disconnectedPlayerIds.size > 0 && missingPlayerCount === 0) {
         waitingMessage = 'Un joueur est déconnecté — démarrage suspendu';
+    } else if (connectingPlayerIds.size > 0 && missingPlayerCount === 0) {
+        waitingMessage = 'Connexion des joueurs en cours…';
     } else if (canStart) {
         if (autoStartCountdown) waitingMessage = `Démarrage dans ${autoStartCountdown}...`;
         else if (launching) waitingMessage = 'Lancement de la partie…';
@@ -268,8 +292,11 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
 
     const renderPlayerCard = (slot: typeof slots[0], index: number) => {
         const player = slot.player;
+        const isReleasing = player?.uid === releasingPlayer;
         const isDisconnected = player && disconnectedPlayerIds.has(player.uid);
-        const canEject = player && !slot.isCurrentUser && player.status !== 'BOT' && !isDisconnected && canEjectPlayers;
+        const isConnecting = player && connectingPlayerIds.has(player.uid);
+        const canEject = player && !slot.isCurrentUser && player.status !== 'BOT'
+            && !isDisconnected && !isConnecting && canEjectPlayers;
         return (
             <Animated.View
                 key={index}
@@ -282,7 +309,16 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                         slot.isCurrentUser && styles.playerCardHighlight,
                     ]}
                 >
-                    {slot.isEmpty ? (
+                    {isReleasing ? (
+                        <>
+                            <View style={styles.emptyAvatar}>
+                                <ActivityIndicator size="small" color="#FFD700" />
+                            </View>
+                            <Text accessibilityLiveRegion="polite" style={styles.seatReleaseProgress}>
+                                {releasingSeat?.action === 'EJECT' ? 'Exclusion en cours…' : 'Libération en cours…'}
+                            </Text>
+                        </>
+                    ) : slot.isEmpty ? (
                         <>
                             <View style={styles.emptyAvatar}>
                                 <Text style={styles.silhouetteIcon}>👤</Text>
@@ -301,18 +337,6 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                         </>
                     ) : (
                         <>
-                            {canEject && (
-                                <PremiumButton
-                                    style={styles.ejectButton}
-                                    hitSlop={2}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Exclure ${player.displayName}`}
-                                    disabled={releasingPlayer !== null || launching}
-                                    onPress={() => confirmSeatRemoval(player.uid, player.displayName, 'EJECT')}
-                                >
-                                    <Text style={styles.ejectButtonLabel}>Exclure</Text>
-                                </PremiumButton>
-                            )}
                             <View style={{ justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
                                 <View style={[
                                     styles.avatar,
@@ -355,15 +379,33 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                             <Text style={styles.playerStatus}>
                                 {slot.isCurrentUser ? '(Vous)' : slot.isHost ? 'HÔTE' : 'Joueur'}
                             </Text>
-                            {disconnectedPlayerIds.has(slot.player!.uid) && (
-                                <Text
-                                    style={styles.disconnectedPlayerStatus}
-                                    accessibilityLabel={`${slot.player!.displayName} est déconnecté`}
-                                >
-                                    ● Déconnecté
-                                </Text>
+                            {player && player.status !== 'BOT' && (
+                                isDisconnected ? (
+                                    <Text
+                                        style={styles.disconnectedPlayerStatus}
+                                        accessibilityLabel={`${player.displayName} est déconnecté`}
+                                    >
+                                        ● Déconnecté
+                                    </Text>
+                                ) : (
+                                    <Text style={[styles.presenceStatus, !isConnecting && styles.onlinePlayerStatus]}>
+                                        {isConnecting ? 'Connexion…' : '● En ligne'}
+                                    </Text>
+                                )
                             )}
                             <GradeBadge grade={slot.player?.leagueGrade} size="xs" />
+                            {canEject && (
+                                <PremiumButton
+                                    style={styles.ejectButton}
+                                    hitSlop={2}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Exclure ${player.displayName}`}
+                                    disabled={releasingPlayer !== null || launching}
+                                    onPress={() => confirmSeatRemoval(player.uid, player.displayName, 'EJECT')}
+                                >
+                                    <Text style={styles.ejectButtonLabel}>Exclure</Text>
+                                </PremiumButton>
+                            )}
                             {player && !slot.isCurrentUser && isDisconnected
                                 && (isHost || (slot.isHost && successor === currentUserId)) && (
                                 <PremiumButton
@@ -652,11 +694,26 @@ const styles = StyleSheet.create({
         fontSize: 10,
         marginTop: 1,
     },
+    presenceStatus: {
+        color: '#D7C8E7',
+        fontSize: 10,
+        textAlign: 'center',
+        marginTop: 4,
+    },
+    onlinePlayerStatus: {
+        color: '#A5D6A7',
+    },
     disconnectedPlayerStatus: {
         color: '#FFB74D',
         fontSize: 10,
         fontWeight: '700',
         marginTop: 3,
+    },
+    seatReleaseProgress: {
+        color: '#FFD700',
+        fontSize: 11,
+        fontWeight: '700',
+        textAlign: 'center',
     },
     emptyText: {
         color: 'rgba(255,255,255,0.3)',
@@ -761,7 +818,7 @@ const styles = StyleSheet.create({
     ejectButton: {
         alignSelf: 'stretch',
         minHeight: 40,
-        marginBottom: 8,
+        marginTop: 8,
         borderRadius: 9,
         backgroundColor: '#B82036',
         alignItems: 'center',

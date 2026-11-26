@@ -2,7 +2,7 @@
 
 - [ ] `PREMIUM-LOBBY-MODERATION-01` Prêt — Publier la version mobile qui inclut la modération du lobby validée. Les fonctions et les règles Firestore sont en production.
 
-- [ ] `BUG-MULTI-START-01` Prêt — Publier la version mobile qui inclut les correctifs validés du lobby. Les fonctions de démarrage et de gestion des places sont en production.
+- [ ] `BUG-MULTI-START-01` Prêt — Publier les règles Firestore acceptant le premier signal de présence à l’arrivée, puis la version mobile du lobby. Les fonctions de démarrage et de gestion des places sont en production.
 
 - [ ] [Trello #14](https://trello.com/c/tWSa407M) Prêt — Publier sur Google Play le bundle 2.5.4 intégrant le cadeau de bienvenue accessible depuis l’accueil, puis vérifier la première partie depuis une installation du Store.
 

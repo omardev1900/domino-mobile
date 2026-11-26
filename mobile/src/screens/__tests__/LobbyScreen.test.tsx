@@ -216,7 +216,8 @@ describe('LobbyScreen', () => {
         const { a: expiredHeartbeat, ...remainingHeartbeats } = room.heartbeats!;
         const disconnected = { ...room, heartbeats: remainingHeartbeats };
         screen.rerender(<LobbyScreen roomData={disconnected} currentUserId="host" onStartGame={onStartGame} />);
-        expect(screen.getByText('Un joueur est déconnecté — démarrage suspendu')).toBeTruthy();
+        expect(screen.getByText('Connexion des joueurs en cours…')).toBeTruthy();
+        expect(screen.queryByLabelText('A est déconnecté')).toBeNull();
 
         const restored = {
             ...room,
@@ -226,6 +227,26 @@ describe('LobbyScreen', () => {
         screen.rerender(<LobbyScreen roomData={restored} currentUserId="host" onStartGame={onStartGame} />);
         await act(async () => { jest.advanceTimersByTime(2000); });
         expect(onStartGame).toHaveBeenCalledTimes(2);
+        expect(screen.getAllByText('● En ligne')).toHaveLength(3);
+    });
+
+    it('attend un premier signal avant d’afficher une déconnexion', async () => {
+        jest.useFakeTimers();
+        const room = makeRoom([makePlayer('host', 'Hôte'), makePlayer('a', 'Alice'), makePlayer('b', 'Bob')]);
+        delete room.heartbeats!.a;
+        const onStartGame = jest.fn();
+        const screen = render(<LobbyScreen roomData={room} currentUserId="host" onStartGame={onStartGame} />);
+
+        expect(screen.getByText('Connexion…')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Libérer la place de Alice' })).toBeNull();
+        await act(async () => { jest.advanceTimersByTime(24_000); });
+        expect(screen.queryByLabelText('Alice est déconnecté')).toBeNull();
+        expect(onStartGame).not.toHaveBeenCalled();
+
+        await act(async () => { jest.advanceTimersByTime(1000); });
+        expect(screen.getByLabelText('Alice est déconnecté')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Libérer la place de Alice' })).toBeTruthy();
+        expect(onStartGame).not.toHaveBeenCalled();
     });
 
     it('demande confirmation avant de libérer la place d’un hôte déconnecté', async () => {
@@ -271,6 +292,35 @@ describe('LobbyScreen', () => {
 
             await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'Démarrer la partie' })); });
             expect(onStartGame).toHaveBeenCalledTimes(1);
+        } finally {
+            alert.mockRestore();
+        }
+    });
+
+    it('affiche l’exclusion en cours immédiatement et restaure la fiche si elle échoue', async () => {
+        const room = {
+            ...makeRoom([makePlayer('host', 'Hôte'), makePlayer('a', 'Alice'), makePlayer('b', 'Bob')]),
+            lobbyCreatorId: 'host',
+        };
+        let rejectRelease: (error: Error) => void = () => {};
+        jest.mocked(releaseWaitingRoomSeat).mockReturnValueOnce(new Promise<void>((_resolve, reject) => {
+            rejectRelease = reject;
+        }));
+        const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+        try {
+            const screen = render(<LobbyScreen roomData={room} currentUserId="host" onStartGame={jest.fn()} hasPremium />);
+            fireEvent.press(screen.getByRole('button', { name: 'Exclure Alice' }));
+            act(() => { alert.mock.calls[0][2]?.find(button => button.text === 'Exclure')?.onPress?.(); });
+
+            expect(screen.getByText('Exclusion en cours…')).toBeTruthy();
+            expect(screen.queryByText('Alice')).toBeNull();
+            expect(screen.queryByText('+ Bot')).toBeNull();
+
+            await act(async () => { rejectRelease(new Error('Réessaie.')); });
+
+            expect(screen.queryByText('Exclusion en cours…')).toBeNull();
+            expect(screen.getByText('Alice')).toBeTruthy();
+            expect(alert).toHaveBeenLastCalledWith('Impossible de libérer la place', 'Réessaie.');
         } finally {
             alert.mockRestore();
         }

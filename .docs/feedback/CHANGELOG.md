@@ -12,9 +12,10 @@
 
 ### Correctifs multijoueurs en préparation
 
+- La présence est enregistrée dès l’arrivée à la table. Le lobby affiche « Connexion… » si le premier signal manque encore, puis « En ligne » dès sa réception.
 - Le lancement automatique reprend quand les joueurs se reconnectent. Une place libérée peut être occupée par un nouvel invité ou un bot, et un invité connecté peut reprendre la table si l’hôte se déconnecte.
 - Le créateur Premium peut exclure un invité de sa nouvelle table avant de démarrer la partie. Le bouton « Démarrer la partie » lui laisse le temps de gérer les places.
-- Un bouton doré et centré lance la partie. Les invités peuvent quitter la table par l’icône de porte rouge à droite du titre « TABLE », après confirmation. Le bloc du code et de WhatsApp est plus compact. Le bouton rouge « Exclure » se trouve en haut de la fiche du joueur. Pour une place occupée par un joueur déconnecté, le bouton orange « Libérer » apparaît en bas de la fiche et demande confirmation.
+- Un bouton doré et centré lance la partie. Les invités peuvent quitter la table par l’icône de porte rouge à droite du titre « TABLE », après confirmation. Le bloc du code et de WhatsApp est plus compact. Le bouton rouge « Exclure » se trouve en bas de la fiche de l’invité. Après confirmation, la fiche affiche immédiatement « Exclusion en cours… ». Pour une place occupée par un joueur déconnecté, le bouton orange « Libérer » apparaît en bas de la fiche et demande confirmation.
 
 ### 2026-11-19 — Android 2.5.4 préparée
 

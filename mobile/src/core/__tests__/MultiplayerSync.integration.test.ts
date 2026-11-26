@@ -249,6 +249,31 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
         await assertFails(updateDoc(roomRef, { playerIds: [host], players: [playerProfile(host)] }));
     });
 
+    it('publishes joining and the first server heartbeat together', async () => {
+        const host = 'user_host';
+        const guest = 'user_guest';
+        const hostRoom = doc(testEnv.authenticatedContext(host).firestore(), 'rooms', 'LOBBY_INITIAL_PRESENCE');
+        const guestRoom = doc(testEnv.authenticatedContext(guest).firestore(), 'rooms', hostRoom.id);
+        const room = {
+            roomId: hostRoom.id, createdBy: host, lobbyCreatorId: host, status: 'WAITING', gameState: null,
+            players: [playerProfile(host)], playerIds: [host],
+        };
+        await assertFails(setDoc(hostRoom, { ...room, heartbeats: { [guest]: serverTimestamp() } }));
+        await assertFails(setDoc(hostRoom, { ...room, heartbeats: { [host]: 1 } }));
+        await assertSucceeds(setDoc(hostRoom, { ...room, heartbeats: { [host]: serverTimestamp() } }));
+
+        const append = {
+            playerIds: [host, guest], players: [playerProfile(host), playerProfile(guest)], lastActivity: Date.now(),
+        };
+        await assertFails(updateDoc(guestRoom, { ...append, [`heartbeats.${host}`]: serverTimestamp() }));
+        await assertFails(updateDoc(guestRoom, { ...append, [`heartbeats.${guest}`]: 1 }));
+        await assertSucceeds(updateDoc(guestRoom, { ...append, [`heartbeats.${guest}`]: serverTimestamp() }));
+        const result = (await getDoc(hostRoom)).data();
+        expect(result?.playerIds).toEqual([host, guest]);
+        expect(result?.heartbeats?.[host]?.toMillis()).toBeGreaterThan(0);
+        expect(result?.heartbeats?.[guest]?.toMillis()).toBeGreaterThan(0);
+    });
+
     it('Scenario 4: the creator can still start a coordinated rematch from the lobby', async () => {
         const hostDb = testEnv.authenticatedContext('user_host').firestore();
         const guestDb = testEnv.authenticatedContext('user_guest').firestore();

@@ -2,6 +2,8 @@
 
 ### 2026-11-26
 
+- [x] Enregistrer la présence dans la même transaction que l’arrivée en table et afficher la connexion en attente du premier signal. Conserver la jointure lorsque les règles Firestore précédentes exigent un signal séparé.
+
 - [x] Afficher l’offre d’essai Premium sur l’accueil mobile uniquement lorsque le compte est éligible.
 
 - [x] Afficher les articles publics pendant la vérification Premium et actualiser l’inventaire et le solde après un achat payé sans relire la boutique. Regrouper les lectures Firestore de la transaction. Tests locaux passés, mesure en production à faire après déploiement.
@@ -12,7 +14,7 @@
 
 - [x] Remplacer le libellé « Acheter » par une icône de caddie dans la boutique mobile. Garder le prix visible et annoncer le nom de l’article avec un lecteur d’écran.
 
-- [x] Centrer le bouton de démarrage dans le lobby et proposer aux invités une sortie par icône avec confirmation dans le bloc TABLE. Réduire le bloc de partage et placer l’exclusion en rouge en haut de la fiche du joueur. Placer la libération de place en orange en bas de la fiche, avec confirmation.
+- [x] Centrer le bouton de démarrage dans le lobby et proposer aux invités une sortie par icône avec confirmation dans le bloc TABLE. Réduire le bloc de partage et placer l’exclusion en rouge en bas de la fiche de l’invité. Placer la libération de place en orange en bas de la fiche, avec confirmation. Afficher la progression sur la fiche dès la confirmation d’une exclusion.
 
 - [x] `PREMIUM-LOBBY-MODERATION-01` Permettre au créateur Premium d’exclure un invité avant le démarrage. La fonction vérifie le droit Premium et les règles Firestore protègent les places des nouvelles tables.
 

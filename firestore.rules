@@ -73,12 +73,22 @@ service cloud.firestore {
 
       // In coordinated rooms, presence is a server decision. A client may only
       // renew its own lease; serverTimestamp resolves to request.time in rules.
-      function isOwnHeartbeatRenewal() {
+      function updatesOwnHeartbeat() {
         let beforeHeartbeats = resource.data.get('heartbeats', {});
         let afterHeartbeats = request.resource.data.get('heartbeats', {});
-        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['heartbeats']) &&
-          afterHeartbeats.diff(beforeHeartbeats).affectedKeys().hasOnly([request.auth.uid]) &&
+        return afterHeartbeats.diff(beforeHeartbeats).affectedKeys().hasOnly([request.auth.uid]) &&
           afterHeartbeats[request.auth.uid] == request.time;
+      }
+
+      function isOwnHeartbeatRenewal() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['heartbeats']) &&
+          updatesOwnHeartbeat();
+      }
+
+      function hasValidInitialHeartbeat() {
+        let heartbeats = request.resource.data.get('heartbeats', {});
+        return heartbeats.size() == 0 ||
+          (heartbeats.keys().hasOnly([request.auth.uid]) && heartbeats[request.auth.uid] == request.time);
       }
 
       function isCoordinatorLobbyStart() {
@@ -114,8 +124,10 @@ service cloud.firestore {
         let before = resource.data;
         let after = request.resource.data;
         let count = before.players.size();
+        let changed = after.diff(before).affectedKeys();
         return isCoordinatorLobbyJoin() &&
-          after.diff(before).affectedKeys().hasOnly(['players', 'playerIds', 'lastActivity']) &&
+          changed.hasOnly(['players', 'playerIds', 'lastActivity', 'heartbeats']) &&
+          (!changed.hasAny(['heartbeats']) || updatesOwnHeartbeat()) &&
           after.playerIds == before.playerIds.concat([request.auth.uid]) &&
           after.players == before.players.concat([after.players[count]]) &&
           after.players[count].uid == request.auth.uid &&
@@ -151,7 +163,8 @@ service cloud.firestore {
             request.resource.data.gameState == null &&
             request.resource.data.playerIds == [request.auth.uid] &&
             request.resource.data.players.size() == 1 &&
-            request.resource.data.players[0].uid == request.auth.uid));
+            request.resource.data.players[0].uid == request.auth.uid &&
+            hasValidInitialHeartbeat()));
 
       // Un joueur ne peut mettre à jour que s'il est dans la room (ou s'y ajoute)
       allow update: if isRoomMember() && respectsCoordinatorAuthority() && respectsProtectedLobby() && hasValidPlayerCapacity() &&

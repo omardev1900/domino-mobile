@@ -260,6 +260,7 @@ export const createRoom = async (
                     transaction.set(docRef, {
                         ...cleanRoomData,
                         roomId: shortCode,
+                        heartbeats: { [hostProfile.uid]: serverTimestamp() },
                     });
                     return true;
                 }),
@@ -296,37 +297,48 @@ export const createRoom = async (
 export const joinRoom = async (roomId: string, playerProfile: PlayerProfile): Promise<void> => {
     const roomRef = doc(db, ROOMS_COLLECTION, roomId);
 
-    try {
-        await runTransaction(db, async (transaction) => {
-            const roomSnap = await transaction.get(roomRef);
-            if (!roomSnap.exists()) throw new Error('La table n’existe plus.');
+    const join = (includeHeartbeat: boolean) => runTransaction(db, async (transaction) => {
+        const roomSnap = await transaction.get(roomRef);
+        if (!roomSnap.exists()) throw new Error('La table n’existe plus.');
 
-            const roomData = roomSnap.data() as GameRoom;
-            if (roomData.players.some(player => player.uid === playerProfile.uid)) {
-                // Avoid a no-op write: coordinated lobbies only allow the
-                // atomic append of a new player before the host starts.
-                return;
+        const roomData = roomSnap.data() as GameRoom;
+        if (roomData.players.some(player => player.uid === playerProfile.uid)) {
+            if (includeHeartbeat && roomData.status === RoomStatus.WAITING) {
+                transaction.update(roomRef, { [`heartbeats.${playerProfile.uid}`]: serverTimestamp() });
             }
-            if (roomData.gameState?.players.some(player => player.id === playerProfile.uid)) {
-                throw new Error('Cette partie est deja en cours. Rejoignez-la depuis votre reprise de partie.');
-            }
-            if (roomData.status !== RoomStatus.WAITING) {
-                throw new Error('Impossible de rejoindre : la partie a deja commence.');
-            }
-            if (roomData.players.length >= 3) {
-                throw new Error('Impossible de rejoindre : la table est complete.');
-            }
+            return;
+        }
+        if (roomData.gameState?.players.some(player => player.id === playerProfile.uid)) {
+            throw new Error('Cette partie est deja en cours. Rejoignez-la depuis votre reprise de partie.');
+        }
+        if (roomData.status !== RoomStatus.WAITING) {
+            throw new Error('Impossible de rejoindre : la partie a deja commence.');
+        }
+        if (roomData.players.length >= 3) {
+            throw new Error('Impossible de rejoindre : la table est complete.');
+        }
 
-            const joinedProfile: PlayerProfile = {
-                ...withoutUndefined(structuredClone(playerProfile)),
-                isHost: false,
-            };
-            transaction.update(roomRef, {
-                players: [...roomData.players, joinedProfile],
-                playerIds: [...new Set([...(roomData.playerIds ?? []), playerProfile.uid])],
-                lastActivity: Date.now(),
-            });
+        const joinedProfile: PlayerProfile = {
+            ...withoutUndefined(structuredClone(playerProfile)),
+            isHost: false,
+        };
+        transaction.update(roomRef, {
+            players: [...roomData.players, joinedProfile],
+            playerIds: [...new Set([...(roomData.playerIds ?? []), playerProfile.uid])],
+            lastActivity: Date.now(),
+            ...(includeHeartbeat ? { [`heartbeats.${playerProfile.uid}`]: serverTimestamp() } : {}),
         });
+    });
+
+    try {
+        try {
+            await join(true);
+        } catch (error) {
+            if ((error as Partial<FirestoreError> | null)?.code !== 'permission-denied') throw error;
+            // Older protected lobbies allow the join and the heartbeat as separate writes.
+            // The lobby renews presence as soon as it mounts.
+            await join(false);
+        }
         LogService.info('Firebase', `Player ${playerProfile.uid} joined room ${roomId}`);
 
     } catch (e) {
