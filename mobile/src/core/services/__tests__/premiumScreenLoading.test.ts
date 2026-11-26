@@ -16,6 +16,20 @@ it('lit le statut Premium confirmé', async () => {
     jest.mocked(getDoc).mockResolvedValue({ exists: () => true, data: () => ({ expiresAt: { toDate: () => expiresAt }, source: 'SUBSCRIPTION' }) } as never);
     await expect(premiumService.getEntitlementForScreen()).resolves.toEqual({ expiresAt, source: 'SUBSCRIPTION' });
 });
+it('conserve la date d’utilisation après l’expiration de l’essai Premium', async () => {
+    jest.mocked(authService.getCurrentUser).mockResolvedValue({ uid: 'player' } as never);
+    const trialUsedAt = new Date('2026-01-01');
+    const expiresAt = new Date('2026-01-04');
+    jest.mocked(getDoc).mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+            expiresAt: { toDate: () => expiresAt },
+            source: 'TRIAL',
+            trialUsedAt: { toDate: () => trialUsedAt },
+        }),
+    } as never);
+    await expect(premiumService.getEntitlementForScreen()).resolves.toEqual({ expiresAt, source: 'TRIAL', trialUsedAt });
+});
 it('ne présente pas un joueur comme gratuit si Firestore échoue', async () => {
     jest.mocked(authService.getCurrentUser).mockResolvedValue({ uid: 'player' } as never);
     jest.mocked(getDoc).mockRejectedValue(new Error('Réseau indisponible'));

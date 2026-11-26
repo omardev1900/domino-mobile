@@ -34,7 +34,7 @@ import { useAppOpenAd, AdMobIds, isAdMobEnabled } from '../src/core/services/AdM
 import { USE_NEW_SIDEBAR } from '../src/core/config/navigation.config';
 import { getLeagueProgress, getMonthlyCochonsFromHistory } from '../src/core/leagueProgress';
 import { PremiumButton } from '../src/components/common/PremiumButton';
-import { PremiumEntitlement, premiumService } from '../src/core/services/premium.service';
+import { isPremiumActive, PremiumEntitlement, premiumService } from '../src/core/services/premium.service';
 import { perfMark, perfStart } from '../src/core/services/perf';
 import { CampaignBlockContext } from '../src/core/campaigns/CampaignBlockContext';
 import { useCampaign } from '../src/core/campaigns/useCampaign';
@@ -59,9 +59,14 @@ export default function HomeScreen() {
     const [showLowCoinsPrompt, setShowLowCoinsPrompt] = useState(false);
     const welcomeClaims = useRef(new Set<string>());
     const [dailyRewardAmount, setDailyRewardAmount] = useState(0);
-    const [hasPremium, setHasPremium] = useState(false);
     const [premiumEntitlement, setPremiumEntitlement] = useState<PremiumEntitlement | null>(null);
+    const [premiumStatusConfirmed, setPremiumStatusConfirmed] = useState(false);
     const [premiumStatusResolved, setPremiumStatusResolved] = useState(false);
+    const hasPremium = isPremiumActive(premiumEntitlement);
+    const canOfferPremiumTrial = premiumStatusConfirmed && !premiumEntitlement?.trialUsedAt;
+    const premiumHomeText = hasPremium && premiumEntitlement
+        ? `Jusqu’au ${new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).format(premiumEntitlement.expiresAt)}`
+        : canOfferPremiumTrial ? '3 jours gratuits' : 'Découvrir Premium';
     const [homePrepared, setHomePrepared] = useState(false);
     const [appOpenDone, setAppOpenDone] = useState(!isAdMobEnabled || hasShownAppOpenAd);
     const globalCampaignBlock = useContext(CampaignBlockContext);
@@ -80,18 +85,21 @@ export default function HomeScreen() {
 
     useFocusEffect(
         useCallback(() => {
-        let active = true;
-        premiumService.getEntitlement().then((entitlement) => {
-            if (active) {
-                setPremiumEntitlement(entitlement);
-                setHasPremium(Boolean(entitlement && entitlement.expiresAt.getTime() > Date.now()));
-            }
-        }).finally(() => {
-            if (active) setPremiumStatusResolved(true);
-        });
-        return () => {
-            active = false;
-        };
+            let active = true;
+            setPremiumStatusConfirmed(false);
+            premiumService.getEntitlementForScreen().then((entitlement) => {
+                if (active) {
+                    setPremiumEntitlement(entitlement);
+                    setPremiumStatusConfirmed(true);
+                }
+            }).catch((error) => {
+                if (active) LogService.warn('Home', 'Impossible de vérifier le statut Premium.', error);
+            }).finally(() => {
+                if (active) setPremiumStatusResolved(true);
+            });
+            return () => {
+                active = false;
+            };
         }, [])
     );
 
@@ -463,7 +471,7 @@ export default function HomeScreen() {
                                     <Ionicons name="star" size={22} color="#2D1B4E" />
                                 </View>
                                 <Text style={styles.premiumHomeTitle}>{hasPremium ? 'PREMIUM ACTIF' : 'PREMIUM'}</Text>
-                                <Text style={styles.premiumHomeText}>{hasPremium && premiumEntitlement ? `Jusqu’au ${new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).format(premiumEntitlement.expiresAt)}` : '3 jours gratuits'}</Text>
+                                <Text style={styles.premiumHomeText}>{premiumHomeText}</Text>
                                 <Ionicons name="chevron-forward" size={17} color="#FFD700" />
                             </LinearGradient>
                         </TouchableOpacity>

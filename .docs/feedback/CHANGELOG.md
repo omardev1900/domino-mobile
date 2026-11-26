@@ -1,5 +1,9 @@
 # Changelog
 
+### 2026-11-26 — Accueil mobile
+
+- La carte Premium affiche « Découvrir Premium » après un essai déjà utilisé.
+
 ### 2026-11-26 — Boutique mobile
 
 - Les articles publics s’affichent pendant la vérification de l’accès Premium. Le solde et l’inventaire se mettent à jour dès la confirmation d’un achat payant.

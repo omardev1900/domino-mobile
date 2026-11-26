@@ -2,6 +2,8 @@
 
 ### 2026-11-26
 
+- [x] Afficher l’offre d’essai Premium sur l’accueil mobile uniquement lorsque le compte est éligible.
+
 - [x] Afficher les articles publics pendant la vérification Premium et actualiser l’inventaire et le solde après un achat payé sans relire la boutique. Regrouper les lectures Firestore de la transaction. Tests locaux passés, mesure en production à faire après déploiement.
 
 - [x] Déployer les fonctions de gestion des places et de lancement du lobby ainsi que les règles Firestore du commit `7cae53c` en production. Publication vérifiée sur `domino-martinique-v1`. Tests du lobby validés.
