@@ -58,13 +58,14 @@ export const useGameSync = ({
         const roomRef = doc(db, 'rooms', gameId);
 
         // First, explicitly declare we are online
-        signalPlayerOnline().then(() => setIsStarting(false));
+        void signalPlayerOnline();
 
         const unsubscribe = onSnapshot(roomRef, (docSnap) => {
             if (docSnap.exists()) {
-                const data = docSnap.data() as GameRoom;
+                const data = docSnap.data({ serverTimestamps: 'previous' }) as GameRoom;
                 setConnectionError(null); // Clear error on successful snapshot
                 setRoomData(data);
+                setIsStarting(false);
 
                 if (data.gameState) {
                     // Check if it's actually an update from someone else (or just our own reflected)

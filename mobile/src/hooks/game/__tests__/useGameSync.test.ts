@@ -91,6 +91,26 @@ describe('useGameSync Hook', () => {
         expect(result.current.gameState).toEqual(mockGameState);
     });
 
+    it('opens the waiting lobby from Firestore even while realtime presence is pending', () => {
+        const signalPlayerOnline = jest.fn(() => new Promise<void>(() => {}));
+        const { result } = renderHook(() => useGameSync({
+            gameId: 'test-room-1',
+            localPlayerId: 'p1',
+            isSoloMode: false,
+            signalPlayerOnline,
+        }));
+
+        const receiveSnapshot = (onSnapshot as jest.Mock).mock.calls[0][1];
+        const data = jest.fn(() => ({ ...mockRoomData, status: RoomStatus.WAITING, gameState: null }));
+        expect(result.current.isStarting).toBe(true);
+
+        act(() => receiveSnapshot({ exists: () => true, data }));
+
+        expect(data).toHaveBeenCalledWith({ serverTimestamps: 'previous' });
+        expect(result.current.isStarting).toBe(false);
+        expect(result.current.roomData?.status).toBe('WAITING');
+    });
+
     it('runs safeUpdateGameState and rejects older states', async () => {
         const mockTransaction = {
             get: jest.fn().mockResolvedValue({

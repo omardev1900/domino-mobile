@@ -364,10 +364,13 @@ export const useConnectionStatus = ({
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (state: AppStateStatus) => {
-            if (state === 'active') void signalOnlineRef.current();
+            if (state === 'active') {
+                if (externalGamePhaseRef?.current === undefined) void sendPingRef.current();
+                void signalOnlineRef.current();
+            }
         });
         return () => subscription.remove();
-    }, []);
+    }, [externalGamePhaseRef]);
 
     // Le retour Wi-Fi / données mobiles ne change pas forcément AppState. Après une
     // coupure confirmée, relancer la présence rend immédiatement le lease serveur
@@ -401,6 +404,7 @@ export const useConnectionStatus = ({
                     decision: 'network_reconnect_confirmed',
                     statusTo: 'HUMAN',
                 });
+                if (externalGamePhaseRef?.current === undefined) void sendPingRef.current();
                 void signalOnlineRef.current();
             }, NETWORK_RECONNECT_CONFIRMATION_MS);
         });
@@ -412,7 +416,7 @@ export const useConnectionStatus = ({
             }
             unsubscribe();
         };
-    }, [gameId, isSoloMode, logPresence]);
+    }, [externalGamePhaseRef, gameId, isSoloMode, logPresence]);
 
     // ─── 4. SIGNAL OFFLINE (quitter volontaire ou crash) ─────────────────────
     // surrendered = true  → joueur a cliqué "Quitter" volontairement → SURRENDERED

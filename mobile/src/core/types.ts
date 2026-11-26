@@ -141,7 +141,8 @@ export interface GameRoom {
     players: PlayerProfile[]; // Liste des joueurs connectés (max 3)
     playerIds?: string[]; // UIDs des joueurs (utilisé par les règles Firestore)
     gameState: GameState | null; // État complet de la partie une fois lancée
-    createdBy: string; // UID du créateur
+    createdBy: string; // UID de l’hôte actuel
+    lobbyCreatorId?: string; // UID du créateur initial de la table
     participantIds?: string[];
     participantProfiles?: PlayerProfile[];
     //hostId: string;

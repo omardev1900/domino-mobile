@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc } from 'firebase/firestore';
-import { db, findActiveRoomForUser, setUserActiveRoom, leaveRoom } from '../core/services/firebase';
+import { db, findActiveRoomForUser, setUserActiveRoom, leaveRoom, releaseWaitingRoomSeat } from '../core/services/firebase';
 import { authService } from '../core/services/auth.service';
 import { LogService } from '../core/services/LogService';
 import { GameRoom } from '../core/types';
@@ -59,7 +59,9 @@ export function useMultiResume(currentPath: string) {
                 const canResumeResults = roomData.adPolicy === 'SYNCHRONIZED'
                     && roomData.status === 'FINISHED' && roomData.finalization?.status === 'COMPLETED'
                     && roomData.participantIds?.includes(user.uid);
-                if (roomData.status === 'PLAYING' || roomData.status === 'WAITING' || canResumeResults) {
+                const hasWaitingSeat = roomData.status === 'WAITING'
+                    && roomData.players.some(player => player.uid === user.uid);
+                if (roomData.status === 'PLAYING' || hasWaitingSeat || canResumeResults) {
                     setResumeInfo({
                         roomId: activeRoomId,
                         status: roomData.status,
@@ -137,6 +139,8 @@ export function useMultiResume(currentPath: string) {
                     expectedTurnId: state.turnId ?? 0,
                     action: { type: 'SURRENDER' },
                 });
+            } else if (room.status === 'WAITING') {
+                await releaseWaitingRoomSeat(activeRoomId);
             } else {
                 if (room.status !== 'FINISHED') await leaveRoom(activeRoomId, user.uid);
                 await setUserActiveRoom(user.uid, null);

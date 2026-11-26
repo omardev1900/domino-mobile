@@ -1,5 +1,11 @@
 # Retours client
 
+### 2026-11-26
+
+> depuis la derniere mise a jour, il y a des parties multiples qui ne se lancent pas
+
+Deux lobbies signalés, l’un en attente d’une relance par l’hôte et l’autre suspendu pour déconnexion. Un autre joueur n’arrive pas à lancer une partie.
+
 ### 2026-11-16
 
 > Alerte Bugs ;

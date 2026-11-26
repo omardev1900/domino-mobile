@@ -1,3 +1,4 @@
+import { createAddWaitingRoomBot, createReleaseWaitingRoomSeat } from './waitingRoomSeats';
 import { createStartCoordinatedRoom } from './coordinatedRoomStart';
 import { createConfirmMultiplayerAd, createExpireMultiplayerAds } from './multiplayerAdCycle';
 import * as admin from 'firebase-admin';
@@ -70,6 +71,8 @@ export const backfillGlobalLeaderboard = createBackfillGlobalLeaderboard(db);
 export const debitSoloBuyIn = createDebitSoloBuyIn(db);
 export const refundSoloBuyIn = createRefundSoloBuyIn(db);
 export const startCoordinatedRoom = createStartCoordinatedRoom(db);
+export const releaseWaitingRoomSeat = createReleaseWaitingRoomSeat(db);
+export const addWaitingRoomBot = createAddWaitingRoomBot(db);
 export const confirmMultiplayerAd = createConfirmMultiplayerAd(db);
 export const expireMultiplayerAds = createExpireMultiplayerAds(db);
 export const settleMultiplayerBuyIn = createSettleMultiplayerBuyIn(db);

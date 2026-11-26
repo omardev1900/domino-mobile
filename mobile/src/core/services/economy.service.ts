@@ -16,7 +16,7 @@ import { Platform } from 'react-native';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import type { DocumentSnapshot } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { auth, db, gameFunctions } from './firebase';
+import { auth, db, firebaseEmulatorHost, gameFunctions } from './firebase';
 import { LogService } from './LogService';
 import { PlayerEconomy, MatchReward, LeagueGrade, RewardCalculationInput, LeagueFrameId } from '../economy.types';
 import { NEW_PLAYER_COINS, DAILY_REWARD_COINS, AD_REWARD_COINS, MINIMUM_COIN_RESERVE } from '../economy.constants';
@@ -90,13 +90,16 @@ class EconomyService {
         }
 
         const idToken = await currentUser.getIdToken(true);
-        const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+        const projectId = firebaseEmulatorHost ? auth.app.options.projectId : process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
         if (!projectId) {
             throw new Error('EXPO_PUBLIC_FIREBASE_PROJECT_ID manquant pour le fallback HTTP processMatchReward.');
         }
 
+        const rewardUrl = firebaseEmulatorHost
+            ? `http://${firebaseEmulatorHost}:5001/${projectId}/us-central1/processMatchRewardHttp`
+            : `https://us-central1-${projectId}.cloudfunctions.net/processMatchRewardHttp`;
         const response = await fetch(
-            `https://us-central1-${projectId}.cloudfunctions.net/processMatchRewardHttp`,
+            rewardUrl,
             {
                 method: 'POST',
                 headers: {

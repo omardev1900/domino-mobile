@@ -1,3 +1,4 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
@@ -60,7 +61,7 @@ export const applyCoordinatedTurn = async (
             transaction.update(roomRef, {
                 'gameState.players': players,
                 'coordinator.lastPresenceAction': 'RESTORED',
-                'coordinator.lastPresenceActionAt': admin.firestore.FieldValue.serverTimestamp(),
+                'coordinator.lastPresenceActionAt': FieldValue.serverTimestamp(),
             });
             return false;
         }
@@ -76,7 +77,7 @@ export const applyCoordinatedTurn = async (
                 version: 1,
                 lastTurnActionId: decision.actionId,
                 lastTurnActionKind: decision.kind,
-                lastTurnActionAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastTurnActionAt: FieldValue.serverTimestamp(),
             },
             lastActivity: Date.now(),
         });

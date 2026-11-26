@@ -1,3 +1,4 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import { ZodError } from 'zod';
@@ -101,7 +102,7 @@ export const submitGameActionTransaction = async (
                 ...(room.coordinator ?? { version: 1 }),
                 version: 1,
                 lastHumanActionId: applied.actionId,
-                lastHumanActionAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastHumanActionAt: FieldValue.serverTimestamp(),
             },
             lastActivity: Date.now(),
         };

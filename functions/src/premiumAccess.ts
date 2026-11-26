@@ -1,3 +1,4 @@
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import { createHash, randomBytes } from 'node:crypto';
@@ -11,14 +12,14 @@ export type PremiumSource = 'TRIAL' | 'ADMIN_GRANT' | 'PROMO_CODE' | 'PURCHASE_C
 
 interface PremiumEntitlementData {
     source?: PremiumSource;
-    expiresAt?: admin.firestore.Timestamp;
-    trialUsedAt?: admin.firestore.Timestamp;
+    expiresAt?: Timestamp;
+    trialUsedAt?: Timestamp;
 }
 
 interface PremiumCodeData {
     active?: boolean;
     durationDays?: number;
-    expiresAt?: admin.firestore.Timestamp;
+    expiresAt?: Timestamp;
     maxRedemptions?: number;
     redemptionCount?: number;
     bonusCoins?: number;
@@ -43,7 +44,7 @@ const redeemCodeInputSchema = z.object({
 
 const PREMIUM_CODE_REDEMPTION_LIMIT = { perSecond: 1, perMinute: 5 };
 
-const toMillis = (timestamp: admin.firestore.Timestamp | undefined): number | null =>
+const toMillis = (timestamp: Timestamp | undefined): number | null =>
     timestamp ? timestamp.toMillis() : null;
 
 export const normalizePremiumCode = (code: string): string =>
@@ -93,10 +94,10 @@ export async function activatePremiumTrial(
 
         transaction.set(entitlementRef, {
             source: 'TRIAL' satisfies PremiumSource,
-            startsAt: admin.firestore.Timestamp.fromMillis(now),
-            expiresAt: admin.firestore.Timestamp.fromMillis(expiresAt),
-            trialUsedAt: admin.firestore.Timestamp.fromMillis(now),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            startsAt: Timestamp.fromMillis(now),
+            expiresAt: Timestamp.fromMillis(expiresAt),
+            trialUsedAt: Timestamp.fromMillis(now),
+            updatedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
     });
 
@@ -118,10 +119,10 @@ export async function grantPremiumAccess(
     const expiresAt = now + input.durationDays * 24 * 60 * 60 * 1_000;
     await db.collection('premium_entitlements').doc(input.userId).set({
         source: 'ADMIN_GRANT' satisfies PremiumSource,
-        startsAt: admin.firestore.Timestamp.fromMillis(now),
-        expiresAt: admin.firestore.Timestamp.fromMillis(expiresAt),
+        startsAt: Timestamp.fromMillis(now),
+        expiresAt: Timestamp.fromMillis(expiresAt),
         grantedBy,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
     return { expiresAt };
@@ -146,11 +147,11 @@ export async function createPremiumCodes(
         batch.set(db.collection('premium_codes').doc(hashPremiumCode(code)), {
             active: true,
             durationDays: input.durationDays,
-            expiresAt: admin.firestore.Timestamp.fromMillis(input.redeemBy),
+            expiresAt: Timestamp.fromMillis(input.redeemBy),
             maxRedemptions: 1,
             redemptionCount: 0,
             createdBy,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
         });
     });
     await batch.commit();
@@ -197,19 +198,19 @@ export async function redeemPremiumCode(
         const expiresAt = startsAt + code.durationDays * 24 * 60 * 60 * 1_000;
         transaction.set(entitlementRef, {
             source: code.bonusCoins === undefined ? 'PROMO_CODE' satisfies PremiumSource : 'PURCHASE_CODE' satisfies PremiumSource,
-            startsAt: admin.firestore.Timestamp.fromMillis(startsAt),
-            expiresAt: admin.firestore.Timestamp.fromMillis(expiresAt),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            startsAt: Timestamp.fromMillis(startsAt),
+            expiresAt: Timestamp.fromMillis(expiresAt),
+            updatedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
         transaction.update(codeRef, {
-            redemptionCount: admin.firestore.FieldValue.increment(1),
-            redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+            redemptionCount: FieldValue.increment(1),
+            redeemedAt: FieldValue.serverTimestamp(),
             redeemedBy: uid,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
         });
         transaction.set(redemptionRef, {
             codeHash,
-            redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+            redeemedAt: FieldValue.serverTimestamp(),
             userId: uid,
             bonusCoins,
         });

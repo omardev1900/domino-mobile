@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import {
+    connectAuthEmulator,
     initializeAuth,
     // @ts-ignore
     getReactNativePersistence,
@@ -11,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     getFirestore,
     initializeFirestore,
+    connectFirestoreEmulator,
     collection,
     addDoc,
     doc,
@@ -31,9 +33,9 @@ import {
     QuerySnapshot,
     setDoc
 } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { getDatabase } from 'firebase/database';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { connectStorageEmulator, getStorage } from 'firebase/storage';
+import { connectDatabaseEmulator, getDatabase } from 'firebase/database';
+import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
 import { GameRoom, GameState, PlayerProfile, RoomStatus, GameMode } from '../types';
 import { LogService } from './LogService';
 import { resolveStartingHandSize } from '../startingHandSize';
@@ -57,8 +59,16 @@ const firebaseConfig = {
     measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+export const firebaseEmulatorHost = __DEV__ ? process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST?.trim() : undefined;
+const emulatorProject = 'demo-domino';
+const app = initializeApp(firebaseEmulatorHost ? {
+    apiKey: 'demo-domino-local',
+    projectId: emulatorProject,
+    authDomain: `${emulatorProject}.firebaseapp.com`,
+    databaseURL: `https://${emulatorProject}-default-rtdb.firebaseio.com`,
+    storageBucket: `${emulatorProject}.appspot.com`,
+    appId: '1:123:web:local',
+} : firebaseConfig);
 
 // Initialize Firestore with Persistence
 // Le jeu exige une connexion, y compris en solo. Le cache IndexedDB persistant
@@ -91,6 +101,15 @@ try {
 }
 
 export const auth = authInstance;
+
+if (firebaseEmulatorHost) {
+    connectAuthEmulator(auth, `http://${firebaseEmulatorHost}:9099`);
+    connectFirestoreEmulator(db, firebaseEmulatorHost, 8082);
+    connectDatabaseEmulator(rtdb, firebaseEmulatorHost, 9000);
+    connectFunctionsEmulator(gameFunctions, firebaseEmulatorHost, 5001);
+    connectFunctionsEmulator(getFunctions(app), firebaseEmulatorHost, 5001);
+    connectStorageEmulator(storage, firebaseEmulatorHost, 9199);
+}
 
 // Collection References
 const ROOMS_COLLECTION = 'rooms';
@@ -199,6 +218,7 @@ export const createRoom = async (
             playerIds: [hostProfile.uid], // Used by Firestore security rules
             gameState: null,
             createdBy: hostProfile.uid,
+            lobbyCreatorId: hostProfile.uid,
             isPrivate,
             ...(passcode && { passcode }),
             // Default room name if not provided
@@ -330,6 +350,17 @@ export const updateRoomSettings = async (roomId: string, settings: { gameMode?: 
         LogService.error('Firebase', 'Error updating room settings:', e);
         throw e;
     }
+};
+
+export const releaseWaitingRoomSeat = async (
+    roomId: string,
+    playerId?: string,
+    eject?: 'EJECT',
+): Promise<void> => {
+    const release = httpsCallable<{ roomId: string; playerId?: string; action?: 'EJECT' }, { released: boolean }>(
+        gameFunctions, 'releaseWaitingRoomSeat', { timeout: 12000 },
+    );
+    await release({ roomId, ...(playerId ? { playerId } : {}), ...(eject ? { action: eject } : {}) });
 };
 
 /**
@@ -1012,69 +1043,12 @@ export const signalPlayerOnline = async (roomId: string, playerId: string): Prom
 /**
  * Adds a bot to the waiting room (called by the host)
  */
-export const addBotToWaitingRoom = async (roomId: string, difficulty: 'TI_MANMAY' | 'MAPIPI' | 'GRAN_MOUN' | 'METKAYALI'): Promise<void> => {
-    if (!roomId) return;
-    const roomRef = doc(db, ROOMS_COLLECTION, roomId);
-    try {
-        await runTransaction(db, async (transaction) => {
-            const roomSnap = await transaction.get(roomRef);
-            if (!roomSnap.exists()) return;
-
-            const roomData = roomSnap.data() as GameRoom;
-            if (roomData.status !== RoomStatus.WAITING) {
-                throw new Error("La partie a déjà commencé.");
-            }
-            if (roomData.players.length >= 3) {
-                throw new Error("La table est complète.");
-            }
-
-            const botNames: Record<string, string[]> = {
-                'TI_MANMAY': ['Ti-Sonson', 'Man-Yaya'],
-                'MAPIPI': ['Dédé', 'Maxime'],
-                'GRAN_MOUN': ['Tonton-Léon', 'Eudorge'],
-                'METKAYALI': ['Man-Diab', 'Papa-Zombi']
-            };
-
-            const difficultyNames = botNames[difficulty] || botNames['MAPIPI'];
-            // Find a name not already used by another bot in the room
-            let botName = difficultyNames[0];
-            const existingBotNames = roomData.players.filter(p => p.status === 'BOT').map(p => p.displayName);
-            if (existingBotNames.includes(botName)) {
-                botName = difficultyNames[1] || `Bot ${roomData.players.length + 1}`;
-            }
-
-            const avatarIdMapping: Record<string, string[]> = {
-                'TI_MANMAY': ['avatar_bot_01', 'avatar_bot_02'],
-                'MAPIPI': ['avatar_bot_03', 'avatar_bot_04'],
-                'GRAN_MOUN': ['avatar_bot_05', 'avatar_bot_06'],
-                'METKAYALI': ['avatar_bot_07', 'avatar_bot_08']
-            };
-
-            let avatarId = avatarIdMapping[difficulty]?.[0] || 'avatar_bot_03';
-            if (existingBotNames.includes(difficultyNames[0])) {
-                avatarId = avatarIdMapping[difficulty]?.[1] || avatarId;
-            }
-
-            const newBotProfile: PlayerProfile = {
-                uid: `bot_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-                displayName: botName,
-                avatarId: avatarId,
-                status: 'BOT',
-                difficulty: difficulty,
-                isHost: false,
-                gamesPlayed: 0,
-                gamesWon: 0,
-                hasBeenDebited: true // Bots don't pay buy-in
-            };
-
-            transaction.update(roomRef, {
-                players: arrayUnion(newBotProfile),
-                lastActivity: Date.now()
-            });
-        });
-        LogService.info('Firebase', `Bot (${difficulty}) added to room ${roomId}`);
-    } catch (e) {
-        LogService.error('Firebase', 'Error adding bot to room:', e);
-        throw e;
-    }
+export const addBotToWaitingRoom = async (
+    roomId: string,
+    difficulty: NonNullable<PlayerProfile['difficulty']>,
+): Promise<void> => {
+    const addBot = httpsCallable<{ roomId: string; difficulty: typeof difficulty }, { added: boolean }>(
+        gameFunctions, 'addWaitingRoomBot', { timeout: 12000 },
+    );
+    await addBot({ roomId, difficulty });
 };

@@ -223,6 +223,32 @@ describe('Multiplayer Synchronization (Firestore Emulator)', () => {
         }));
     });
 
+    it('protects the creator and the seats of a managed lobby from direct client writes', async () => {
+        const host = 'user_host';
+        const guest = 'user_guest';
+        const hostDb = testEnv.authenticatedContext(host).firestore();
+        const guestDb = testEnv.authenticatedContext(guest).firestore();
+        const roomRef = doc(hostDb, 'rooms', 'PROTECTED_LOBBY');
+        const guestRef = doc(guestDb, 'rooms', roomRef.id);
+        const room = {
+            roomId: roomRef.id, createdBy: host, lobbyCreatorId: host, status: 'WAITING', gameState: null,
+            players: [playerProfile(host)], playerIds: [host],
+        };
+        await assertFails(setDoc(guestRef, room));
+        await assertSucceeds(setDoc(roomRef, room));
+        await assertFails(updateDoc(guestRef, {
+            playerIds: [host, guest],
+            players: [{ ...playerProfile(host), isHost: false }, { ...playerProfile(guest), isHost: true }],
+            lastActivity: Date.now(),
+        }));
+        await assertSucceeds(updateDoc(guestRef, {
+            playerIds: [host, guest], players: [playerProfile(host), playerProfile(guest)], lastActivity: Date.now(),
+        }));
+        await assertSucceeds(updateDoc(guestRef, { [`heartbeats.${guest}`]: serverTimestamp() }));
+        await assertFails(updateDoc(roomRef, { lobbyCreatorId: guest }));
+        await assertFails(updateDoc(roomRef, { playerIds: [host], players: [playerProfile(host)] }));
+    });
+
     it('Scenario 4: the creator can still start a coordinated rematch from the lobby', async () => {
         const hostDb = testEnv.authenticatedContext('user_host').firestore();
         const guestDb = testEnv.authenticatedContext('user_guest').firestore();

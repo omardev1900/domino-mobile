@@ -1,3 +1,4 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import { makeAdCycle } from './multiplayerAdCycle';
 import * as admin from 'firebase-admin';
 import { createHash } from 'node:crypto';
@@ -275,14 +276,14 @@ export const finalizeCoordinatedMatch = async (
             finalization: {
                 id: finalizationId,
                 status: 'COMPLETED',
-                completedAt: admin.firestore.FieldValue.serverTimestamp(),
+                completedAt: FieldValue.serverTimestamp(),
                 rewards,
             },
             coordinator: {
                 ...(room.coordinator ?? { version: 1 }),
                 version: 1,
                 lastTransitionId: finalizationId,
-                lastTransitionAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastTransitionAt: FieldValue.serverTimestamp(),
             },
             lastActivity: now,
         });

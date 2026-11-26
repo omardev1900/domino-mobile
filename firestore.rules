@@ -103,6 +103,26 @@ service cloud.firestore {
           request.resource.data.playerIds.size() == resource.data.playerIds.size() + 1;
       }
 
+      function respectsProtectedLobby() {
+        let creator = resource.data.get('lobbyCreatorId', null);
+        return request.resource.data.get('lobbyCreatorId', null) == creator &&
+          (creator == null || resource.data.status != 'WAITING' ||
+            isOwnHeartbeatRenewal() || isProtectedLobbyJoin());
+      }
+
+      function isProtectedLobbyJoin() {
+        let before = resource.data;
+        let after = request.resource.data;
+        let count = before.players.size();
+        return isCoordinatorLobbyJoin() &&
+          after.diff(before).affectedKeys().hasOnly(['players', 'playerIds', 'lastActivity']) &&
+          after.playerIds == before.playerIds.concat([request.auth.uid]) &&
+          after.players == before.players.concat([after.players[count]]) &&
+          after.players[count].uid == request.auth.uid &&
+          after.players[count].get('status', 'HUMAN') == 'HUMAN' &&
+          after.players[count].get('isHost', false) == false;
+      }
+
       function respectsCoordinatorAuthority() {
         return resource.data.get('coordinatorVersion', 0) != 1 ||
           isCoordinatorLobbyStart() ||
@@ -123,10 +143,18 @@ service cloud.firestore {
 
       // Joueurs : création et lecture
       allow read: if request.auth != null;
-      allow create: if request.auth != null && !request.resource.data.keys().hasAny(serverMatchFields());
+      allow create: if request.auth != null && !request.resource.data.keys().hasAny(serverMatchFields()) &&
+        (!request.resource.data.keys().hasAny(['lobbyCreatorId']) ||
+          (request.resource.data.lobbyCreatorId == request.auth.uid &&
+            request.resource.data.createdBy == request.auth.uid &&
+            request.resource.data.status == 'WAITING' &&
+            request.resource.data.gameState == null &&
+            request.resource.data.playerIds == [request.auth.uid] &&
+            request.resource.data.players.size() == 1 &&
+            request.resource.data.players[0].uid == request.auth.uid));
 
       // Un joueur ne peut mettre à jour que s'il est dans la room (ou s'y ajoute)
-      allow update: if isRoomMember() && respectsCoordinatorAuthority() && hasValidPlayerCapacity() &&
+      allow update: if isRoomMember() && respectsCoordinatorAuthority() && respectsProtectedLobby() && hasValidPlayerCapacity() &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(serverMatchFields());
 
       // Seul le créateur (host) peut supprimer la room, OU la room est vide (plus de joueurs)

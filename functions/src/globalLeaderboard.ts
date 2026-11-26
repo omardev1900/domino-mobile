@@ -1,3 +1,4 @@
+import { FieldPath, FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 
@@ -30,7 +31,7 @@ export const buildGlobalLeaderboardProjection = (uid: string, user: Data): Data 
         pointsAccumulated: stats.totalPointsAccumulated ?? 0,
         gamesPlayed: stats.gamesPlayed ?? 0,
         lastActiveAt: user.lastActiveAt ?? null,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
     };
 };
 
@@ -61,7 +62,7 @@ export const createBackfillGlobalLeaderboard = (db: admin.firestore.Firestore) =
         let cursor: admin.firestore.QueryDocumentSnapshot | undefined;
         do {
             let query: admin.firestore.Query = db.collection('users')
-                .orderBy(admin.firestore.FieldPath.documentId())
+                .orderBy(FieldPath.documentId())
                 .limit(400);
             if (cursor) query = query.startAfter(cursor);
             const snapshot = await query.get();

@@ -1,8 +1,13 @@
 import { GameRoom } from './types';
 
-// The lobby heartbeat is emitted every 10 seconds. This margin tolerates a
-// short scheduling/network delay without allowing a stale player to start.
-export const LOBBY_HEARTBEAT_MAX_AGE_MS = 20_000;
+// The heartbeat is emitted every ten seconds. Allow two missed renewals.
+export const LOBBY_HEARTBEAT_MAX_AGE_MS = 25_000;
+
+export const getLobbyHostId = (room: GameRoom): string | undefined => {
+    const humans = room.players.filter(player => player.status !== 'BOT');
+    // Older rooms could transfer the seat without updating createdBy.
+    return humans.find(player => player.uid === room.createdBy)?.uid ?? humans[0]?.uid;
+};
 
 export const heartbeatToMillis = (value: unknown): number | undefined => {
     if (value && typeof (value as { toMillis?: unknown }).toMillis === 'function') {
@@ -14,11 +19,11 @@ export const heartbeatToMillis = (value: unknown): number | undefined => {
 
 export const getMissingLobbyPresencePlayerIds = (
     room: GameRoom,
-    nowMs = Date.now(),
+    nowMs: number | null = Date.now(),
 ): string[] => room.players
     .filter(player => player.status !== 'BOT')
     .filter(player => {
         const heartbeatAtMs = heartbeatToMillis(room.heartbeats?.[player.uid]);
-        return heartbeatAtMs === undefined || heartbeatAtMs + LOBBY_HEARTBEAT_MAX_AGE_MS <= nowMs;
+        return heartbeatAtMs === undefined || (nowMs !== null && heartbeatAtMs + LOBBY_HEARTBEAT_MAX_AGE_MS <= nowMs);
     })
     .map(player => player.uid);

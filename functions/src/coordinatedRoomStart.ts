@@ -9,6 +9,7 @@ import { isFreshPresenceLease } from './presenceCoordinator';
 import { isActivePremiumEntitlement } from './premiumAccess';
 import { prepareRoomBuyIn } from './coordinatedRoomBuyIn';
 import { makeAdCycle } from './multiplayerAdCycle';
+import { getLobbyHostId } from './gameCore/lobbyPresence';
 
 const schema = z.object({
     roomId: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/),
@@ -66,7 +67,8 @@ export async function startCoordinatedRoom(
         const snapshot = await tx.get(ref);
         const room = snapshot.data() as GameRoom | undefined;
         if (!room) throw new functions.https.HttpsError('not-found', 'Salle introuvable.');
-        if (room.createdBy !== uid) throw new functions.https.HttpsError('permission-denied', 'Seul l’hôte peut démarrer.');
+        const hostId = room.status === 'WAITING' ? getLobbyHostId(room) : room.createdBy;
+        if (hostId !== uid) throw new functions.https.HttpsError('permission-denied', 'Seul l’hôte peut démarrer.');
         if (room.status === 'PLAYING') return { started: true };
         if (room.status !== 'WAITING' || (room.replaySessionId ?? null) !== previousSession) return { started: false };
         const fail = (error: string) => {
@@ -88,12 +90,14 @@ export async function startCoordinatedRoom(
         const compatible = participantProfiles.every(player => player.multiplayerAdVersion === 1);
         const adPolicy = synchronizeAds && compatible ? (premiumIds.length ? 'NONE' : 'SYNCHRONIZED') : null;
         const paused = adPolicy === 'SYNCHRONIZED';
-        const gameState = initialState(roomId, room, premiumIds, paused, now);
+        const gameState = initialState(roomId, { ...room, createdBy: uid }, premiumIds, paused, now);
         const buyIn = await prepareRoomBuyIn(db, tx, roomId, sessionId, participantIds, amount, 'debit', now, !previousSession, premiumIds);
         if (buyIn.blocked) return fail('Au moins un joueur n’a pas assez de coins pour la mise.');
         buyIn.apply();
         tx.update(ref, {
             status: 'PLAYING',
+            createdBy: uid,
+            hostId: uid,
             gameState,
             launchError: null,
             coordinatorVersion: 1,

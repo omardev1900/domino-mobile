@@ -1,3 +1,4 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 
@@ -78,7 +79,7 @@ export const enforceCallableRateLimit = async (
 
         transaction.set(rateLimitRef, {
             ...nextState,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
         });
     });
 };

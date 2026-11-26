@@ -1,3 +1,4 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 
@@ -73,7 +74,7 @@ export const applyTerminalTransition = async (
 
         const coordinator = {
             lastTransitionId: decision.transitionId,
-            lastTransitionAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastTransitionAt: FieldValue.serverTimestamp(),
             version: 1,
         };
 

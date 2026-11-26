@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import * as admin from 'firebase-admin';
+import { addWaitingRoomBot, releaseWaitingRoomSeat } from './waitingRoomSeats';
 import { startCoordinatedRoom } from './coordinatedRoomStart';
 import { prepareRoomBuyIn } from './coordinatedRoomBuyIn';
 import { settleRoomBuyIn } from './multiplayerBuyIn';
@@ -57,6 +58,85 @@ describe('Multiplayer ad coordination on Firestore', () => {
             start: () => startCoordinatedRoom(db, ids[0], { roomId, previousSession: null }, true),
         };
     }
+
+    it('allows a verified successor to replace a disconnected host and start a coordinated rematch', async () => {
+        const room = await lobby('waiting-stale-host');
+        const [host, successor, guest] = room.ids;
+        await room.ref.update({ coordinatorVersion: 1, replaySessionId: 'previous' });
+
+        await assert.rejects(
+            releaseWaitingRoomSeat(db, successor, { roomId: room.ref.id, playerId: host }),
+            { code: 'failed-precondition' },
+        );
+        await room.ref.update({
+            [`heartbeats.${host}`]: admin.firestore.Timestamp.fromMillis(Date.now() - 30_000),
+        });
+        const refused = await startCoordinatedRoom(db, host, { roomId: room.ref.id, previousSession: 'previous' }, true);
+        assert.equal(refused.started, false);
+        assert.deepEqual(await room.coins(), [1000, 1000, 1000]);
+        await assert.rejects(
+            releaseWaitingRoomSeat(db, guest, { roomId: room.ref.id, playerId: host }),
+            { code: 'permission-denied' },
+        );
+
+        await releaseWaitingRoomSeat(db, successor, { roomId: room.ref.id, playerId: host });
+        const updated = await room.read();
+        assert.equal(updated.createdBy, successor);
+        assert.equal(updated.launchError, null);
+        assert.deepEqual(updated.playerIds, [successor, guest]);
+        assert.equal(updated.heartbeats?.[host], undefined);
+        assert.equal((await db.collection('users').doc(host).get()).get('activeRoomId'), null);
+
+        await addWaitingRoomBot(db, successor, { roomId: room.ref.id, difficulty: 'MAPIPI' });
+        const started = await startCoordinatedRoom(db, successor, { roomId: room.ref.id, previousSession: 'previous' }, true);
+        assert.equal(started.started, true);
+        assert.deepEqual(await room.coins(), [1000, 900, 900]);
+        await assert.rejects(releaseWaitingRoomSeat(db, guest, { roomId: room.ref.id }), { code: 'failed-precondition' });
+    });
+
+    it('allows the Premium creator to eject a connected guest before the match', async () => {
+        const room = await lobby('premium-creator-eject', { premiumSeat: 0 });
+        const [host, guest, remaining] = room.ids;
+        await room.ref.update({ lobbyCreatorId: host });
+        await assert.rejects(
+            releaseWaitingRoomSeat(db, host, { roomId: room.ref.id, playerId: guest }),
+            { code: 'failed-precondition' },
+        );
+
+        await releaseWaitingRoomSeat(db, host, { roomId: room.ref.id, playerId: guest, action: 'EJECT' });
+
+        const remainingRoom = await room.read();
+        assert.equal(remainingRoom.lobbyCreatorId, host);
+        assert.deepEqual(remainingRoom.playerIds, [host, remaining]);
+        assert.deepEqual(remainingRoom.players.map(player => player.uid), [host, remaining]);
+        assert.equal(remainingRoom.heartbeats?.[guest], undefined);
+        assert.equal((await db.collection('users').doc(guest).get()).get('activeRoomId'), null);
+        assert.deepEqual(await room.coins(), [1000, 1000, 1000]);
+    });
+
+    it('rejects ejection by a free creator and a Premium successor', async () => {
+        const room = await lobby('premium-eject-denied', { premiumSeat: 1 });
+        const [host, successor, guest] = room.ids;
+        await room.ref.update({ lobbyCreatorId: host });
+        const ejectGuest = () => ({ roomId: room.ref.id, playerId: guest, action: 'EJECT' as const });
+        await assert.rejects(releaseWaitingRoomSeat(db, host, ejectGuest()), { code: 'permission-denied' });
+        await releaseWaitingRoomSeat(db, host, { roomId: room.ref.id });
+        assert.equal((await room.read()).createdBy, successor);
+        await assert.rejects(releaseWaitingRoomSeat(db, successor, ejectGuest()), { code: 'permission-denied' });
+        assert.deepEqual((await room.read()).playerIds, [successor, guest]);
+    });
+
+    it('permits the seated host of a legacy room to start after its creator left', async () => {
+        const room = await lobby('waiting-legacy-host');
+        await room.ref.update({ createdBy: 'previous-host' });
+        await assert.rejects(
+            startCoordinatedRoom(db, 'previous-host', { roomId: room.ref.id, previousSession: null }, false),
+            { code: 'permission-denied' },
+        );
+
+        assert.equal((await room.start()).started, true);
+        assert.equal((await room.read()).createdBy, room.ids[0]);
+    });
 
     it('debits once, waits for three confirmations and ignores old cycles', async () => {
         const room = await lobby('ads-three-free');

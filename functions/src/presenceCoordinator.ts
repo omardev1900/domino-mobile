@@ -1,10 +1,12 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 
 import { GameRoom } from './core/types';
+import { LOBBY_HEARTBEAT_MAX_AGE_MS } from './gameCore/lobbyPresence';
 
 /** A client renews its lease every ten seconds; expiry deliberately tolerates two missed pings. */
-export const PRESENCE_LEASE_MS = 25_000;
+export const PRESENCE_LEASE_MS = LOBBY_HEARTBEAT_MAX_AGE_MS;
 
 export interface PresenceLeaseFingerprint {
     playerId: string;
@@ -83,7 +85,7 @@ export const restorePresenceFromLease = async (
         transaction.update(roomRef, {
             'gameState.players': players,
             'coordinator.lastPresenceAction': 'RESTORED',
-            'coordinator.lastPresenceActionAt': admin.firestore.FieldValue.serverTimestamp(),
+            'coordinator.lastPresenceActionAt': FieldValue.serverTimestamp(),
         });
         return true;
     });
@@ -116,7 +118,7 @@ export const expirePresenceLease = async (
         transaction.update(roomRef, {
             'gameState.players': players,
             'coordinator.lastPresenceAction': 'EXPIRED',
-            'coordinator.lastPresenceActionAt': admin.firestore.FieldValue.serverTimestamp(),
+            'coordinator.lastPresenceActionAt': FieldValue.serverTimestamp(),
         });
         return true;
     });

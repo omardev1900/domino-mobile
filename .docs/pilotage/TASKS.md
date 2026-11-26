@@ -1,5 +1,9 @@
 # Taches actives
 
+- [ ] `PREMIUM-LOBBY-MODERATION-01` Prêt — Valider sur appareil, déployer les règles Firestore et la fonction de libération de place, puis publier la mise à jour mobile.
+
+- [ ] `BUG-MULTI-START-01` En cours — Valider les sorties, reconnexions et reprises de table sur appareil, puis livrer les fonctions de gestion des places et la mise à jour mobile.
+
 - [ ] [Trello #145](https://trello.com/c/Ek7ZEsCJ) En cours — Le correctif est validé en préproduction et les Cloud Functions sont déployées. Il reste à publier la 2.5.4, à activer les publicités synchronisées en production et à vérifier un match gratuit et un match mixte.
 
 - [ ] `BUG-MULTI-TIMER-01` En cours — Marge serveur réduite de 3 s à 1 s après expiration du timer ; validation appareil et publication à réaliser.

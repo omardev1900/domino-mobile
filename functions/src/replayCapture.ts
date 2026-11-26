@@ -1,3 +1,4 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import { GameRoom, GameState } from './gameCore/types';
 
@@ -32,5 +33,5 @@ export function recordReplayTransition(db: admin.firestore.Firestore, transactio
 export function finishReplayCapture(db: admin.firestore.Firestore, transaction: admin.firestore.Transaction, roomId: string, room: ReplayRoom): void {
     const id = getReplaySessionId(roomId, room);
     if (!id) return;
-    transaction.set(db.collection('replay_sessions').doc(id), { status: 'COMPLETED', completedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    transaction.set(db.collection('replay_sessions').doc(id), { status: 'COMPLETED', completedAt: FieldValue.serverTimestamp() }, { merge: true });
 }

@@ -1,3 +1,4 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import { z, ZodError } from 'zod';
@@ -112,7 +113,7 @@ export const closeRoomAndClearUsers = async (
             transaction.update(roomRef, {
                 status: 'FINISHED',
                 playerIds: [],
-                closure: { reason: 'INACTIVE', closedAt: admin.firestore.FieldValue.serverTimestamp() },
+                closure: { reason: 'INACTIVE', closedAt: FieldValue.serverTimestamp() },
                 lastActivity: Date.now(),
             });
         }

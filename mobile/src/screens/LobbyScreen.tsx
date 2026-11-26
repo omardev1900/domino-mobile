@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Linking as RNLinking, Platform, Alert } from 'react-native';
+import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { View, Text, StyleSheet, useWindowDimensions, Linking as RNLinking, Platform, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { GameRoom } from '../core/types';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAvatarImage } from '../core/avatars';
 import { EconomyHeader } from '../components/EconomyHeader';
@@ -12,18 +12,22 @@ import { AvatarFrame } from '../components/AvatarFrame';
 import { GradeBadge } from '../components/GradeBadge';
 import { LEAGUE_FRAMES_ENABLED, LEAGUE_GRADE_COLORS } from '../core/economy.constants';
 import { LeagueGrade } from '../core/economy.types';
-import { addBotToWaitingRoom, leaveRoom } from '../core/services/firebase';
+import { addBotToWaitingRoom, releaseWaitingRoomSeat } from '../core/services/firebase';
 import { BotSelectionModal } from '../components/BotSelectionModal';
 import { BotDifficulty } from '../core/services/bot.service';
 import { PremiumButton } from '../components/common/PremiumButton';
 import { LogService } from '../core/services/LogService';
-import { getMissingLobbyPresencePlayerIds } from '../core/lobbyPresence';
+import { getLobbyHostId, getMissingLobbyPresencePlayerIds } from '../core/lobbyPresence';
+import { getEstimatedPresenceServerNow } from '../hooks/game/presenceDiagnostics';
 
 interface LobbyScreenProps {
     roomData: GameRoom;
     currentUserId: string;
     onStartGame: () => void | Promise<void>;
+    hasPremium?: boolean;
+    premiumStatusResolved?: boolean;
     onDeleteRoom?: () => void;
+    onLeaveRoom?: () => void;
 }
 
 const MODE_LABELS: Record<string, string> = {
@@ -38,15 +42,34 @@ const MODE_UNIT_LABELS: Record<string, string> = {
     COCHON: 'Cochons',
 };
 
-export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserId, onStartGame, onDeleteRoom }) => {
+export const LobbyScreen: React.FC<LobbyScreenProps> = ({
+    roomData, currentUserId, onStartGame, onDeleteRoom, onLeaveRoom,
+    hasPremium = false, premiumStatusResolved = true,
+}) => {
     const insets = useSafeAreaInsets();
-    const isHost = roomData.players[0]?.uid === currentUserId;
-    const disconnectedPlayerIds = new Set(getMissingLobbyPresencePlayerIds(roomData));
+    const { width } = useWindowDimensions();
+    const compactLayout = width - insets.left - insets.right < 520;
+    const hostId = getLobbyHostId(roomData);
+    const isHost = hostId === currentUserId;
+    const isCreator = isHost && roomData.lobbyCreatorId === currentUserId;
+    const canEjectPlayers = isCreator && premiumStatusResolved && hasPremium && roomData.status === 'WAITING';
+    const [, refreshPresence] = useReducer(revision => revision + 1, 0);
+    useEffect(() => {
+        const interval = setInterval(refreshPresence, 1000);
+        return () => clearInterval(interval);
+    }, []);
+    const serverNow = getEstimatedPresenceServerNow() ?? null;
+    const disconnectedPlayerIds = new Set(getMissingLobbyPresencePlayerIds(roomData, serverNow));
     const hasDisconnectedPlayer = disconnectedPlayerIds.size > 0;
-    const canStart = roomData.players.length === 3 && !hasDisconnectedPlayer;
+    const successor = roomData.players.find(player =>
+        player.uid !== hostId && player.status !== 'BOT' && !disconnectedPlayerIds.has(player.uid),
+    )?.uid;
+    const canStart = roomData.players.length === 3 && !hasDisconnectedPlayer
+        && (!isCreator || premiumStatusResolved);
+    const shouldAutoStart = canStart && isHost && !canEjectPlayers;
     const canDeleteWaitingRoom = isHost && roomData.status === 'WAITING' && roomData.players.length <= 1 && !roomData.gameState;
     const [autoStartCountdown, setAutoStartCountdown] = useState<number | null>(null);
-    const hasAutoStarted = useRef(false);
+    const roster = JSON.stringify(roomData.players.map(player => player.uid));
     const requestInProgress = useRef(false);
     const [launchError, setLaunchError] = useState<string | null>(null);
     const [waitingExpired, setWaitingExpired] = useState(false);
@@ -73,7 +96,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
         if (!canStart) return;
         const timer = setTimeout(() => setWaitingExpired(true), 15000);
         return () => clearTimeout(timer);
-    }, [canStart]);
+    }, [canStart, roster]);
     const rootRef = useRef<View>(null);
     const [botModalVisible, setBotModalVisible] = useState(false);
     const [isAddingBot, setIsAddingBot] = useState(false);
@@ -98,8 +121,35 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
         }
     };
 
-    const handleRemoveBot = (botUid: string) => {
-        leaveRoom(roomData.roomId, botUid);
+    const [releasingPlayer, setReleasingPlayer] = useState<string | null>(null);
+    const handleReleaseSeat = async (playerId: string, action?: 'EJECT') => {
+        if (releasingPlayer) return;
+        setReleasingPlayer(playerId);
+        try {
+            await releaseWaitingRoomSeat(roomData.roomId, playerId, action);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Réessaie dans un instant.';
+            Alert.alert('Impossible de libérer la place', message);
+        } finally {
+            setReleasingPlayer(null);
+        }
+    };
+
+    const confirmSeatRemoval = (playerId: string, name: string, action?: 'EJECT') => {
+        const isEjection = action === 'EJECT';
+        const title = isEjection ? 'Exclure ce joueur ?' : 'Libérer cette place ?';
+        const message = isEjection
+            ? `${name} quittera la table et sa place sera libérée.`
+            : `La place de ${name} sera libérée.`;
+        const confirm = () => { void handleReleaseSeat(playerId, action); };
+        if (Platform.OS === 'web') {
+            if (window.confirm(message)) confirm();
+            return;
+        }
+        Alert.alert(title, message, [
+            { text: 'Annuler', style: 'cancel' },
+            { text: isEjection ? 'Exclure' : 'Libérer', style: 'destructive', onPress: confirm },
+        ]);
     };
 
     const handleDeleteRoom = () => {
@@ -121,6 +171,19 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
         }
     };
 
+    const handleLeaveRoom = () => {
+        if (!onLeaveRoom) return;
+        const message = 'Votre place sera libérée.';
+        if (Platform.OS === 'web') {
+            if (window.confirm(`Quitter la table ? ${message}`)) onLeaveRoom();
+            return;
+        }
+        Alert.alert('Quitter la table ?', message, [
+            { text: 'Annuler', style: 'cancel' },
+            { text: 'Quitter', style: 'destructive', onPress: onLeaveRoom },
+        ]);
+    };
+
     // Give focus to root on mount (useful returning from game overlays)
     useEffect(() => {
         if (Platform.OS === 'web') {
@@ -134,45 +197,26 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
     const gameMode = roomData.gameMode || 'MANCHE';
     const winningCondition = roomData.winningCondition || 3;
     const turnDuration = roomData.turnDuration ?? 15;
-    // AUTO-START: Lancer automatiquement la partie dès que 3 joueurs sont présents
     useEffect(() => {
-        // Le démarrage coordonné est une écriture réservée à l'hôte. Les
-        // invités reçoivent la transition via leur listener Firestore ; s'ils
-        // tentent eux aussi startGame, ils affichent une fausse erreur après
-        // que l'hôte a déjà lancé la partie.
-        if (!canStart || !isHost || hasAutoStarted.current || roomData.launchError) {
+        if (!shouldAutoStart) {
+            setAutoStartCountdown(null);
             return;
         }
 
-        const delay = 2000;
-
-        LogService.info('LobbyScreen', `3 joueurs détectés - démarrage par l'hôte dans ${delay / 1000}s.`);
-
         setAutoStartCountdown(2);
-
-        const countdownInterval = setInterval(() => {
-            setAutoStartCountdown(prev => {
-                if (prev === null || prev <= 1) {
-                    clearInterval(countdownInterval);
-                    return null;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-
-        const autoStartTimer = setTimeout(() => {
-            if (roomData.players.length === 3 && !hasAutoStarted.current) {
-                hasAutoStarted.current = true;
-                LogService.info('LobbyScreen', 'Lancement automatique par l\'hôte.');
-                void tryStartGame();
-            }
-        }, delay);
-
+        const countdownTimer = setTimeout(() => setAutoStartCountdown(1), 1000);
+        const autoStartTimer = setTimeout(() => setAutoStartCountdown(0), 2000);
         return () => {
+            clearTimeout(countdownTimer);
             clearTimeout(autoStartTimer);
-            clearInterval(countdownInterval);
         };
-    }, [canStart, isHost, roomData.players.length, roomData.launchError, tryStartGame]);
+    }, [shouldAutoStart, roster]);
+
+    useEffect(() => {
+        if (!shouldAutoStart || autoStartCountdown !== 0 || launching) return;
+        setAutoStartCountdown(null);
+        void tryStartGame();
+    }, [autoStartCountdown, shouldAutoStart, launching, tryStartGame]);
 
     // Create array of 3 slots with player data
     const slots = Array.from({ length: 3 }, (_, index) => {
@@ -180,21 +224,28 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
         return {
             player,
             isCurrentUser: player?.uid === currentUserId,
-            isHost: index === 0,
+            isHost: player?.uid === hostId,
             isEmpty: !player,
         };
     });
     const missingPlayerCount = Math.max(0, 3 - roomData.players.length);
     const failure = launchError || roomData.launchError;
-    let waitingMessage = `En attente de ${missingPlayerCount} joueur${missingPlayerCount > 1 ? 's' : ''}...`;
+    const showLeaveButton = onLeaveRoom && !isHost && roomData.status === 'WAITING'
+        && slots.some(slot => slot.isCurrentUser);
+    let waitingMessage: string | null = `En attente de ${missingPlayerCount} joueur${missingPlayerCount > 1 ? 's' : ''}...`;
     if (hasDisconnectedPlayer && roomData.players.length === 3) {
         waitingMessage = 'Un joueur est déconnecté — démarrage suspendu';
     } else if (canStart) {
-        if (autoStartCountdown !== null) waitingMessage = `Démarrage dans ${autoStartCountdown}...`;
+        if (autoStartCountdown) waitingMessage = `Démarrage dans ${autoStartCountdown}...`;
         else if (launching) waitingMessage = 'Lancement de la partie…';
         else if (failure) waitingMessage = failure;
-        else if (waitingExpired) waitingMessage = 'En attente d’une relance par l’hôte.';
+        else if (canEjectPlayers) waitingMessage = null;
+        else if (waitingExpired) waitingMessage = isHost
+            ? 'La partie est prête à être relancée.'
+            : 'En attente du démarrage par l’hôte.';
         else waitingMessage = 'Préparation de la partie...';
+    } else if (missingPlayerCount === 0) {
+        waitingMessage = 'Préparation de la partie...';
     }
 
     const shareToWhatsApp = () => {
@@ -216,6 +267,9 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
     };
 
     const renderPlayerCard = (slot: typeof slots[0], index: number) => {
+        const player = slot.player;
+        const isDisconnected = player && disconnectedPlayerIds.has(player.uid);
+        const canEject = player && !slot.isCurrentUser && player.status !== 'BOT' && !isDisconnected && canEjectPlayers;
         return (
             <Animated.View
                 key={index}
@@ -247,6 +301,18 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
                         </>
                     ) : (
                         <>
+                            {canEject && (
+                                <PremiumButton
+                                    style={styles.ejectButton}
+                                    hitSlop={2}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Exclure ${player.displayName}`}
+                                    disabled={releasingPlayer !== null || launching}
+                                    onPress={() => confirmSeatRemoval(player.uid, player.displayName, 'EJECT')}
+                                >
+                                    <Text style={styles.ejectButtonLabel}>Exclure</Text>
+                                </PremiumButton>
+                            )}
                             <View style={{ justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
                                 <View style={[
                                     styles.avatar,
@@ -275,7 +341,8 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
                                 {isHost && slot.player?.status === 'BOT' && (
                                     <PremiumButton 
                                         style={styles.removeBotButton} 
-                                        onPress={() => handleRemoveBot(slot.player!.uid)}
+                                        onPress={() => handleReleaseSeat(slot.player!.uid)}
+                                        disabled={releasingPlayer !== null}
                                         soundName="clack1"
                                     >
                                         <Ionicons name="close" size={16} color="#FFF" />
@@ -296,8 +363,19 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
                                     ● Déconnecté
                                 </Text>
                             )}
-                            {/* [R3-M2] Badge grade Ligue */}
                             <GradeBadge grade={slot.player?.leagueGrade} size="xs" />
+                            {player && !slot.isCurrentUser && isDisconnected
+                                && (isHost || (slot.isHost && successor === currentUserId)) && (
+                                <PremiumButton
+                                    style={styles.releaseSeatButton}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Libérer la place de ${player.displayName}`}
+                                    disabled={releasingPlayer !== null}
+                                    onPress={() => confirmSeatRemoval(player.uid, player.displayName)}
+                                >
+                                    <Text style={styles.releaseSeatButtonLabel}>Libérer</Text>
+                                </PremiumButton>
+                            )}
                         </>
                     )}
                 </View>
@@ -337,8 +415,9 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
                         soundName="notify"
                         accessibilityRole="button"
                         accessibilityLabel="Partager la salle sur WhatsApp"
+                        hitSlop={7}
                     >
-                        <Ionicons name="logo-whatsapp" size={22} color="#FFF" />
+                        <Ionicons name="logo-whatsapp" size={17} color="#FFF" />
                     </PremiumButton>
                     <View style={styles.roomInfoContainer}>
                         <Text style={styles.roomCode}>Code : {roomData.roomId}</Text>
@@ -346,10 +425,20 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
                 </View>
             </Animated.View>
 
-                <View style={styles.mainContent}>
-                    <Animated.View entering={FadeIn.delay(400)} style={styles.optionsSection}>
+                <View style={[styles.mainContent, compactLayout && styles.mainContentCompact]}>
+                    <Animated.View entering={FadeIn.delay(400)} style={[styles.optionsSection, compactLayout && styles.optionsSectionCompact]}>
                         <View style={styles.sectionHeader}>
                             <Text style={styles.sectionTitle}>TABLE</Text>
+                            {showLeaveButton && (
+                                <PremiumButton
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Quitter la table"
+                                    onPress={handleLeaveRoom}
+                                    style={styles.leaveRoomButton}
+                                >
+                                    <MaterialCommunityIcons name="door-open" size={24} color="#FF6B6B" />
+                                </PremiumButton>
+                            )}
                             {canDeleteWaitingRoom && onDeleteRoom ? (
                                 <PremiumButton
                                     style={styles.deleteRoomButton}
@@ -363,42 +452,53 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ roomData, currentUserI
                                 </PremiumButton>
                             ) : null}
                         </View>
-                        <View style={styles.optionsGrid}>
-                            <View style={styles.optionChip}>
+                        <View style={[styles.optionsGrid, compactLayout && styles.optionsGridCompact]}>
+                            <View style={[styles.optionChip, compactLayout && styles.optionChipCompact]}>
                                 <Text style={styles.optionChipLabel}>Mode</Text>
                                 <Text style={styles.optionChipValue}>{MODE_LABELS[gameMode] || gameMode}</Text>
                             </View>
-                            <View style={styles.optionChip}>
+                            <View style={[styles.optionChip, compactLayout && styles.optionChipCompact]}>
                                 <Text style={styles.optionChipLabel}>Objectif</Text>
                                 <Text style={styles.optionChipValue}>{winningCondition} {MODE_UNIT_LABELS[gameMode]}</Text>
                             </View>
-                            <View style={styles.optionChip}>
+                            <View style={[styles.optionChip, compactLayout && styles.optionChipCompact]}>
                                 <Text style={styles.optionChipLabel}>Tour</Text>
                                 <Text style={styles.optionChipValue}>{turnDuration}s</Text>
                             </View>
                         </View>
                     </Animated.View>
 
-                    {/* Player Cards - Right/Center */}
-                    <View style={styles.playersContainer}>
+                    <View style={[styles.playersContainer, compactLayout && styles.playersContainerCompact]}>
                         {slots.map((slot, index) => renderPlayerCard(slot, index))}
                     </View>
                 </View>
 
-                <Animated.View entering={FadeInUp.delay(600).duration(500)} style={styles.waitingStatus}>
-                    <Ionicons
-                        name={canStart ? 'checkmark-circle-outline' : 'time-outline'}
-                        size={18}
-                        color={canStart ? '#81C784' : 'rgba(255,255,255,0.55)'}
-                    />
-                    <Text accessibilityLiveRegion="polite" style={[styles.waitingText, canStart && styles.readyText]}>
-                        {waitingMessage}
-                    </Text>
-                </Animated.View>
-                {canStart && isHost && !launching && (failure || waitingExpired) && (
-                    <Pressable accessibilityRole="button" onPress={tryStartGame} style={styles.waitingStatus}>
-                        <Text style={[styles.waitingText, styles.readyText]}>Relancer la partie</Text>
-                    </Pressable>
+                {waitingMessage && (
+                    <Animated.View entering={FadeInUp.delay(600).duration(500)} style={styles.waitingStatus}>
+                        <Ionicons
+                            name={canStart ? 'checkmark-circle-outline' : 'time-outline'}
+                            size={18}
+                            color={canStart ? '#81C784' : 'rgba(255,255,255,0.55)'}
+                        />
+                        <Text accessibilityLiveRegion="polite" style={[styles.waitingText, canStart && styles.readyText]}>
+                            {waitingMessage}
+                        </Text>
+                    </Animated.View>
+                )}
+                {canStart && isHost && !launching && autoStartCountdown === null
+                    && (canEjectPlayers || failure || waitingExpired) && (
+                    <PremiumButton
+                        accessibilityRole="button"
+                        disabled={releasingPlayer !== null}
+                        onPress={tryStartGame}
+                        style={styles.startButton}
+                    >
+                        <LinearGradient colors={['#FFD700', '#FFA500']} style={styles.startButtonGradient}>
+                            <Text style={styles.startButtonLabel}>
+                                {canEjectPlayers && !failure ? 'Démarrer la partie' : 'Relancer la partie'}
+                            </Text>
+                        </LinearGradient>
+                    </PremiumButton>
                 )}
             </Animated.ScrollView>
         </LinearGradient>
@@ -433,12 +533,12 @@ const styles = StyleSheet.create({
     headerRightContent: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
+        gap: 6,
         marginLeft: 'auto',
         backgroundColor: 'rgba(0,0,0,0.3)',
-        paddingVertical: 6,
-        paddingHorizontal: 10,
-        borderRadius: 12,
+        paddingVertical: 3,
+        paddingHorizontal: 7,
+        borderRadius: 9,
         borderWidth: 1,
         borderColor: 'rgba(255,215,0,0.2)',
     },
@@ -446,10 +546,10 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
     },
     roomCode: {
-        fontSize: 16,
+        fontSize: 12,
         color: '#FFD700',
         fontWeight: 'bold',
-        letterSpacing: 2,
+        letterSpacing: 0.8,
     },
     roomTypeBadge: {
         fontSize: 11,
@@ -457,9 +557,9 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
     },
     shareIconButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 30,
+        height: 30,
+        borderRadius: 15,
         backgroundColor: '#25D366',
         justifyContent: 'center',
         alignItems: 'center',
@@ -480,6 +580,10 @@ const styles = StyleSheet.create({
         gap: 16,
         minHeight: 180,
     },
+    mainContentCompact: {
+        flexDirection: 'column',
+        alignItems: 'stretch',
+    },
     // ─── Player Cards (Reduced -20%) ────────────────────────────
     playersContainer: {
         flex: 1,
@@ -487,6 +591,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         gap: 10,
+    },
+    playersContainerCompact: {
+        flex: 0,
+        gap: 6,
     },
     playerCardWrapper: {
         flex: 1,
@@ -565,6 +673,9 @@ const styles = StyleSheet.create({
         width: 150,
         justifyContent: 'center',
     },
+    optionsSectionCompact: {
+        width: '100%',
+    },
     sectionHeader: {
         minHeight: 40,
         flexDirection: 'row',
@@ -582,6 +693,9 @@ const styles = StyleSheet.create({
         flexDirection: 'column',
         gap: 6,
     },
+    optionsGridCompact: {
+        flexDirection: 'row',
+    },
     optionChip: {
         width: '100%',
         backgroundColor: 'rgba(255,255,255,0.06)',
@@ -589,6 +703,10 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
         paddingHorizontal: 4,
         alignItems: 'center',
+    },
+    optionChipCompact: {
+        width: 'auto',
+        flex: 1,
     },
     optionChipLabel: {
         fontSize: 8,
@@ -639,6 +757,64 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,99,71,0.5)',
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    ejectButton: {
+        alignSelf: 'stretch',
+        minHeight: 40,
+        marginBottom: 8,
+        borderRadius: 9,
+        backgroundColor: '#B82036',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    ejectButtonLabel: {
+        color: '#FFF',
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    releaseSeatButton: {
+        alignSelf: 'stretch',
+        minHeight: 44,
+        marginTop: 8,
+        paddingHorizontal: 3,
+        borderRadius: 9,
+        backgroundColor: '#FFA500',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    releaseSeatButtonLabel: {
+        color: '#24143F',
+        fontSize: 12,
+        fontWeight: '800',
+        textAlign: 'center',
+    },
+    leaveRoomButton: {
+        alignSelf: 'center',
+        width: 44,
+        height: 44,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,107,107,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,107,107,0.45)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    startButton: {
+        alignSelf: 'center',
+        marginTop: 16,
+        borderRadius: 14,
+        overflow: 'hidden',
+    },
+    startButtonGradient: {
+        minHeight: 48,
+        paddingHorizontal: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    startButtonLabel: {
+        color: '#24143F',
+        fontSize: 16,
+        fontWeight: '800',
     },
     waitingStatus: {
         minHeight: 40,

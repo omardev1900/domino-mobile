@@ -42,7 +42,7 @@ import { shouldOfferMatchAdReward } from '../core/ads/matchRewardPolicy';
 import { determineFirstPlayer, dealGameSolo, getForcedOpeningDominoId, getForcedTieBreakDominoId } from '../core/LogicEngine';
 import { getValidMoves } from '../core/DominoEngine';
 import { GameState, Player, PlayerId, GamePhase, Domino, GameRoom, GameMode } from '@/core/types';
-import { leaveRoom, clearRematchVotes, updatePlayerChat, resetRoomToLobby, markPlayerAsDebited, markRoomAsFinished, setUserActiveRoom, deleteWaitingRoomIfOwner, voteForRematch } from '../core/services/firebase';
+import { leaveRoom, clearRematchVotes, updatePlayerChat, resetRoomToLobby, markPlayerAsDebited, markRoomAsFinished, setUserActiveRoom, releaseWaitingRoomSeat, voteForRematch } from '../core/services/firebase';
 import SoundManager from '../core/audio/SoundManager';
 import HapticManager from '../core/audio/HapticManager';
 import { resolveStartingHandSize } from '../core/startingHandSize';
@@ -148,15 +148,6 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [gameId, isSoloMode, signalPlayerOffline]);
 
-    useEffect(() => {
-        if (isSoloMode || !gameId) return;
-        AsyncStorage.setItem('active_roomId', gameId).catch(err => LogService.error('GameScreen', 'Error setting active_roomId', err));
-        if (localPlayerId && localPlayerId !== 'p1') {
-            setUserActiveRoom(localPlayerId, gameId).catch(err => LogService.error('GameScreen', 'Error setting user active room', err));
-        }
-
-    }, [gameId, isSoloMode, localPlayerId]);
-
     // -- 3. Sync Hook (Network & Reconnection) --
     const {
         gameState,
@@ -167,6 +158,21 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         setGameState,
         setRoomData
     } = useGameSync({ gameId, localPlayerId, isSoloMode, signalPlayerOnline });
+
+    const belongsToRoom = roomData?.roomId === gameId && (
+        roomData?.players.some(player => player.uid === localPlayerId)
+        || roomData?.playerIds?.includes(localPlayerId)
+        || roomData?.gameState?.players.some(player => player.id === localPlayerId)
+        || roomData?.participantIds?.includes(localPlayerId)
+    );
+    useEffect(() => {
+        if (isSoloMode || !gameId || !belongsToRoom) return;
+        AsyncStorage.setItem('active_roomId', gameId).catch(err => LogService.error('GameScreen', 'Error setting active_roomId', err));
+        if (localPlayerId && localPlayerId !== 'p1') {
+            setUserActiveRoom(localPlayerId, gameId).catch(err => LogService.error('GameScreen', 'Error setting user active room', err));
+        }
+
+    }, [belongsToRoom, gameId, isSoloMode, localPlayerId]);
 
     // FIX-400: maintenir le ref de phase à jour pour que useConnectionStatus puisse
     // suspendre les heartbeats Firestore pendant les transitions critiques.
@@ -994,8 +1000,11 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             && !!currentState
             && currentState.phase !== 'MATCH_END';
 
+        const isWaitingRoom = roomData?.status === 'WAITING';
         try {
-            if (isActiveMultiplayerSession && usesSystemCoordinator && !roomData?.adCancelled) {
+            if (isWaitingRoom && gameId) {
+                await releaseWaitingRoomSeat(gameId);
+            } else if (isActiveMultiplayerSession && usesSystemCoordinator && !roomData?.adCancelled) {
                 await dispatch({ type: 'SURRENDER', playerId: localPlayerId });
             } else if (isActiveMultiplayerSession && gameId && !roomData?.adCancelled) {
                 await Promise.all([
@@ -1006,7 +1015,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
                 ]);
             }
 
-            if ((!isActiveMultiplayerSession || roomData?.adCancelled) && gameId && localPlayerId !== 'p1') {
+            if (!isWaitingRoom && (!isActiveMultiplayerSession || roomData?.adCancelled) && gameId && localPlayerId !== 'p1') {
                 await setUserActiveRoom(localPlayerId, null);
             }
             await AsyncStorage.removeItem('active_roomId');
@@ -1035,6 +1044,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         router,
         usesSystemCoordinator,
         roomData?.adCancelled,
+        roomData?.status,
     ]);
 
     const handleExitPreservingSoloGame = useCallback(() => {
@@ -1965,7 +1975,8 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // IN-GAME PROTECTION: Prevent accidental exit
     useEffect(() => {
 
-        if (!gameState && !isStarting) return; // Only protect if in game or starting
+        const isWaitingRoom = !isSoloMode && roomData?.status === 'WAITING';
+        if (!gameState && !isStarting && !isWaitingRoom) return;
 
         const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
             // If the match is over, or we intentionally leave, allow navigation
@@ -1977,12 +1988,12 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
 
             // Prompt the user before leaving
             Alert.alert(
-                'Quitter la partie ?',
-                'Votre abandon sera définitif et la partie continuera sans vous.',
+                isWaitingRoom ? 'Quitter la table ?' : 'Quitter la partie ?',
+                isWaitingRoom ? 'Votre place sera libérée.' : 'Votre abandon sera définitif et la partie continuera sans vous.',
                 [
                     { text: "Rester", style: 'cancel', onPress: () => { } },
                     {
-                        text: 'Abandonner',
+                        text: isWaitingRoom ? 'Quitter' : 'Abandonner',
                         style: 'destructive',
                         onPress: () => {
                             void handleLeaveRoom();
@@ -1993,7 +2004,7 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
         });
 
         return unsubscribe;
-    }, [gameState, handleLeaveRoom, isStarting, navigation]);
+    }, [gameState, handleLeaveRoom, isSoloMode, isStarting, navigation, roomData?.status]);
 
     // -------------------------------------------------------------------------
     // SAFE FIREBASE UPDATE: Silently swallow offline errors in Solo mode.
@@ -2137,22 +2148,6 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
     // -------------------------------------------------------------------------
     // HELPERS & ACTIONS (UI-ONLY)
     // -------------------------------------------------------------------------
-
-    const handleDeleteWaitingRoom = useCallback(async () => {
-        if (!gameId || !roomData || isSoloMode) return;
-        try {
-            const deleted = await deleteWaitingRoomIfOwner(gameId, localPlayerId);
-            if (deleted) {
-                await AsyncStorage.removeItem('active_roomId');
-                if (localPlayerId && localPlayerId !== 'p1') {
-                    await setUserActiveRoom(localPlayerId, null);
-                }
-                router.replace('/home');
-            }
-        } catch (error: any) {
-            Alert.alert('Suppression impossible', error?.message || 'Impossible de supprimer cette table.');
-        }
-    }, [gameId, roomData, isSoloMode, localPlayerId, router]);
 
     // -- 7. Action Handlers (Delegated) --
     // These are already extracted into useGameEngine and useGameSync
@@ -2469,7 +2464,27 @@ export default function GameScreen({ gameId, userId, authUid, mode, difficulty, 
             );
         }
 
-        return <LobbyScreen key="lobby-screen" roomData={roomData} currentUserId={localPlayerId} onStartGame={handleStartGame} onDeleteRoom={handleDeleteWaitingRoom} />;
+        if (roomData.status === 'WAITING' && !roomData.players.some(player => player.uid === localPlayerId)) {
+            return (
+                <View style={styles.loading}>
+                    <Text style={styles.text}>Ta place n’est plus réservée à cette table.</Text>
+                    <Text accessibilityRole="button" style={styles.text} onPress={handleLeaveRoom}>Retour à l’accueil</Text>
+                </View>
+            );
+        }
+
+        return (
+            <LobbyScreen
+                key={roomData.roomId}
+                roomData={roomData}
+                currentUserId={localPlayerId}
+                onStartGame={handleStartGame}
+                hasPremium={hasPremium}
+                premiumStatusResolved={premiumStatusResolved}
+                onDeleteRoom={handleLeaveRoom}
+                onLeaveRoom={handleLeaveRoom}
+            />
+        );
     }
 
     const getPlayerScore = (player: Player) => {

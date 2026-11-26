@@ -1,5 +1,13 @@
 # Taches terminees
 
+### 2026-11-26
+
+- [x] Centrer le bouton de démarrage dans le lobby et proposer aux invités une sortie par icône avec confirmation dans le bloc TABLE. Réduire le bloc de partage et placer l’exclusion en rouge en haut de la fiche du joueur. Placer la libération de place en orange en bas de la fiche, avec confirmation.
+
+- [x] `PREMIUM-LOBBY-MODERATION-01` Permettre au créateur Premium d’exclure un invité avant le démarrage. La fonction vérifie le droit Premium et les règles Firestore protègent les places des nouvelles tables.
+
+- [x] `BUG-MULTI-START-01` Rétablir le lancement automatique après une reconnexion et gérer les départs du lobby dans une transaction, avec transfert d’hôte et remplacement d’un joueur absent. Correctif local, validation sur appareil et publication suivies dans les tâches actives.
+
 ### 2026-11-19
 
 - [x] [Trello #138](https://trello.com/c/VxNmEWH0) Corriger la boucle de publicité et de résumé en fin de partie solo. Correctif vérifié sur Android en préproduction.
