@@ -4,6 +4,8 @@
 
 - [ ] `BUG-MULTI-START-01` Prêt — Publier la version mobile qui inclut les correctifs validés du lobby. Les fonctions de démarrage et de gestion des places sont en production.
 
+- [ ] [Trello #14](https://trello.com/c/tWSa407M) Prêt — Publier sur Google Play le bundle 2.5.4 intégrant le cadeau de bienvenue accessible depuis l’accueil, puis vérifier la première partie depuis une installation du Store.
+
 - [ ] [Trello #145](https://trello.com/c/Ek7ZEsCJ) En cours — Le correctif est validé en préproduction et les Cloud Functions sont déployées. Il reste à publier la 2.5.4, à activer les publicités synchronisées en production et à vérifier un match gratuit et un match mixte.
 
 - [ ] `BUG-MULTI-TIMER-01` En cours — Marge serveur réduite de 3 s à 1 s après expiration du timer ; validation appareil et publication à réaliser.

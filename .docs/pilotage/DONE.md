@@ -16,6 +16,10 @@
 
 - [x] `BUG-MULTI-START-01` Rétablir le lancement automatique après une reconnexion et gérer les départs du lobby dans une transaction, avec transfert d’hôte et remplacement d’un joueur absent. La publication de la version mobile est suivie dans les tâches actives.
 
+### 2026-11-22
+
+- [x] [Trello #14](https://trello.com/c/tWSa407M) Créditer le cadeau de bienvenue côté serveur à la première connexion et garder l’accueil utilisable pendant le crédit ou après une erreur. `creditCoins` est en production. Vérification de 52 comptes créés depuis le 16 novembre et régularisation de 33 profils sans solde ni historique. Un reçu de 300 pièces a été vérifié pour chacun. Le bundle Android signé a été généré localement.
+
 ### 2026-11-19
 
 - [x] [Trello #138](https://trello.com/c/VxNmEWH0) Corriger la boucle de publicité et de résumé en fin de partie solo. Correctif vérifié sur Android en préproduction.

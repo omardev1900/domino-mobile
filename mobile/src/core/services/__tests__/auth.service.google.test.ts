@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import {
     getAdditionalUserInfo,
@@ -83,7 +82,7 @@ describe('AuthService Google', () => {
         );
     });
 
-    it('initialise les données et protège les coins lors de la création Google', async () => {
+    it('initialise les données lors de la création Google', async () => {
         mockSignInWithPopup.mockResolvedValue(googleUserCredential);
         mockGetAdditionalUserInfo.mockReturnValue({ isNewUser: true });
 
@@ -97,7 +96,6 @@ describe('AuthService Google', () => {
             'google-uid',
             { coins: 100 }
         );
-        expect(AsyncStorage.setItem).toHaveBeenCalledWith('@new_player_coins_protected', '100');
         expect(mockStatsService.syncWithFirebase).not.toHaveBeenCalled();
     });
 

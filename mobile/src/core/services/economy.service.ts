@@ -19,7 +19,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { auth, db, firebaseEmulatorHost, gameFunctions } from './firebase';
 import { LogService } from './LogService';
 import { PlayerEconomy, MatchReward, LeagueGrade, RewardCalculationInput, LeagueFrameId } from '../economy.types';
-import { NEW_PLAYER_COINS, DAILY_REWARD_COINS, AD_REWARD_COINS, MINIMUM_COIN_RESERVE } from '../economy.constants';
+import { DAILY_REWARD_COINS, AD_REWARD_COINS, MINIMUM_COIN_RESERVE } from '../economy.constants';
 import { getLevelFromXP, getLeagueGrade } from '../RewardEngine';
 import { getMonthlyCochonsFromHistory } from '../leagueProgress';
 import { perfDefer, perfEnd, perfError, perfJsonSize, perfMark, perfStart } from './perf';
@@ -38,7 +38,7 @@ const LOCAL_WEB_FUNCTIONS_HOSTNAMES = new Set(['localhost', '127.0.0.1']);
 // ─── Valeur par défaut pour nouveau joueur ───────────────────────────────────
 
 const DEFAULT_ECONOMY: PlayerEconomy = {
-    coins: NEW_PLAYER_COINS, // 🪙 Cadeau de bienvenue
+    coins: 0, // Le solde de bienvenue est créé par le serveur.
     xp: 0,
     level: 1,
     diamonds: 0,
@@ -179,10 +179,8 @@ class EconomyService {
                 // Migration : s'assurer que tous les champs sont présents
                 this.cached = this.mergeWithDefaults(parsed);
             } else {
-                // Nouveau joueur → cadeau de bienvenue
                 this.cached = { ...DEFAULT_ECONOMY };
                 await this.persistLocal();
-                LogService.info('EconomyService', 'New player: welcome bonus applied.');
             }
         } catch (e) {
             LogService.error('EconomyService', 'getEconomy error:', e);
@@ -243,39 +241,17 @@ class EconomyService {
             }
 
             // MIGRATION WELCOME GIFT
-            // Si le document distant n'a pas le flag, c'est un compte legacy (ils ont déjà eu les 500 coins à la création)
-            if (remoteEconomy.welcomeGiftClaimed === undefined && (remoteStats || Object.keys(remoteEconomy).length > 0)) {
-                remoteEconomy.welcomeGiftClaimed = true;
-            }
-
-            // On télécharge et fusionne intelligemment (on garde le timestamp local s'il est plus récent)
+            // Un profil incomplet peut déjà contenir des stats initiales et des champs d'économie.
+            // Seul un solde existant ou un historique de jeu permet de reconnaître un ancien compte.
+            const hasExistingBalance = Number.isSafeInteger(data.economy?.coins) && data.economy.coins >= 0;
+            const hasLegacyActivity = remoteStats?.gamesPlayed > 0 || (!data.economy && remoteStats?.coins > 0);
+            const confirmedEconomy = {
+                ...remoteEconomy,
+                coins: remoteEconomy.coins ?? 0,
+                welcomeGiftClaimed: remoteEconomy.welcomeGiftClaimed ?? (hasExistingBalance || hasLegacyActivity),
+            };
             const localEconomy = await this.getEconomy();
-            const downloadedEconomy = this.mergeEconomies(localEconomy, remoteEconomy);
-
-            // 🛡️ BUG-WELCOME-COINS : Protection race condition nouveau joueur.
-            // Si Firestore répond avant la propagation complète de pushToFirebase (signUp),
-            // remote.coins peut valoir 0 ou undefined, ce qui écraserait le cadeau de bienvenue.
-            // On vérifie le flag posé par signUp et on restaure/re-pousse si nécessaire.
-            try {
-                const protectedCoinsRaw = await AsyncStorage.getItem('@new_player_coins_protected');
-                if (protectedCoinsRaw !== null) {
-                    const protectedCoins = parseInt(protectedCoinsRaw, 10);
-                    if (!isNaN(protectedCoins) && (downloadedEconomy.coins ?? 0) < protectedCoins) {
-                        LogService.warn(
-                            'EconomyService',
-                            `[BUG-WELCOME-COINS] Race condition détectée : Firestore coins=${downloadedEconomy.coins} < protégé=${protectedCoins}. Restauration des coins de bienvenue.`
-                        );
-                        downloadedEconomy.coins = protectedCoins;
-                        // Re-pousse la valeur correcte sur Firestore pour corriger la propagation
-                        await this.pushToFirebase(uid, downloadedEconomy);
-                    }
-                    // Flag consommé — le supprimer dans tous les cas
-                    await AsyncStorage.removeItem('@new_player_coins_protected');
-                    LogService.info('EconomyService', '[BUG-WELCOME-COINS] Flag de protection consommé.');
-                }
-            } catch (flagError) {
-                LogService.warn('EconomyService', '[BUG-WELCOME-COINS] Impossible de lire/supprimer le flag de protection.', flagError);
-            }
+            const downloadedEconomy = this.mergeEconomies(localEconomy, snap.metadata.fromCache ? remoteEconomy : confirmedEconomy);
 
             this.cached = downloadedEconomy;
             this.recentSyncAt.set(uid, Date.now());
@@ -490,32 +466,20 @@ class EconomyService {
     }
 
     /**
-     * Marque le cadeau de bienvenue comme réclamé.
+     * Demande le crédit au serveur et retourne le montant effectivement versé.
      */
-    async claimWelcomeGift(): Promise<void> {
-        const uid = auth.currentUser?.uid;
-        if (uid && !uid.startsWith('guest_')) {
-            const result = await this.creditServerCoins(uid, 'WELCOME', `welcome_${uid}`);
-            const eco = await this.getEconomy();
-            this.cached = { ...eco, coins: result.balance, welcomeGiftClaimed: true };
-            await this.persistLocal();
-            return;
-        }
-        const eco = await this.getEconomy();
-        if (eco.welcomeGiftClaimed) {
-            LogService.warn('EconomyService', 'Welcome gift already claimed');
-            return;
+    async claimWelcomeGift(uid: string): Promise<number> {
+        if (auth.currentUser?.uid !== uid || this.storageScope !== uid) {
+            throw new Error('Connexion requise pour recevoir le cadeau de bienvenue.');
         }
 
-        // Le montant (NEW_PLAYER_COINS) est déjà dans l'économie par défaut.
-        // On ne fait que mettre à jour le flag.
-        this.cached = {
-            ...eco,
-            welcomeGiftClaimed: true
-        };
+        const result = await this.creditServerCoins(uid, 'WELCOME', `welcome_${uid}`);
+        const eco = await this.getEconomy();
+        if (auth.currentUser?.uid !== uid || this.storageScope !== uid) return 0;
+
+        this.cached = { ...eco, coins: result.balance, welcomeGiftClaimed: true };
         await this.persistLocal();
-        await this.pushToFirebase(auth.currentUser?.uid || 'guest_temp', this.cached);
-        LogService.info('EconomyService', 'Welcome gift marked as claimed');
+        return result.credited;
     }
 
     /**
@@ -838,7 +802,11 @@ class EconomyService {
         // Toutes les fonctions d'économie sont déployées dans europe-west1.
         // Utiliser l'instance régionnée évite que l'appel parte par défaut vers
         // us-central1, où `creditCoins` n'existe pas.
-        const credit = httpsCallable<{ operationId: string; kind: typeof kind }, { credited: number; balance: number }>(gameFunctions, 'creditCoins');
+        const credit = httpsCallable<{ operationId: string; kind: typeof kind }, { credited: number; balance: number }>(
+            gameFunctions,
+            'creditCoins',
+            kind === 'WELCOME' ? { timeout: 10_000 } : undefined
+        );
         return (await credit({ operationId, kind })).data;
     }
 
@@ -877,6 +845,7 @@ class EconomyService {
             }
             // COINS-07 : le client ne propose jamais une nouvelle valeur de solde.
             delete cleanEconomy.coins;
+            delete cleanEconomy.welcomeGiftClaimed;
 
             const payload: Record<string, unknown> = { economy: cleanEconomy };
             // Écrire displayName et avatarId si fournis, pour que le leaderboard
@@ -972,6 +941,7 @@ class EconomyService {
             unlockedChatItems: partial.unlockedChatItems ?? [],
             chatInventory: partial.chatInventory ?? {},
             chatInventoryMigratedAt: partial.chatInventoryMigratedAt,
+            welcomeGiftClaimed: partial.welcomeGiftClaimed,
         };
     }
 }

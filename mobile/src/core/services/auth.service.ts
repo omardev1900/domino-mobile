@@ -150,16 +150,6 @@ class AuthService {
 
             const defaultEconomy = await economyService.getEconomy();
             await economyService.pushToFirebase(profile.uid, defaultEconomy);
-
-            // Protège les coins de bienvenue contre une lecture Firestore trop rapide.
-            await AsyncStorage.setItem(
-                '@new_player_coins_protected',
-                String(defaultEconomy.coins)
-            );
-            LogService.info(
-                'AuthService',
-                `[BUG-WELCOME-COINS] Flag de protection posé: ${defaultEconomy.coins} coins.`
-            );
         } else {
             // stats et economy lisent le même document `users/{uid}` :
             // les lancer en parallèle permet à userDocumentService de les

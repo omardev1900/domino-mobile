@@ -20,12 +20,12 @@ import { authService } from '../src/core/services/auth.service';
 import { statsService } from '../src/core/services/stats.service';
 import { economyService } from '../src/core/services/economy.service';
 import { PlayerProfile } from '../src/core/types';
-import { LEAGUE_GRADE_COLORS, LOW_COINS_PROMPT_THRESHOLD, NEW_PLAYER_COINS } from '../src/core/economy.constants';
+import { LEAGUE_GRADE_COLORS, LOW_COINS_PROMPT_THRESHOLD } from '../src/core/economy.constants';
 import { LeagueGrade } from '../src/core/economy.types';
 import { getAvatarImage } from '../src/core/avatars';
 import { EconomyHeader } from '../src/components/EconomyHeader';
-import { DailyRewardModal } from '../src/components/DailyRewardModal';
 import { DailyGiftInfoModal } from '../src/components/DailyGiftInfoModal';
+import { WelcomeGiftNotice, type WelcomeGiftStatus } from '../src/components/WelcomeGiftNotice';
 import { HelpOverlay } from '../src/components/HelpOverlay';
 import { LeagueProgressWidget } from '../src/components/LeagueProgressWidget';
 import { ShareTextButton } from '../src/components/ShareButton';
@@ -55,9 +55,9 @@ export default function HomeScreen() {
     const [cochonsGiven, setCochonsGiven] = useState(0);
     const [myLeagueGrade, setMyLeagueGrade] = useState<LeagueGrade | null>(null);
     const [showDailyReward, setShowDailyReward] = useState(false);
-    const [showWelcomeReward, setShowWelcomeReward] = useState(false);
+    const [welcomeGift, setWelcomeGift] = useState<{ uid: string; status: WelcomeGiftStatus } | null>(null);
     const [showLowCoinsPrompt, setShowLowCoinsPrompt] = useState(false);
-    const claimingWelcomeReward = useRef(false);
+    const welcomeClaims = useRef(new Set<string>());
     const [dailyRewardAmount, setDailyRewardAmount] = useState(0);
     const [hasPremium, setHasPremium] = useState(false);
     const [premiumEntitlement, setPremiumEntitlement] = useState<PremiumEntitlement | null>(null);
@@ -68,7 +68,7 @@ export default function HomeScreen() {
     const { isLoaded: isAppOpenLoaded, isClosed: isAppOpenClosed, isShowing: isAppOpenShowing, error: appOpenError, load: loadAppOpen, show: showAppOpen } = useAppOpenAd(AdMobIds.APP_OPEN);
 
     const lowCoinsPromptShownRef = useRef(false);
-    const campaignEnabled = !!user && premiumStatusResolved && homePrepared && appOpenDone && !isAppOpenShowing && !globalCampaignBlock && !showHelp && !showDailyReward && !showWelcomeReward && !showLowCoinsPrompt;
+    const campaignEnabled = !!user && premiumStatusResolved && homePrepared && appOpenDone && !isAppOpenShowing && !globalCampaignBlock && !showHelp && !showDailyReward && !showLowCoinsPrompt;
     const { campaign, dismiss: dismissCampaign } = useCampaign('HOME', campaignEnabled);
 
     useEffect(() => {
@@ -123,6 +123,36 @@ export default function HomeScreen() {
         const monthlyCochons = getMonthlyCochonsFromHistory(stats.matchHistory);
         setCochonsGiven(monthlyCochons);
         setMyLeagueGrade(getLeagueProgress(monthlyCochons).grade);
+    }, []);
+
+    const showDailyGiftIfAvailable = useCallback(async (uid: string, isActive: () => boolean) => {
+        if (!(await economyService.isDailyRewardAvailable()) || !isActive()) return false;
+        const amount = await economyService.checkAndClaimDailyReward(uid);
+        if (amount !== null && isActive()) {
+            setDailyRewardAmount(amount);
+            setTimeout(() => {
+                if (isActive()) setShowDailyReward(true);
+            }, 500);
+        }
+        return true;
+    }, []);
+
+    const handleClaimWelcomeReward = useCallback(async (uid: string) => {
+        if (welcomeClaims.current.has(uid)) return;
+        welcomeClaims.current.add(uid);
+        setWelcomeGift({ uid, status: { kind: 'pending' } });
+        try {
+            const credited = await economyService.claimWelcomeGift(uid);
+            setEconomyRefresh(value => value + 1);
+            setWelcomeGift(current => current?.uid === uid
+                ? (credited > 0 ? { uid, status: { kind: 'credited', amount: credited } } : null)
+                : current);
+        } catch (error) {
+            LogService.warn('Home', 'Impossible de récupérer le cadeau de bienvenue.', error);
+            setWelcomeGift(current => current?.uid === uid ? { uid, status: { kind: 'retry' } } : current);
+        } finally {
+            welcomeClaims.current.delete(uid);
+        }
     }, []);
 
     // Lance le listener temps réel une seule fois au montage.
@@ -186,22 +216,12 @@ export default function HomeScreen() {
 
                     // 2. Évaluation des cadeaux (base serveur fiable)
                     const isNewAccount = !(await economyService.hasClaimedWelcomeGift());
-                    const dailyAvailable = await economyService.isDailyRewardAvailable();
                     if (cancelled) return;
 
                     if (isNewAccount) {
-                        setTimeout(() => {
-                            if (!cancelled && !claimingWelcomeReward.current) setShowWelcomeReward(true);
-                        }, 1000);
-                    } else if (dailyAvailable) {
-                        const claimedAmount = await economyService.checkAndClaimDailyReward(u.uid);
-                        if (!cancelled && claimedAmount !== null) {
-                            setDailyRewardAmount(claimedAmount);
-                            setTimeout(() => {
-                                if (!cancelled) setShowDailyReward(true);
-                            }, 500);
-                        }
-                    } else {
+                        // Le cadeau du jour sera proposé à la prochaine visite de l'accueil.
+                        void handleClaimWelcomeReward(u.uid);
+                    } else if (!(await showDailyGiftIfAvailable(u.uid, () => !cancelled))) {
                         const economy = await economyService.getEconomy();
                         if (
                             !cancelled
@@ -225,7 +245,7 @@ export default function HomeScreen() {
                 cancelled = true;
 
             };
-        }, [refreshMonthlyLeague])
+        }, [handleClaimWelcomeReward, refreshMonthlyLeague, showDailyGiftIfAvailable])
     );
 
     // Carousel Timer: Alterner les news toutes les 5 secondes
@@ -246,32 +266,6 @@ export default function HomeScreen() {
     const handleCloseDailyReward = () => {
         setShowDailyReward(false);
     };
-
-    // Appelé pour récupérer le bonus de bienvenue
-    const handleClaimWelcomeReward = useCallback(async () => {
-        setShowWelcomeReward(false);
-        if (claimingWelcomeReward.current) return;
-        claimingWelcomeReward.current = true;
-        try {
-            await economyService.claimWelcomeGift();
-
-            // Si le cadeau quotidien est aussi dispo, on l'affiche juste après avec un délai
-            const dailyAvailable = await economyService.isDailyRewardAvailable();
-            if (dailyAvailable) {
-                const claimedAmount = await economyService.checkAndClaimDailyReward(user?.uid);
-                if (claimedAmount !== null) {
-                    setDailyRewardAmount(claimedAmount);
-                    setTimeout(() => {
-                        setShowDailyReward(true);
-                    }, 500);
-                }
-            }
-        } catch (error) {
-            LogService.warn('Home', 'Impossible de récupérer le cadeau de bienvenue.', error);
-        } finally {
-            claimingWelcomeReward.current = false;
-        }
-    }, [user?.uid]);
 
     const handleJoinCommunity = async () => {
         try {
@@ -381,6 +375,13 @@ export default function HomeScreen() {
                 ]}
                 showsVerticalScrollIndicator={false}
             >
+                {user && welcomeGift?.uid === user.uid && (
+                    <WelcomeGiftNotice
+                        status={welcomeGift.status}
+                        onRetry={() => void handleClaimWelcomeReward(user.uid)}
+                        onClose={() => setWelcomeGift(null)}
+                    />
+                )}
                 <View style={styles.topCardsRow}>
                     {/* 1. Nouveau bloc Actualités - CAROUSEL */}
                     <Animated.View entering={FadeInUp.delay(200).duration(500)} style={[styles.topCardWrapper, styles.compactTopCard]}>
@@ -553,20 +554,6 @@ export default function HomeScreen() {
                 onClose={() => setShowHelp(false)} 
             />
 
-            {/* Welcome Reward Modal — Nouveau joueur */}
-            <DailyRewardModal
-                visible={showWelcomeReward}
-                amount={NEW_PLAYER_COINS}
-                isWelcome={true}
-                onClaim={handleClaimWelcomeReward}
-                onWatchAd={handleClaimWelcomeReward} // Même bouton pour récupérer
-                onSkip={handleClaimWelcomeReward} // S'ils skippent, ils récupèrent quand même car c'est un don
-                showAdReward={!hasPremium}
-                informational
-                autoDismissMs={3000}
-                onDismiss={handleClaimWelcomeReward}
-            />
-
             {/* Daily Reward Modal — affiché uniquement si aucun modal de reconnexion */}
             <DailyGiftInfoModal
                 visible={showDailyReward && premiumStatusResolved}
@@ -576,7 +563,7 @@ export default function HomeScreen() {
 
             {/* Réserve basse : le bouton ouvre volontairement le flux vidéo unique de la boutique. */}
             <Modal
-                visible={showLowCoinsPrompt && !showDailyReward && !showWelcomeReward}
+                visible={showLowCoinsPrompt && !showDailyReward}
                 transparent
                 animationType="fade"
                 onRequestClose={() => setShowLowCoinsPrompt(false)}

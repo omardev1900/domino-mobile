@@ -22,11 +22,15 @@ export async function creditCoins(db: admin.firestore.Firestore, uid: string, ra
     return db.runTransaction(async tx => {
         const [userSnap, receiptSnap] = await Promise.all([tx.get(userRef), tx.get(receiptRef)]);
         const economy = userSnap.data()?.economy ?? {};
+        const validBalance = Number.isSafeInteger(economy.coins) && economy.coins >= 0;
+        if (kind === 'WELCOME' && receiptSnap.exists && !validBalance) {
+            throw new functions.https.HttpsError('failed-precondition', 'Solde de bienvenue indisponible.');
+        }
         if (receiptSnap.exists) return { credited: 0, balance: economy.coins ?? 0, duplicate: true };
         const initializeWelcomeBalance = kind === 'WELCOME'
             && economy.coins === undefined && economy.welcomeGiftClaimed !== true;
         const coins = initializeWelcomeBalance ? 0 : economy.coins;
-        if (typeof coins !== 'number' || !Number.isSafeInteger(coins) || coins < 0) throw new functions.https.HttpsError('failed-precondition', 'Solde indisponible.');
+        if (!initializeWelcomeBalance && !validBalance) throw new functions.https.HttpsError('failed-precondition', 'Solde indisponible.');
         if (kind === 'WELCOME' && economy.welcomeGiftClaimed) return { credited: 0, balance: coins, duplicate: true };
         if (kind === 'DAILY' && typeof economy.lastDailyRewardTimestamp === 'number' && now - economy.lastDailyRewardTimestamp < DAY_MS) {
             throw new functions.https.HttpsError('failed-precondition', 'Récompense quotidienne déjà réclamée.');
